@@ -1,0 +1,15 @@
+diff --git a/src/midp/javax/microedition/lcdui/Canvas.java b/src/midp/javax/microedition/lcdui/Canvas.java
+index be92c201..567c3d1b 100644
+--- a/src/midp/javax/microedition/lcdui/Canvas.java
++++ b/src/midp/javax/microedition/lcdui/Canvas.java
+@@ -99,7 +99,9 @@ public abstract class Canvas extends Displayable {
+ 			graphics.fillRect(0, y, w, bh);
+ 			graphics.setFont(Font.getFont(0, 0, Font.SIZE_SMALL));
+ 			graphics.setColor(LCDUIUtils.foregroundColor);
+-			graphics.drawString("Fake soft bar", w >> 1, y + 2, Graphics.HCENTER | Graphics.TOP);
++			// j2me-web patch: the Bridge client draws the soft keys itself; keep the reserved area blank
++			if (!(Emulator.getEmulator() instanceof emulator.ui.bridge.BridgeFrontend))
++				graphics.drawString("Fake soft bar", w >> 1, y + 2, Graphics.HCENTER | Graphics.TOP);
+ 		}
+ 	}
+ 
