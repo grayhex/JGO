@@ -169,7 +169,7 @@ cargo test --manifest-path bridge/kemulator-adapter/Cargo.toml
 | [UI.md](docs/UI.md), [PLAYER_CONTROLS.md](docs/PLAYER_CONTROLS.md) | интерфейс, телефоны, управление |
 | [SESSION_RECOVERY.md](docs/SESSION_RECOVERY.md) | восстановление сессий, сохранения RMS |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md), [BRIDGE.md](docs/BRIDGE.md) | устройство системы, патчи Bridge |
-| [EMULATOR_FEATURE_MATRIX.md](docs/EMULATOR_FEATURE_MATRIX.md) | покрытие возможностей KEmulator |
+| [EMULATOR_FEATURE_MATRIX.md](docs/EMULATOR_FEATURE_MATRIX.md), [SENSORS.md](docs/SENSORS.md) | покрытие возможностей KEmulator, датчики |
 | [COMPATIBILITY.md](docs/COMPATIBILITY.md), [LAB.md](docs/LAB.md) | совместимость, лаборатория |
 | [SECURITY.md](docs/SECURITY.md) | безопасность |
 

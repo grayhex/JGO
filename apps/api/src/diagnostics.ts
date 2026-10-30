@@ -29,7 +29,8 @@ function jcmd(javaBin: string, pid: number, command: string, timeoutMs = 8000): 
     execFile(jcmdBin(javaBin), [String(pid), command], { timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
       // the JVM prints its JAVA_TOOL_OPTIONS banner on stderr before anything else
       const clean = (t: string) => t.split('\n').filter((l) => l.trim() && !l.startsWith('Picked up ')).join('\n').trim();
-      if (err) resolve(`(unavailable: ${clean(`${stderr}\n${stdout}`).split('\n')[0]?.slice(0, 200) || err.message.slice(0, 200)})`);
+      if (err && (err as NodeJS.ErrnoException).code === 'ENOENT') resolve('(jcmd is not installed: the JRE-only install has no JVM tools; apt install openjdk-21-jdk-headless adds them)');
+      else if (err) resolve(`(unavailable: ${clean(`${stderr}\n${stdout}`).split('\n')[0]?.slice(0, 200) || err.message.slice(0, 200)})`);
       else resolve(clean(stdout.toString()));
     });
   });

@@ -169,7 +169,7 @@ cargo test --manifest-path bridge/kemulator-adapter/Cargo.toml
 | [UI.md](docs/UI.md), [PLAYER_CONTROLS.md](docs/PLAYER_CONTROLS.md) | interface, handsets, controls |
 | [SESSION_RECOVERY.md](docs/SESSION_RECOVERY.md) | session recovery, RMS saves |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md), [BRIDGE.md](docs/BRIDGE.md) | system design, Bridge patches |
-| [EMULATOR_FEATURE_MATRIX.md](docs/EMULATOR_FEATURE_MATRIX.md) | KEmulator feature coverage (Russian) |
+| [EMULATOR_FEATURE_MATRIX.md](docs/EMULATOR_FEATURE_MATRIX.md), [SENSORS.md](docs/SENSORS.md) | KEmulator feature coverage, sensors (Russian) |
 | [COMPATIBILITY.md](docs/COMPATIBILITY.md), [LAB.md](docs/LAB.md) | compatibility, lab |
 | [SECURITY.md](docs/SECURITY.md) | security |
 
