@@ -1,0 +1,249 @@
+{
+  "id": "nokia-5800",
+  "manufacturer": "Nokia",
+  "model": "5800 XpressMusic",
+  "year": 2008,
+  "variant": "Black / Red, standard XpressMusic",
+  "status": "review-draft",
+  "coordinateSystem": "normalized-0-1",
+  "screen": {
+    "width": 360,
+    "height": 640,
+    "rect": {
+      "x": 0.1259105098855359,
+      "y": 0.18505859375,
+      "width": 0.7492195629552549,
+      "height": 0.625
+    }
+  },
+  "body": {
+    "width": 961,
+    "height": 2048,
+    "aspectRatio": 0.46923828125,
+    "sourceWidth": 885,
+    "sourceHeight": 1778,
+    "sourceCrop": [
+      35,
+      12,
+      850,
+      1748
+    ]
+  },
+  "input": {
+    "kind": "touchscreen",
+    "pointer": true,
+    "externalKeypad": true
+  },
+  "buttons": [
+    {
+      "id": "call",
+      "label": "Call",
+      "polygon": [
+        [
+          0.18404908,
+          0.87211982
+        ],
+        [
+          0.35582822,
+          0.87211982
+        ],
+        [
+          0.36441718,
+          0.87615207
+        ],
+        [
+          0.36441718,
+          0.88767281
+        ],
+        [
+          0.35582822,
+          0.89170507
+        ],
+        [
+          0.18404908,
+          0.89170507
+        ],
+        [
+          0.17546012,
+          0.88767281
+        ],
+        [
+          0.17546012,
+          0.87615207
+        ]
+      ]
+    },
+    {
+      "id": "menu",
+      "label": "Menu",
+      "polygon": [
+        [
+          0.39263804,
+          0.87211982
+        ],
+        [
+          0.60736196,
+          0.87211982
+        ],
+        [
+          0.61595092,
+          0.87615207
+        ],
+        [
+          0.61595092,
+          0.88767281
+        ],
+        [
+          0.60736196,
+          0.89170507
+        ],
+        [
+          0.39263804,
+          0.89170507
+        ],
+        [
+          0.38404908,
+          0.88767281
+        ],
+        [
+          0.38404908,
+          0.87615207
+        ]
+      ]
+    },
+    {
+      "id": "end",
+      "label": "End / power",
+      "polygon": [
+        [
+          0.64785276,
+          0.87211982
+        ],
+        [
+          0.81472393,
+          0.87211982
+        ],
+        [
+          0.82331288,
+          0.87615207
+        ],
+        [
+          0.82331288,
+          0.88767281
+        ],
+        [
+          0.81472393,
+          0.89170507
+        ],
+        [
+          0.64785276,
+          0.89170507
+        ],
+        [
+          0.6392638,
+          0.88767281
+        ],
+        [
+          0.6392638,
+          0.87615207
+        ]
+      ]
+    },
+    {
+      "id": "media",
+      "label": "Media bar shortcut",
+      "polygon": [
+        [
+          0.77668712,
+          0.12788018
+        ],
+        [
+          0.81226994,
+          0.12788018
+        ],
+        [
+          0.8208589,
+          0.13191244
+        ],
+        [
+          0.8208589,
+          0.14861751
+        ],
+        [
+          0.81226994,
+          0.15264977
+        ],
+        [
+          0.77668712,
+          0.15264977
+        ],
+        [
+          0.76809816,
+          0.14861751
+        ],
+        [
+          0.76809816,
+          0.13191244
+        ]
+      ]
+    }
+  ],
+  "keyMappings": {
+    "call": null,
+    "menu": null,
+    "end": null,
+    "media": null
+  },
+  "assets": {
+    "body": "body.webp",
+    "png": "body.png",
+    "glass": "glass.png",
+    "hitboxes": "hitboxes.svg",
+    "preview": "preview.webp"
+  },
+  "views": {
+    "full": {
+      "body": "body.webp",
+      "glass": "glass.png",
+      "width": 961,
+      "height": 2048,
+      "screenRect": {
+        "x": 0.1259105098855359,
+        "y": 0.18505859375,
+        "width": 0.7492195629552549,
+        "height": 0.625
+      },
+      "controls": "buttons"
+    },
+    "screen": {
+      "body": "zoom.webp",
+      "png": "zoom.png",
+      "glass": "zoom-glass.png",
+      "width": 961,
+      "height": 1725,
+      "aspectRatio": 0.5571014492753623,
+      "cropInFull": {
+        "x": 0,
+        "y": 0,
+        "width": 1,
+        "height": 0.84228515625
+      },
+      "screenRect": {
+        "x": 0.1259105098855359,
+        "y": 0.21971014492753624,
+        "width": 0.7492195629552549,
+        "height": 0.7420289855072464
+      },
+      "buttons": [],
+      "controls": "external"
+    }
+  },
+  "notes": [
+    "Original generated illustration; historical/typography acceptance pending.",
+    "2048px export; native resolution and measured masks are retained in design/phones.",
+    "Zoom is the same upper shell cropped above the hardware controls; it never changes emulation.",
+    "Resistive-touch display routes real Canvas pointer events; full view always offers the external game keypad.",
+    "No physical D-pad, soft keys, numeric keys or Fire are invented. Call/Menu/End/Media are OS controls and remain unbound.",
+    "No Nokia 5800 platform is fabricated; the available generic 360x640 preset is explicitly labelled as a fallback."
+  ]
+}

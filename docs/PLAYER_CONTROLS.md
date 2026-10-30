@@ -11,6 +11,11 @@
 | Nokia N95-1 | 240x320-common-full-screen | generic | 240×320 | Nokia | false | unchanged emulator default |
 | Nokia E71 | 320x240-common-full-screen | generic | 320×240 | Nokia | false | unchanged emulator default |
 | Sony Ericsson K750i | 176x220-common-full-screen | generic | 176×220 | Nokia-compatible codes | false | unchanged emulator default |
+| Sony Ericsson W995 | 240x320-common-full-screen | generic | 240×320 | Nokia-compatible codes | false | unchanged emulator default |
+| Sony Ericsson K790i | 240x320-common-full-screen | generic | 240×320 | Nokia-compatible codes | false | unchanged emulator default |
+| Motorola RAZR V3 | 176x220-common-full-screen | generic | 176×220 | Nokia-compatible codes | false | unchanged emulator default |
+| Nokia 5800 XpressMusic | 360x640-common-full-screen | generic | 360×640 | Nokia-compatible codes + pointer | false | unchanged emulator default |
+| Samsung S5230 Star | 240x400-common-full-screen | generic | 240×400 | Nokia-compatible codes + pointer | false | unchanged emulator default |
 
 The table describes the pinned build's 59 presets, not full hardware emulation. A generic profile does not impersonate a Nokia N95, E71 or Sony Ericsson platform. Properties and fullscreen policy follow the selected *existing* preset via midlets.ini; no manufacturer API support is inferred from a skin.
 
@@ -33,7 +38,8 @@ Focus loss/hidden page, disconnect and remapping release only relevant sources. 
 ## Validation
 
 - `npm run build`, `npm test`
-- `npm run test:integration` (real KEmulator; phones.test.ts covers all five mappings, frame size, Fire, platform, emitted fullscreen policy, persistence and unchanged active session).
+- `npm run test:integration` (real KEmulator; phones.test.ts covers all ten mappings, frame size, Fire, platform, emitted fullscreen policy, persistence and unchanged active session).
+- `node tests/e2e/phone-expansion.mjs`: five added handsets, body keys, real pointer coordinates, full/zoom views and session persistence; included in `npm run test:e2e`.
 - `CHROMIUM_PATH=/usr/bin/chromium node tests/e2e/player-features.mjs` for system Chromium; omit the variable to use Playwright's installed browser.
 
 Browser tests use the real backend/MIDlet and simulated Gamepad API data. They cannot certify actual USB/Bluetooth hardware or browser-specific controller drivers. Device disconnect/focus/deadzone/multiple-source behavior also has deterministic unit tests.

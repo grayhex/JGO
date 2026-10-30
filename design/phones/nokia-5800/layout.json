@@ -1,0 +1,286 @@
+{
+  "id": "nokia-5800",
+  "manufacturer": "Nokia",
+  "model": "5800 XpressMusic",
+  "year": 2008,
+  "variant": "Black / Red, standard XpressMusic",
+  "screen": [
+    360,
+    640
+  ],
+  "screenRect": [
+    137,
+    332,
+    612,
+    1088
+  ],
+  "apertureCleanup": [
+    149,
+    321,
+    739,
+    1430
+  ],
+  "crop": [
+    35,
+    12,
+    850,
+    1748
+  ],
+  "zoomBottom": 1474,
+  "input": {
+    "kind": "touchscreen",
+    "pointer": true,
+    "externalKeypad": true
+  },
+  "outline": [
+    [
+      "M",
+      442,
+      29
+    ],
+    [
+      "C",
+      650,
+      29,
+      741,
+      41,
+      791,
+      84
+    ],
+    [
+      "C",
+      827,
+      118,
+      836,
+      175,
+      836,
+      244
+    ],
+    [
+      "L",
+      836,
+      1526
+    ],
+    [
+      "C",
+      836,
+      1637,
+      809,
+      1697,
+      749,
+      1716
+    ],
+    [
+      "C",
+      664,
+      1737,
+      217,
+      1737,
+      138,
+      1717
+    ],
+    [
+      "C",
+      80,
+      1700,
+      51,
+      1641,
+      51,
+      1529
+    ],
+    [
+      "L",
+      51,
+      245
+    ],
+    [
+      "C",
+      51,
+      161,
+      73,
+      106,
+      105,
+      76
+    ],
+    [
+      "C",
+      161,
+      36,
+      256,
+      29,
+      442,
+      29
+    ],
+    [
+      "Z"
+    ]
+  ],
+  "buttons": [
+    {
+      "id": "call",
+      "label": "Call",
+      "polygon": [
+        [
+          185,
+          1526
+        ],
+        [
+          325,
+          1526
+        ],
+        [
+          332,
+          1533
+        ],
+        [
+          332,
+          1553
+        ],
+        [
+          325,
+          1560
+        ],
+        [
+          185,
+          1560
+        ],
+        [
+          178,
+          1553
+        ],
+        [
+          178,
+          1533
+        ]
+      ],
+      "action": null
+    },
+    {
+      "id": "menu",
+      "label": "Menu",
+      "polygon": [
+        [
+          355,
+          1526
+        ],
+        [
+          530,
+          1526
+        ],
+        [
+          537,
+          1533
+        ],
+        [
+          537,
+          1553
+        ],
+        [
+          530,
+          1560
+        ],
+        [
+          355,
+          1560
+        ],
+        [
+          348,
+          1553
+        ],
+        [
+          348,
+          1533
+        ]
+      ],
+      "action": null
+    },
+    {
+      "id": "end",
+      "label": "End / power",
+      "polygon": [
+        [
+          563,
+          1526
+        ],
+        [
+          699,
+          1526
+        ],
+        [
+          706,
+          1533
+        ],
+        [
+          706,
+          1553
+        ],
+        [
+          699,
+          1560
+        ],
+        [
+          563,
+          1560
+        ],
+        [
+          556,
+          1553
+        ],
+        [
+          556,
+          1533
+        ]
+      ],
+      "action": null
+    },
+    {
+      "id": "media",
+      "label": "Media bar shortcut",
+      "polygon": [
+        [
+          668,
+          234
+        ],
+        [
+          697,
+          234
+        ],
+        [
+          704,
+          241
+        ],
+        [
+          704,
+          270
+        ],
+        [
+          697,
+          277
+        ],
+        [
+          668,
+          277
+        ],
+        [
+          661,
+          270
+        ],
+        [
+          661,
+          241
+        ]
+      ],
+      "action": null
+    }
+  ],
+  "notes": [
+    "Resistive-touch display routes real Canvas pointer events; full view always offers the external game keypad.",
+    "No physical D-pad, soft keys, numeric keys or Fire are invented. Call/Menu/End/Media are OS controls and remain unbound.",
+    "No Nokia 5800 platform is fabricated; the available generic 360x640 preset is explicitly labelled as a fallback."
+  ],
+  "sourceSize": [
+    885,
+    1778
+  ],
+  "measuredOn": "2026-10-30"
+}
