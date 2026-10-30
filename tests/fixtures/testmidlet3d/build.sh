@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Builds kemtest3d.jar (M3G smoke test). Usage: build.sh <KEmulator.jar> [out.jar]
 set -euo pipefail
+. "$(cd "$(dirname "$0")" && pwd)/../../../runtime/scripts/lib.sh"
 here="$(cd "$(dirname "$0")" && pwd)"
 api="${1:?usage: build.sh <KEmulator.jar> [out.jar]}"
 out="${2:-$here/build/kemtest3d.jar}"
 work="$(mktemp -d)"; trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/classes" "$(dirname "$out")"
-javac --release 8 -nowarn -cp "$api" -d "$work/classes" "$here"/src/kemtest3d/*.java 2>&1 | grep -v '^Note:\|warning: \[options\]\|JAVA_TOOL' || true
+javac_checked --release 8 -nowarn -cp "$api" -d "$work/classes" "$here"/src/kemtest3d/*.java
 python3 - "$work/classes" <<'PY'
 import sys, pathlib
 for f in pathlib.Path(sys.argv[1]).rglob("*.class"):
