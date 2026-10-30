@@ -68,7 +68,7 @@ export function Shell({ path, go, health, theme, setTheme, title, subtitle, sear
             <span className={`dot ${ok ? '' : 'bad'}`} aria-hidden />
             <span className="runtime-text">
               <b>{translateUI(health ? (ok ? 'Emulator ready' : 'Runtime not ready') : 'Connecting…')}</b>
-              {translateUI(health ? `${health.activeSessions}/${health.maxSessions} sessions · v${health.version}` : 'checking server')}
+              {translateUI(health ? '{active}/{max} sessions · v{version}' : 'checking server', health ? { active: health.activeSessions, max: health.maxSessions, version: health.version } : undefined)}
             </span>
           </div>
           <button className="nav-item hide-mobile" onClick={() => setCollapsed((c) => !c)} aria-pressed={collapsed} title={translateUI(collapsed ? 'Expand sidebar' : 'Collapse sidebar')}>
@@ -85,7 +85,7 @@ export function Shell({ path, go, health, theme, setTheme, title, subtitle, sear
           {subtitle && <div className="header-sub">{translateUI(subtitle)}</div>}
         </div>
         <span className="spacer" />
-        <select className="select" aria-label="Language / Язык" value={locale} onChange={e=>setLocale(e.target.value as 'en'|'ru')}><option value="en">EN</option><option value="ru">RU</option></select>
+        <Seg<'en' | 'ru'> className="on-shell" label="Language / Язык" value={locale} onChange={setLocale} options={[{ value: 'en', label: 'EN', title: 'English' }, { value: 'ru', label: 'RU', title: 'Русский' }]} />
         {search && <input className="input-shell" type="search" placeholder={translateUI("Search games or vendors")} value={search.value} onChange={(e) => search.onChange(e.target.value)} aria-label={translateUI("Search")} />}
         {health && !health.ok && <span className="badge mock hide-narrow" title={translateUI("The emulator runtime is missing on this server")}>{translateUI("Runtime not ready")}</span>}
         <Seg

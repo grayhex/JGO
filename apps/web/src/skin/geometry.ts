@@ -57,3 +57,32 @@ export function toNormalized(clientX: number, clientY: number, box: { left: numb
   if (box.width <= 0 || box.height <= 0) return null;
   return [(clientX - box.left) / box.width, (clientY - box.top) / box.height];
 }
+
+/** Presentation-only turn of the picture, clockwise degrees. The emulated framebuffer is never changed. */
+export type Rotation = 0 | 90 | 180 | 270;
+export const ROTATIONS: Rotation[] = [0, 90, 180, 270];
+export const nextRotation = (r: Rotation): Rotation => ROTATIONS[(ROTATIONS.indexOf(r) + 1) % 4]!;
+
+/**
+ * Like `placeScreen`, for a picture that is turned by `rotation`. The returned `canvas` box is the element's own
+ * (unturned) box, centred where the turned picture sits, so that `transform: rotate()` lands it in the window.
+ * `visual` is the box the picture occupies on screen.
+ */
+export function placeRotated(view: Pick<SkinView, 'screenRect'>, box: { w: number; h: number }, frame: { w: number; h: number }, integer: boolean, rotation: Rotation): Placement & { visual: Placement['canvas'] } {
+  const sideways = rotation === 90 || rotation === 270;
+  const p = placeScreen(view, box, sideways ? { w: frame.h, h: frame.w } : frame, integer);
+  if (!sideways) return { ...p, visual: p.canvas };
+  const cx = p.canvas.left + p.canvas.width / 2;
+  const cy = p.canvas.top + p.canvas.height / 2;
+  const width = p.canvas.height;
+  const height = p.canvas.width;
+  return { ...p, canvas: { left: cx - width / 2, top: cy - height / 2, width, height }, visual: p.canvas };
+}
+
+/** A point on the turned picture, as fractions (0..1) of its on-screen box, to fractions of the framebuffer. */
+export function unrotatePoint(u: number, v: number, rotation: Rotation): Point {
+  if (rotation === 90) return [v, 1 - u];
+  if (rotation === 180) return [1 - u, 1 - v];
+  if (rotation === 270) return [1 - v, u];
+  return [u, v];
+}

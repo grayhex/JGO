@@ -132,7 +132,7 @@ export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['ki
       <div className="page-head">
         <div>
           <h1>{translateUI("Library")}</h1>
-          <p>{translateUI(games === null ? 'Loading…' : (() => { const n = new Set((games ?? []).map((g) => g.groupKey)).size; return `${n} ${n === 1 ? 'game' : 'games'} · ${favCount} favorites · stored on this server only`; })())}</p>
+          <p>{games === null ? translateUI('Loading…') : (() => { const n = new Set((games ?? []).map((g) => g.groupKey)).size; return translateUI('{games} · {fav} favorites · stored on this server only', { games: translateUI(n === 1 ? '{n} game' : '{n} games', { n }), fav: favCount }); })()}</p>
         </div>
         <span className="spacer" />
         <Seg<Filter> label={translateUI("Filter")} value={filter} onChange={setFilter} options={[{ value: 'all', label: 'All' }, { value: 'favorites', label: 'Favorites' }, { value: 'recent', label: 'Recent' }]} />

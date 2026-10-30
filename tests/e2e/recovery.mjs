@@ -30,9 +30,9 @@ try{
  await p.locator('.ctrl-col').getByRole('button',{name:'Start',exact:true}).click();
  await wait(async()=>{const s=await active();return s&&s.logTail.some(l=>l.includes('SHUTDOWN_COUNT 1'));});
  assert.notEqual((await active()).id,original.id);
- await p.getByLabel('Language / Язык').selectOption('ru');await p.getByRole('button',{name:'Остановить',exact:true}).waitFor();
+ await p.getByRole('radio',{name:'RU'}).click();await p.getByRole('button',{name:'Остановить',exact:true}).waitFor();
  await p.reload();await p.getByRole('button',{name:'Остановить',exact:true}).waitFor();assert.equal(await p.locator('html').getAttribute('lang'),'ru');
- await p.getByLabel('Language / Язык').selectOption('en');await p.getByRole('button',{name:'Stop',exact:true}).waitFor();
+ await p.getByRole('radio',{name:'EN'}).click();await p.getByRole('button',{name:'Stop',exact:true}).waitFor();
  // A failed stop request must not pretend the live game has ended or launch a second JVM.
  await p.route('**/api/sessions/*',route=>route.request().method()==='DELETE'?route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({message:'Temporary stop failure'})}):route.continue());
  await p.getByRole('button',{name:'Stop',exact:true}).click();await p.getByText('Temporary stop failure',{exact:true}).waitFor();

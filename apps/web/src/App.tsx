@@ -10,6 +10,7 @@ import { SetupWizard } from './components/SetupWizard';
 import { Library } from './components/Library';
 import { Player } from './components/Player';
 import { Shell } from './components/Shell';
+import { Seg } from './components/ui';
 import { PhonesPage } from './pages/PhonesPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { loadServerSettings } from './serverSettings';
@@ -25,7 +26,7 @@ function Login({ onDone }: { onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   return (
     <div className="login">
-      <div className="login-hero"><select className="select" aria-label="Language / Язык" value={locale} onChange={e=>setLocale(e.target.value as 'en'|'ru')}><option value="en">EN</option><option value="ru">RU</option></select>
+      <div className="login-hero"><Seg<'en' | 'ru'> label="Language / Язык" value={locale} onChange={setLocale} options={[{ value: 'en', label: 'EN', title: 'English' }, { value: 'ru', label: 'RU', title: 'Русский' }]} />
         <h1>{translateUI("J2ME Web")}</h1>
         <p>{translateUI("Your Java ME games, played by the real KEmulator on this server and streamed to any browser.")}</p>
       </div>

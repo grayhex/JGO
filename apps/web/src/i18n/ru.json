@@ -379,5 +379,22 @@
   "MobyGames data removed": "Данные MobyGames удалены",
   "Fullscreen is unavailable; Lights Out still works in this window.": "Полный экран недоступен; режим «Без света» продолжает работать в окне.",
   "Delete all MobyGames descriptions, covers and screenshots stored on this server? Your games are not affected.": "Удалить все описания, обложки и снимки экрана MobyGames? Игры останутся на месте.",
-  "Remove the MobyGames API key from this server? Already downloaded information is kept.": "Удалить ключ API MobyGames с сервера? Загруженные сведения останутся."
+  "Remove the MobyGames API key from this server? Already downloaded information is kept.": "Удалить ключ API MobyGames с сервера? Загруженные сведения останутся.",
+  "Rotate the picture": "Повернуть картинку",
+  "Rotate the picture (for games made for landscape)": "Повернуть картинку (для игр, сделанных под альбомную ориентацию)",
+  "Picture rotation": "Поворот картинки",
+  "Some games are made for landscape and draw sideways. Turning the picture is only a view; the game is not told.": "Некоторые игры рассчитаны на альбомную ориентацию и рисуют «боком». Поворот — только вид: игре о нём не сообщается.",
+  "This game says it is made for": "Игра заявляет, что сделана для",
+  "At": "При",
+  "it may be cropped or laid out wrongly.": "картинка может быть обрезана или расположена неверно.",
+  "A game that looks cropped or drawn in a corner was probably made for a bigger screen (try 320×480 or 480×800); one that is drawn sideways was made for landscape (use Picture rotation in Display).": "Игра, которая обрезана или нарисована в углу, скорее всего сделана для большего экрана (попробуйте 320×480 или 480×800); игра, нарисованная боком, сделана для альбомной ориентации (поворот картинки — в панели «Изображение»).",
+  "A landscape picture is small in a portrait display. The Nokia E71 has a landscape display.": "Альбомная картинка выглядит мелко в портретном экране. У Nokia E71 экран альбомный.",
+  "Use the Nokia E71 picture": "Взять картинку Nokia E71",
+  "{games} · {fav} favorites · stored on this server only": "{games} · в избранном: {fav} · хранятся только на этом сервере",
+  "{n} game": "Игр: {n}",
+  "{n} games": "Игр: {n}",
+  "{active}/{max} sessions · v{version}": "Сессий: {active}/{max} · v{version}",
+  "Made for landscape? Turn the picture and switch to the Nokia E71, whose display is landscape.": "Игра рассчитана на альбомную ориентацию? Поверните картинку и переключитесь на Nokia E71 — у неё альбомный экран.",
+  "Landscape, turn right": "Альбомная, вправо",
+  "Landscape, turn left": "Альбомная, влево"
 }

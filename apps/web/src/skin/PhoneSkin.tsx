@@ -2,7 +2,7 @@ import { t as translateUI } from '../i18n';
 import { useCallback, useEffect, useMemo, useRef, useState, type CanvasHTMLAttributes, type ReactNode, type Ref } from 'react';
 import type { InputController } from '../input';
 import { buzz } from '../serverSettings';
-import { fitBox, hitTest, placeScreen, toNormalized } from './geometry';
+import { fitBox, hitTest, placeRotated, toNormalized, type Rotation } from './geometry';
 import { polygonPath } from './hitboxes';
 import type { Hitbox, LoadedSkin, SkinViewId } from './types';
 import { useHeld } from './useHeld';
@@ -14,6 +14,8 @@ export interface PhoneSkinProps {
   view: SkinViewId;
   /** Size of the emulated framebuffer. Never stretched: the picture is centred in the display window with margins. */
   frame: { w: number; h: number };
+  /** Turns the picture inside the display window (presentation only). */
+  rotation?: Rotation;
   canvasRef?: Ref<HTMLCanvasElement>;
   canvasProps?: CanvasHTMLAttributes<HTMLCanvasElement>;
   /** Snap the framebuffer scale to whole numbers when that costs less than a quarter of the size. */
@@ -54,14 +56,14 @@ const centroid = (h: Hitbox): [number, number] => [h.points.reduce((a, p) => a +
  * Stacking (bottom to top): display backplate, Canvas (real KEmulator framebuffer), body (transparent window),
  * glass, hitboxes. The body ignores the pointer so the canvas keeps receiving game pointer events through the window.
  */
-export function PhoneSkin({ skin, view, frame, canvasRef, canvasProps, integer = true, smooth = false, input, interactive = true, onKey, lcdOverlay, debug, size, className = '', glass = true }: PhoneSkinProps) {
+export function PhoneSkin({ skin, view, frame, rotation = 0, canvasRef, canvasProps, integer = true, smooth = false, input, interactive = true, onKey, lcdOverlay, debug, size, className = '', glass = true }: PhoneSkinProps) {
   const fit = useRef<HTMLDivElement>(null);
   const box = useRef<HTMLDivElement>(null);
   const parent = useBox(fit, !size?.w || !size?.h);
   const v = skin.config.views[view];
   const outer = { w: size?.w ?? parent.w, h: size?.h ?? parent.h };
   const dim = useMemo(() => fitBox(outer, v.width / v.height), [outer.w, outer.h, v.width, v.height]); // eslint-disable-line react-hooks/exhaustive-deps
-  const place = useMemo(() => placeScreen(v, dim, frame, integer), [v, dim, frame, integer]);
+  const place = useMemo(() => placeRotated(v, dim, frame, integer, rotation), [v, dim, frame, integer, rotation]);
   const physical = view === 'full' && v.controls === 'buttons';
 
   // --- hitboxes: pointer id -> hitbox id; every pointer is its own input source
@@ -169,7 +171,8 @@ export function PhoneSkin({ skin, view, frame, canvasRef, canvasProps, integer =
               width={frame.w}
               height={frame.h}
               className={`skin-canvas ${crisp ? 'crisp' : 'smooth'}`}
-              style={{ left: place.canvas.left - place.lcd.left, top: place.canvas.top - place.lcd.top, width: place.canvas.width, height: place.canvas.height }}
+              style={{ left: place.canvas.left - place.lcd.left, top: place.canvas.top - place.lcd.top, width: place.canvas.width, height: place.canvas.height, ...(rotation ? { transform: `rotate(${rotation}deg)` } : {}) }}
+              data-rotation={rotation}
               aria-label={translateUI("Game screen")}
               data-scale={place.scale.toFixed(3)}
             />
