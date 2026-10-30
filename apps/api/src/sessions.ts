@@ -183,10 +183,11 @@ export class Session {
         this.broadcastText({ t: 'title', title: this.title });
         break;
       case 'D': {
+        // The patched Bridge (runtime/patches/0006) draws TextBox and List into the framebuffer, so 'B' is the only
+        // kind it sends; 'T' and 'L' only come from an unpatched KEmulator and are kept for the protocol's sake.
         const k = String.fromCharCode(b[0] ?? 66);
         this.displayable = k === 'T' ? 'textbox' : k === 'L' ? 'list' : 'canvas';
         this.broadcastText({ t: 'displayable', kind: this.displayable });
-        if (this.displayable !== 'canvas') this.pushLog(`[emulator] ${this.displayable} screens are not rendered by the Bridge frontend yet`);
         break;
       }
       case 'M': {

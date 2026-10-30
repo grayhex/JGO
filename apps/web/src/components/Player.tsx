@@ -171,7 +171,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
       case 'menu-close': setMenu(null); break;
       case 'permission': setPerm(ev); break;
       case 'vibrate': if (ev.ms > 0) buzz(Math.min(ev.ms, 2000)); else navigator.vibrate?.(0); break;
-      case 'displayable': if (ev.kind !== 'canvas') toast('error', translateUI('This game opened a {kind} screen, which the Bridge frontend cannot show yet.', {kind:ev.kind})); break;
+      case 'displayable': break; // the Bridge draws every screen into the framebuffer (patch 0006): the kind needs no UI
       case 'url': toast('info', translateUI('The game wants to open {url} (blocked)', {url:ev.url})); break;
       default: break;
     }

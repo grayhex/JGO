@@ -16,3 +16,4 @@ games/
 *.jad
 .lxc-test/
 dist-release/
+tools/audit/build/

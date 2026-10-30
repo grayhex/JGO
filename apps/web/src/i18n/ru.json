@@ -5,7 +5,6 @@
   "Import finished: {added} new, {updated} changed": "Импорт завершён: добавлено {added}, изменено {updated}",
   "Emulator stopped: {detail}": "Эмулятор остановлен: {detail}",
   "unknown error": "неизвестная ошибка",
-  "This game opened a {kind} screen, which the Bridge frontend cannot show yet.": "Игра открыла экран {kind}, который Bridge пока не поддерживает.",
   "The game wants to open {url} (blocked)": "Игра пытается открыть {url} (заблокировано)",
   "Player": "Плеер",
   "Settings": "Настройки",
