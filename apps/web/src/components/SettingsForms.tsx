@@ -1,5 +1,5 @@
 import { t as translateUI } from '../i18n';
-import { KEY_LAYOUTS, SCREEN_PRESETS, type DevicePreset, type LayoutId, type PublicSettings, type SystemStatus } from '@j2me-web/protocol';
+import { KEY_LAYOUTS, SCREEN_PRESETS, type DevicePreset, type LayoutId, type PublicSettings, type SettingsResponse, type SystemStatus } from '@j2me-web/protocol';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { setServerSettings, useServerSettings } from '../serverSettings';
@@ -96,6 +96,32 @@ export function PhoneDefaultsForm({ toast, auto }: { toast: Toaster; auto?: bool
   );
 }
 
+/** The MIDI SoundFont: the bank games' MIDI music is rendered with (the emulator's built-in bank is the default). */
+function SoundfontField({ toast }: { toast: Toaster }) {
+  const server = useServerSettings();
+  const [busy, setBusy] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  const sf = server?.soundfont ?? null;
+  const run = async (job: () => Promise<SettingsResponse>, done: string) => {
+    setBusy(true);
+    try { setServerSettings(await job()); toast('info', done); } catch (e) { toast('error', (e as Error).message); } finally { setBusy(false); if (input.current) input.current.value = ''; }
+  };
+  return (
+    <div className="field">
+      <span className="label-caps">{translateUI("MIDI SoundFont")}</span>
+      <div className="field-row">
+        <span className="muted">{sf ? `${sf.name} · ${(sf.size / (1024 * 1024)).toFixed(1)} MB` : translateUI("Built-in bank")}</span>
+        <span>
+          <input ref={input} type="file" accept=".sf2" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void run(() => api.uploadSoundfont(f), 'SoundFont installed. It is used by games started from now on.'); }} />
+          <button className="btn sm" disabled={busy} onClick={() => input.current?.click()}>{translateUI(sf ? "Replace…" : "Choose .sf2…")}</button>
+          {sf && <button className="btn ghost sm" disabled={busy} onClick={() => void run(() => api.deleteSoundfont(), 'Back to the built-in bank.')}>{translateUI("Remove")}</button>}
+        </span>
+      </div>
+      <p className="muted small">{translateUI("Replaces the emulator's built-in bank for MIDI music (SoundFont 2 only, up to 256 MB). Games that are already running keep the old one.")}</p>
+    </div>
+  );
+}
+
 export function SoundControlsForm({ toast, auto }: { toast: Toaster; auto?: boolean }) {
   const a = useSection('audio', toast, auto);
   const c = useSection('controls', toast, auto);
@@ -105,6 +131,7 @@ export function SoundControlsForm({ toast, auto }: { toast: Toaster; auto?: bool
       <h3><Icon name="volume" /> {translateUI("Sound")}</h3>
       <Switch checked={a.draft.enabled} onChange={(v) => a.set({ enabled: v })}>{translateUI("Play game sound (otherwise games start muted)")}</Switch>
       <label className="field"><span className="label-caps">{translateUI("Starting volume —")} {a.draft.volume}%</span><input type="range" min={0} max={100} value={a.draft.volume} onChange={(e) => a.set({ volume: Number(e.target.value) })} aria-label={translateUI("Volume")} /></label>
+      <SoundfontField toast={toast} />
       <SaveBar auto={auto} dirty={a.dirty} busy={a.busy} onSave={() => void a.save('Sound settings saved')} note="Browsers only start sound after a click: pressing Start in the player does that." />
       <h3><Icon name="gamepad" /> {translateUI("Controls")}</h3>
       <div className="field"><span className="label-caps">{translateUI("On-screen keypad")}</span><Seg<'auto' | 'always' | 'never'> label={translateUI("On-screen keypad")} value={c.draft.keypad} onChange={(v) => c.set({ keypad: v })} options={[{ value: 'auto', label: 'Touch devices only' }, { value: 'always', label: 'Always' }, { value: 'never', label: 'Never' }]} /></div>

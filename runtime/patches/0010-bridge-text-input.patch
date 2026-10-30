@@ -1,0 +1,256 @@
+diff --git a/src/main/emulator/lcdui/TextBoxHeadless.java b/src/main/emulator/lcdui/TextBoxHeadless.java
+index 0a6f93f2..de3708a1 100644
+--- a/src/main/emulator/lcdui/TextBoxHeadless.java
++++ b/src/main/emulator/lcdui/TextBoxHeadless.java
+@@ -8,7 +8,7 @@ import javax.microedition.lcdui.TextField;
+ /**
+  * j2me-web: software TextBox for the Bridge (headless) frontend. Holds the text model so MIDlet code
+  * (getString/setString/insert/delete/...) keeps working, and draws the text read-only into the
+- * framebuffer. Typing needs the Bridge "E" event, which KEmulator has not implemented yet.
++ * framebuffer. Typing arrives through the Bridge "E" event (BridgeCaret announces the text area).
+  */
+ public class TextBoxHeadless implements ITextBoxImpl {
+ 	private StringBuffer text;
+@@ -70,7 +70,10 @@ public class TextBoxHeadless implements ITextBoxImpl {
+ 	public int getConstraints() { return constraints; }
+ 	public void setInitialInputMode(String inputMode) { }
+ 	public void defocus() { }
+-	public void focusCaret() { }
++	public void focusCaret() {
++		javax.microedition.lcdui.Displayable d = Emulator.getCurrentDisplay().getCurrent();
++		if (d instanceof javax.microedition.lcdui.TextBox) Emulator.getEmulator().getScreen().getCaret().focusItem(d, 0, 0);
++	}
+ 
+ 	public void layout() { }
+ 
+diff --git a/src/main/emulator/ui/bridge/BridgeCaret.java b/src/main/emulator/ui/bridge/BridgeCaret.java
+new file mode 100644
+index 00000000..9c418990
+--- /dev/null
++++ b/src/main/emulator/ui/bridge/BridgeCaret.java
+@@ -0,0 +1,163 @@
++package emulator.ui.bridge;
++
++import emulator.Emulator;
++import emulator.ui.ICaret;
++
++import javax.microedition.lcdui.TextBox;
++import javax.microedition.lcdui.TextField;
++import java.nio.ByteBuffer;
++import java.nio.charset.StandardCharsets;
++
++/**
++ * j2me-web: the Bridge counterpart of the SWT CaretImpl. The SWT frontend lays a native text widget over
++ * the focused TextField; here the client does the typing. The focused text area is announced with the
++ * Bridge "A" packet (x, y, w, h as shorts + UTF-8 text; no data = no text area) and, before it, with the
++ * JGO extension packet "N" (u32 maxSize | u32 constraints | u8 'F' TextField or 'B' TextBox) that carries
++ * what the client needs to edit the text the way a phone would. The client answers with "E" (see BridgeInput).
++ */
++final class BridgeCaret implements ICaret {
++
++	private final BridgeFrontend bridge;
++	private Object item;
++	private byte[] lastSent;
++	private int areaX, areaY;
++
++	BridgeCaret(BridgeFrontend bridge) {
++		this.bridge = bridge;
++	}
++
++	@Override
++	public synchronized void focusItem(Object it, int x, int y) {
++		if (it instanceof TextField) {
++			TextField tf = (TextField) it;
++			item = tf;
++			send(x, y, tf._getTextAreaWidth(), tf._getTextAreaHeight(), tf.getString(), tf.getMaxSize(), tf.getConstraints(), 'F');
++		} else if (it instanceof TextBox) {
++			TextBox tb = (TextBox) it;
++			item = tb;
++			send(0, 0, Emulator.getEmulator().getScreen().getWidth(), Emulator.getEmulator().getScreen().getHeight(),
++					tb.getString(), tb.getMaxSize(), tb.getConstraints(), 'B');
++		}
++		// DateField and the Nokia TextEditor are not editable through the Bridge
++	}
++
++	@Override
++	public synchronized void defocusItem(Object it) {
++		if (it != item) return;
++		clear();
++	}
++
++	@Override
++	public int getCaretPosition() {
++		if (item instanceof TextField) return ((TextField) item).size();
++		if (item instanceof TextBox) return ((TextBox) item).size();
++		return 0;
++	}
++
++	@Override
++	public synchronized void displayableChanged() {
++		clear();
++	}
++
++	@Override
++	public synchronized void updateText(Object it, String text) {
++		if (it != item || item == null) return;
++		resend();
++	}
++
++	@Override
++	public void setSelection(int index, int length) {
++	}
++
++	@Override
++	public String getSelection() {
++		return "";
++	}
++
++	@Override
++	public void setCaret(int index) {
++	}
++
++	/** Applies the text typed by the client ("E"); returns quietly when nothing is focused. */
++	synchronized void typed(String text) {
++		if (item instanceof TextField) {
++			TextField tf = (TextField) item;
++			if (tf._isUneditable()) return;
++			String s = sanitize(text, tf.getConstraints(), tf.getMaxSize());
++			if (!s.equals(tf.getString())) tf._setString(s);
++		} else if (item instanceof TextBox) {
++			TextBox tb = (TextBox) item;
++			if ((tb.getConstraints() & TextField.UNEDITABLE) != 0) return;
++			String s = sanitize(text, tb.getConstraints(), tb.getMaxSize());
++			if (!s.equals(tb.getString())) tb.setString(s);
++		} else {
++			return;
++		}
++		Emulator.getEventQueue().queueRepaint();
++		resend();
++	}
++
++	private void resend() {
++		lastSent = null; // the client is told the (possibly sanitized) text even if the area is unchanged
++		if (item instanceof TextField) {
++			TextField tf = (TextField) item;
++			send(areaX, areaY, tf._getTextAreaWidth(), tf._getTextAreaHeight(), tf.getString(), tf.getMaxSize(), tf.getConstraints(), 'F');
++		} else if (item instanceof TextBox) {
++			TextBox tb = (TextBox) item;
++			send(0, 0, Emulator.getEmulator().getScreen().getWidth(), Emulator.getEmulator().getScreen().getHeight(),
++					tb.getString(), tb.getMaxSize(), tb.getConstraints(), 'B');
++		}
++	}
++
++	private void send(int x, int y, int w, int h, String text, int maxSize, int constraints, char kind) {
++		areaX = x;
++		areaY = y;
++		byte[] t = (text == null ? "" : text).getBytes(StandardCharsets.UTF_8);
++		ByteBuffer bb = ByteBuffer.allocate(8 + t.length);
++		bb.putShort((short) x).putShort((short) y).putShort((short) w).putShort((short) h).put(t);
++		byte[] area = bb.array();
++		ByteBuffer info = ByteBuffer.allocate(9);
++		info.putInt(maxSize).putInt(constraints).put((byte) kind);
++		byte[] n = info.array();
++		byte[] both = new byte[area.length + n.length];
++		System.arraycopy(n, 0, both, 0, n.length);
++		System.arraycopy(area, 0, both, n.length, area.length);
++		if (lastSent != null && java.util.Arrays.equals(lastSent, both)) return;
++		lastSent = both;
++		bridge.sendToState('N', n);
++		bridge.sendToState('A', area);
++	}
++
++	private void clear() {
++		item = null;
++		lastSent = null;
++		bridge.sendToState('A', new byte[0]);
++	}
++
++	static String sanitize(String text, int constraints, int maxSize) {
++		StringBuilder sb = new StringBuilder();
++		int mode = constraints & TextField.CONSTRAINT_MASK;
++		boolean dot = false;
++		for (int i = 0; i < text.length(); i++) {
++			char c = text.charAt(i);
++			boolean ok;
++			switch (mode) {
++				case TextField.NUMERIC:
++					ok = (c >= '0' && c <= '9') || (c == '-' && sb.length() == 0);
++					break;
++				case TextField.DECIMAL:
++					ok = (c >= '0' && c <= '9') || (c == '-' && sb.length() == 0) || (c == '.' && !dot);
++					if (ok && c == '.') dot = true;
++					break;
++				case TextField.PHONENUMBER:
++					ok = (c >= '0' && c <= '9') || c == '*' || c == '#' || (c == '+' && sb.length() == 0);
++					break;
++				default:
++					ok = c >= ' ' || c == '\n';
++			}
++			if (ok) sb.append(c);
++		}
++		if (sb.length() > maxSize) sb.setLength(maxSize);
++		return sb.toString();
++	}
++}
+diff --git a/src/main/emulator/ui/bridge/BridgeInput.java b/src/main/emulator/ui/bridge/BridgeInput.java
+index 2cacbd87..40255d50 100644
+--- a/src/main/emulator/ui/bridge/BridgeInput.java
++++ b/src/main/emulator/ui/bridge/BridgeInput.java
+@@ -114,7 +114,15 @@ class BridgeInput implements Runnable {
+ 				throw new RuntimeException("Not implemented");
+ 			}
+ 			case "E": {
+-				throw new RuntimeException("Not implemented");
++				// j2me-web: "E <text>", the text percent-encoded as UTF-8 (the adapter relays ASCII only)
++				String text;
++				try {
++					text = data.length > 1 ? java.net.URLDecoder.decode(data[1], "UTF-8") : "";
++				} catch (java.io.UnsupportedEncodingException e) {
++					throw new IllegalStateException(e);
++				}
++				((BridgeOutput) Emulator.getEmulator().getScreen()).typed(text);
++				break;
+ 			}
+ 			case "X": {
+ 				AppSettings.xrayView = parseBool(data[1]);
+diff --git a/src/main/emulator/ui/bridge/BridgeOutput.java b/src/main/emulator/ui/bridge/BridgeOutput.java
+index 69a7c8cf..8476bbe0 100644
+--- a/src/main/emulator/ui/bridge/BridgeOutput.java
++++ b/src/main/emulator/ui/bridge/BridgeOutput.java
+@@ -25,6 +25,7 @@ final class BridgeOutput implements IScreen {
+ 	private final ImageAWT screenImageAwt;
+ 	private final ImageAWT backBufferImageAwt;
+ 	private final ImageAWT xrayScreenImageAwt;
++	private final BridgeCaret caret;
+ 
+ 	private boolean firstFrame = true;
+ 
+@@ -35,6 +36,7 @@ final class BridgeOutput implements IScreen {
+ 
+ 	BridgeOutput(BridgeFrontend bridge, int w, int h) {
+ 		this.bridge = bridge;
++		this.caret = new BridgeCaret(bridge);
+ 		this.screenImageAwt = new ImageAWT(w, h, false, -1);
+ 		this.backBufferImageAwt = new ImageAWT(w, h, false, -1);
+ 		this.xrayScreenImageAwt = new ImageAWT(w, h, true, -1);
+@@ -163,7 +165,7 @@ final class BridgeOutput implements IScreen {
+ 
+ 	@Override
+ 	public ICaret getCaret() {
+-		return new DummyCaret();
++		return caret;
+ 	}
+ 
+ 	@Override
+@@ -270,6 +272,11 @@ final class BridgeOutput implements IScreen {
+ 			new Thread(new BridgeInput(bridge)).start();
+ 	}
+ 
++	/** j2me-web: text typed by the client (Bridge "E"). */
++	void typed(String text) {
++		caret.typed(text);
++	}
++
+ 	public boolean isShown() {
+ 		return true;
+ 	}

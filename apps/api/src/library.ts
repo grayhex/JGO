@@ -3,7 +3,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { DEFAULT_SETTINGS, type GameInfoSummary, type GameMeta, type GameSettings, KEY_LAYOUTS, SCREEN_PRESETS, type LayoutId, type MetaStatus } from '@j2me-web/protocol';
+import { DEFAULT_SETTINGS, EMULATION_LIMITS, type EmulationTweaks, type GameInfoSummary, type GameMeta, type GameSettings, KEY_LAYOUTS, SCREEN_PRESETS, type LayoutId, type MetaStatus } from '@j2me-web/protocol';
 import { parseJad, parseJar, sanitizeText, UploadError } from './jar.js';
 
 interface Row {
@@ -47,6 +47,41 @@ export interface AddOptions {
 
 const LAYOUTS = Object.keys(KEY_LAYOUTS) as LayoutId[];
 
+const LOCALE = /^[a-z]{2,3}(-[A-Za-z]{2,4})?$/;
+
+/** Every key is optional; an empty object means "all defaults". Anything unknown is refused instead of silently dropped. */
+export function validateEmulation(input: unknown): EmulationTweaks {
+  const bad = (m: string) => new UploadError('bad_settings', m);
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) throw bad('emulation must be an object');
+  const o = input as Record<string, unknown>;
+  const out: EmulationTweaks = {};
+  for (const k of Object.keys(o)) if (!['frameRate', 'startAppOnResume', 'locale', 'pointerEvents', 'fontSizes'].includes(k)) throw bad(`unknown emulation option "${k}"`);
+  const int = (v: unknown, lo: number, hi: number, name: string): number => {
+    if (typeof v !== 'number' || !Number.isInteger(v) || v < lo || v > hi) throw bad(`${name} must be an integer in ${lo}..${hi}`);
+    return v;
+  };
+  if (o.frameRate !== undefined) out.frameRate = int(o.frameRate, EMULATION_LIMITS.frameRate[0], EMULATION_LIMITS.frameRate[1], 'frameRate');
+  if (o.startAppOnResume !== undefined) {
+    if (typeof o.startAppOnResume !== 'boolean') throw bad('startAppOnResume must be true or false');
+    out.startAppOnResume = o.startAppOnResume;
+  }
+  if (o.pointerEvents !== undefined) {
+    if (typeof o.pointerEvents !== 'boolean') throw bad('pointerEvents must be true or false');
+    out.pointerEvents = o.pointerEvents;
+  }
+  if (o.locale !== undefined) {
+    if (typeof o.locale !== 'string' || !LOCALE.test(o.locale)) throw bad('locale must look like en-US or ru');
+    out.locale = o.locale;
+  }
+  if (o.fontSizes !== undefined) {
+    const f = o.fontSizes as Record<string, unknown> | null;
+    if (typeof f !== 'object' || f === null) throw bad('fontSizes must be an object');
+    const [lo, hi] = EMULATION_LIMITS.fontSize;
+    out.fontSizes = { small: int(f.small, lo, hi, 'fontSizes.small'), medium: int(f.medium, lo, hi, 'fontSizes.medium'), large: int(f.large, lo, hi, 'fontSizes.large') };
+  }
+  return out;
+}
+
 export function validateSettings(input: unknown, base: GameSettings = DEFAULT_SETTINGS): GameSettings {
   const o = (input ?? {}) as Record<string, unknown>;
   const out: GameSettings = { ...base };
@@ -77,6 +112,10 @@ export function validateSettings(input: unknown, base: GameSettings = DEFAULT_SE
   if (o.profileMode !== undefined) {
     if (o.profileMode !== 'auto' && o.profileMode !== 'advanced') throw new UploadError('bad_settings', 'invalid profile mode');
     out.profileMode = o.profileMode;
+  }
+  if (o.emulation !== undefined) {
+    if (o.emulation === null) delete out.emulation;
+    else out.emulation = validateEmulation(o.emulation);
   }
   void SCREEN_PRESETS;
   return out;

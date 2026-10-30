@@ -6,7 +6,37 @@ export * from './phones.js';
 
 // ---- REST types -------------------------------------------------------------------------
 
+/**
+ * Per-game emulator options that really change what the game sees (each is a KEmulator `AppSettings` key, written to
+ * the game's midlets.ini). Absent = the emulator's own default, shown in {@link EMULATION_DEFAULTS}.
+ */
+export interface EmulationTweaks {
+  /** `FrameRate`: the frame limit of the drawing loop, 1..120 fps. */
+  frameRate?: number;
+  /** `StartAppOnResume`: call `pauseApp` when the game is suspended and `startApp` when it resumes (as phones do); off = only hideNotify/showNotify. */
+  startAppOnResume?: boolean;
+  /** `MIDPLocale`: the `microedition.locale` property, e.g. `en-US`, `ru-RU`. */
+  locale?: string;
+  /** `HasPointerEvents`: what `Canvas.hasPointerEvents()` answers; some games change their menus for touch. */
+  pointerEvents?: boolean;
+  /** `FontSmallSize`/`FontMediumSize`/`FontLargeSize`: pixel sizes behind `Font.SIZE_*`. */
+  fontSizes?: { small: number; medium: number; large: number };
+}
+
+export const EMULATION_DEFAULTS = { frameRate: 30, startAppOnResume: true, locale: 'en-US', pointerEvents: true, fontSizes: { small: 12, medium: 14, large: 16 } } as const;
+export const EMULATION_LIMITS = { frameRate: [1, 120], fontSize: [6, 64] } as const;
+
+/** One entry of a game's file area (what the MIDlet sees as `file:///`, JSR-75). */
+export interface GameFileEntry {
+  name: string;
+  dir: boolean;
+  size: number;
+  modified: string;
+}
+
 export interface GameSettings {
+  /** Options beyond the phone profile; see {@link EmulationTweaks}. */
+  emulation?: EmulationTweaks;
   skinId?: import('./phones.js').PhoneId;
   profileMode?: 'auto' | 'advanced';
   /** Emulated screen size; the game sees exactly this canvas. */
@@ -110,8 +140,17 @@ export interface PublicSettings {
   server: { maxSessions: number; sessionMaxMinutes: number; sessionIdleMinutes: number; libraryQuotaMb: number; frameEncoding: 'raw' | 'deflate' };
 }
 
+/** The MIDI SoundFont (SF2) the games' MIDI music is rendered with, instead of the emulator's built-in bank. */
+export interface SoundfontInfo {
+  name: string;
+  size: number;
+  updatedAt: string;
+}
+
 export interface SettingsResponse {
   settings: PublicSettings;
+  /** The installed custom SoundFont, or null for the built-in bank. */
+  soundfont: SoundfontInfo | null;
   /** Secrets are never returned: only whether they are set. */
   secrets: { mobygames: { configured: boolean; hint: string | null } };
   /** Values that come from /etc/jgo/jgo.env and cannot be changed from the web UI. */
@@ -247,6 +286,10 @@ export interface SessionStatus {
   audioBytes: number;
   /** Width/height of frames actually produced. */
   encoding: 'raw' | 'deflate';
+  /** The game is suspended (see `ServerEvent` `paused`). */
+  paused: boolean;
+  /** Game speed: KEmulator's speed modifier (1 = normal, 2..100 faster, -1..-100 slower, -50 = half speed). */
+  speed: number;
 }
 
 export interface HealthStatus {
@@ -279,6 +322,39 @@ export const AUDIO_CHANNELS = 2;
 /** Binary frame layout: kind u8 | seq u32 | enc u8 | width u16 | height u16 | serverTs u32 (ms, wraps) | pixels. */
 export const WS_FRAME_HEADER_BYTES = 1 + 4 + 1 + 2 + 2 + 4;
 
+/**
+ * The text area the game currently lets the user edit (a focused `TextField` or a `TextBox`).
+ * `x/y/w/h` are in framebuffer pixels; `constraints` are the MIDP `TextField` constraint bits
+ * (see {@link TEXT_CONSTRAINT}).
+ */
+export interface TextArea {
+  kind: 'field' | 'box';
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  text: string;
+  maxSize: number;
+  constraints: number;
+}
+
+/** MIDP `TextField` constraint values. */
+export const TEXT_CONSTRAINT = {
+  ANY: 0,
+  EMAILADDR: 1,
+  NUMERIC: 2,
+  PHONENUMBER: 3,
+  URL: 4,
+  DECIMAL: 5,
+  MASK: 0xffff,
+  PASSWORD: 0x10000,
+  UNEDITABLE: 0x20000,
+  SENSITIVE: 0x40000,
+} as const;
+
+/** The longest text the server forwards to the game in one `text` event. */
+export const TEXT_INPUT_MAX = 4096;
+
 export type ServerEvent =
   | { t: 'hello'; sessionId: string; width: number; height: number; state: SessionState }
   | { t: 'state'; state: SessionState; exitCode?: number | null; detail?: string | null }
@@ -290,6 +366,15 @@ export type ServerEvent =
   | { t: 'permission'; id: number; message: string }
   | { t: 'vibrate'; ms: number }
   | { t: 'url'; url: string }
+  /** The editable text area of the current screen, or `null` when nothing is being edited. */
+  | { t: 'text'; area: TextArea | null }
+  /**
+   * The game is suspended (`pauseApp`, drawing loop frozen, no frames) or running again. `reason` says who asked:
+   * a viewer (`manual`) or the server because no viewer has the page in front of them (`hidden`).
+   */
+  | { t: 'paused'; on: boolean; reason: 'manual' | 'hidden' }
+  /** The game speed changed (see {@link SessionStatus.speed}). */
+  | { t: 'speed'; modifier: number }
   | { t: 'log'; line: string }
   | { t: 'stats'; fps: number; frames: number; dropped: number; latencyMs: number | null }
   | { t: 'pong'; ts: number };
@@ -301,6 +386,14 @@ export type ClientEvent =
   | { t: 'pointer'; id: number; s: 'D' | 'M' | 'U'; x: number; y: number }
   | { t: 'cmd'; id: number }
   | { t: 'perm'; id: number; allow: boolean }
+  /** The new full text of the focused text area (the game may shorten or filter it and answers with `text`). */
+  | { t: 'text'; text: string }
+  /** Set the game speed for everyone watching: KEmulator's modifier, an integer in -100..100 except 0. */
+  | { t: 'speed'; modifier: number }
+  /** Suspend or resume the game for everyone watching. */
+  | { t: 'pause'; on: boolean }
+  /** Whether this viewer's page is in front of them; the game is suspended while no viewer can see it. */
+  | { t: 'visibility'; visible: boolean }
   /** Release every key the server believes is held (focus loss, reconnect). */
   | { t: 'release-all' }
   | { t: 'audio'; on: boolean }

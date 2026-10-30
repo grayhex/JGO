@@ -23,6 +23,7 @@ English · [Русский](README.md)
 - **Server-side sessions.** Reloading the page or losing the connection does not interrupt the game.
 - **Ten handsets:** Nokia 6100, 6230i, N95-1, E71, 5800 XpressMusic; Sony Ericsson K750i, W995, K790i; Motorola RAZR V3; Samsung S5230 Star. Every handset has full and screen close-up views.
 - **Controls:** handset keys, on-screen keypad, PC keyboard, gamepad, multi-touch.
+- **Text input** in `TextField`/`TextBox`, **pause**, game **speed**, screenshots, **input recording and playback**, **game files** (JSR-75), a custom MIDI **SoundFont**.
 - **Display:** picture rotation, landscape mode, full screen, light and dark themes, English and Russian UI.
 - **Library:** drag-and-drop JAR/JAD or import a whole folder; duplicate detection; optional [MobyGames](https://www.mobygames.com) metadata.
 - **One-step install** into a Proxmox VE LXC container, the `jgo` command for updates and backups. Docker Compose as a fallback.
@@ -86,7 +87,7 @@ npm start          # http://127.0.0.1:8080
 
 MIDP 2.0 / CLDC 1.0–1.1 and class files version ≤ 48 (genuine J2ME JARs) are supported. Known limitations:
 
-- text input in `TextField`/`TextBox` is not supported: the screens are shown, but you cannot type into them;
+- no sensors, geolocation, SMS, camera or Bluetooth (games get a regular error), no video;
 - games have no network access (`jgo network allow` disables the isolation);
 - Mascot Capsule 3D, video and camera were not verified.
 
@@ -168,7 +169,7 @@ cargo test --manifest-path bridge/kemulator-adapter/Cargo.toml
 | [UI.md](docs/UI.md), [PLAYER_CONTROLS.md](docs/PLAYER_CONTROLS.md) | interface, handsets, controls |
 | [SESSION_RECOVERY.md](docs/SESSION_RECOVERY.md) | session recovery, RMS saves |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md), [BRIDGE.md](docs/BRIDGE.md) | system design, Bridge patches |
-| [EMULATOR_FEATURE_MATRIX.md](docs/EMULATOR_FEATURE_MATRIX.md) | KEmulator feature coverage (Russian) |
+| [EMULATOR_FEATURE_MATRIX.md](docs/EMULATOR_FEATURE_MATRIX.md), [SENSORS.md](docs/SENSORS.md) | KEmulator feature coverage, sensors (Russian) |
 | [COMPATIBILITY.md](docs/COMPATIBILITY.md), [LAB.md](docs/LAB.md) | compatibility, lab |
 | [SECURITY.md](docs/SECURITY.md) | security |
 

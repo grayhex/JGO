@@ -9,11 +9,13 @@ import {
   KEY_LAYOUTS,
   type ServerEvent,
   type SessionState,
+  TEXT_INPUT_MAX,
+  type TextArea,
   type SessionStatus,
   WS_BIN_AUDIO,
 } from '@j2me-web/protocol';
 import { ResourceMeter } from './procstats.js';
-import { writeMidletsIni } from './appSettings.js';
+import { writeMidletsIni, writeSoundfontProperty } from './appSettings.js';
 import { findPreset, loadDevicePresets } from './devices.js';
 import { KEmulatorAdapter, type ExitInfo, type FrameMsg } from './kemulator/adapter.js';
 import { newId, type Library } from './library.js';
@@ -66,12 +68,19 @@ export class Session {
   framesDropped = 0;
   latencyMs: number | null = null;
   endedAt: number | null = null;
-  readonly clients = new Map<string, { c: StreamClient; held: Set<number>; audio: boolean }>();
+  readonly clients = new Map<string, { c: StreamClient; held: Set<number>; audio: boolean; visible: boolean }>();
+  private speed = 1;
+  private manualPause = false;
+  /** Why the game is suspended right now; null = running. */
+  private pauseReason: 'manual' | 'hidden' | null = null;
   audioBytes = 0;
   readonly meter = new ResourceMeter();
   private lastPacked: Buffer | null = null;
   private timers: NodeJS.Timeout[] = [];
   private pendingMenu: ServerEvent | null = null;
+  private textArea: TextArea | null = null;
+  /** `N` (maxSize, constraints, kind) arrives right before the `A` it belongs to. */
+  private textInfo: { maxSize: number; constraints: number; kind: 'field' | 'box' } | null = null;
   /** permission prompts waiting for a viewer's answer (id -> deny timer) */
   private pendingPerms = new Map<number, NodeJS.Timeout>();
   private logFile: string;
@@ -132,6 +141,8 @@ export class Session {
       layout: this.settings.layout,
       heapMb: this.settings.heapMb,
       encoding: this.cfg.frameEncoding,
+      paused: this.pauseReason !== null,
+      speed: this.speed,
     };
   }
 
@@ -234,6 +245,24 @@ export class Session {
         this.broadcastText({ t: 'permission', id, message });
         break;
       }
+      case 'N':
+        if (b.length >= 9) this.textInfo = { maxSize: b.readInt32BE(0), constraints: b.readInt32BE(4), kind: b[8] === 66 ? 'box' : 'field' };
+        break;
+      case 'A': {
+        // text area of the focused TextField/TextBox; a packet without data removes it
+        if (b.length < 8 || !this.textInfo) this.textArea = null;
+        else
+          this.textArea = {
+            ...this.textInfo,
+            x: b.readInt16BE(0),
+            y: b.readInt16BE(2),
+            w: b.readInt16BE(4),
+            h: b.readInt16BE(6),
+            text: b.subarray(8).toString('utf8'),
+          };
+        this.broadcastText({ t: 'text', area: this.textArea });
+        break;
+      }
       case 'U': {
         const url = b.toString('utf8');
         // only schemes a browser can handle safely; file:, vlc: and friends are never forwarded
@@ -250,6 +279,8 @@ export class Session {
   }
 
   private onExit(e: ExitInfo): void {
+    this.textArea = null;
+    this.pauseReason = null;
     this.exit = e;
     this.endedAt = Date.now();
     this.state = e.reason === 0 && (e.code === 0 || e.code === null) ? 'exited' : 'failed';
@@ -271,15 +302,38 @@ export class Session {
   }
 
   addClient(c: StreamClient): void {
-    this.clients.set(c.id, { c, held: new Set(), audio: false });
+    this.clients.set(c.id, { c, held: new Set(), audio: false, visible: true });
     this.clearIdle();
     c.sendText(JSON.stringify({ t: 'hello', sessionId: this.id, width: this.settings.width, height: this.settings.height, state: this.state } satisfies ServerEvent));
     c.sendText(JSON.stringify({ t: 'softkeys', ...this.softkeys } satisfies ServerEvent));
     if (this.title !== null) c.sendText(JSON.stringify({ t: 'title', title: this.title } satisfies ServerEvent));
     if (this.pendingMenu) c.sendText(JSON.stringify(this.pendingMenu));
+    if (this.textArea) c.sendText(JSON.stringify({ t: 'text', area: this.textArea } satisfies ServerEvent));
     for (const d of this.diagnostics) c.sendText(JSON.stringify({ t: 'log', line: `⚠ ${d}` } satisfies ServerEvent));
+    if (this.speed !== 1) c.sendText(JSON.stringify({ t: 'speed', modifier: this.speed } satisfies ServerEvent));
+    if (this.pauseReason) c.sendText(JSON.stringify({ t: 'paused', on: true, reason: this.pauseReason } satisfies ServerEvent));
     // late joiners / reconnects must see the current screen even if the game never repaints
     if (this.lastPacked) c.sendFrame(this.lastPacked);
+    this.syncPause();
+  }
+
+  /**
+   * The game is suspended while a viewer asked for it, or while nobody can see the page (every connected viewer
+   * reported it hidden). A session without viewers keeps running: it waits for a reconnect (SESSION_RECOVERY.md).
+   */
+  private syncPause(): void {
+    if (this.state !== 'running') return;
+    const reason = this.manualPause ? 'manual' : this.clients.size > 0 && [...this.clients.values()].every((e) => !e.visible) ? 'hidden' : null;
+    if (reason === this.pauseReason) return;
+    const was = this.pauseReason !== null;
+    this.pauseReason = reason;
+    if (!was && reason) {
+      // keys held by a viewer would stay down while the game cannot see the release
+      for (const e of this.clients.values()) e.held.clear();
+      this.adapter.releaseAll();
+      this.adapter.setPaused(true);
+    } else if (was && !reason) this.adapter.setPaused(false);
+    this.broadcastText({ t: 'paused', on: reason !== null, reason: reason ?? 'manual' });
   }
 
   removeClient(id: string): void {
@@ -293,12 +347,30 @@ export class Session {
       this.pendingPerms.clear();
       this.startIdle();
     }
+    this.syncPause();
   }
 
   handleClientEvent(clientId: string, ev: ClientEvent): void {
     const e = this.clients.get(clientId);
     if (!e || this.state !== 'running') return;
+    // a suspended game must not get input queued up that fires on resume
+    if (this.pauseReason && (ev.t === 'key' || ev.t === 'pointer' || ev.t === 'cmd' || ev.t === 'text')) return;
     switch (ev.t) {
+      case 'pause':
+        this.manualPause = !!ev.on;
+        this.syncPause();
+        break;
+      case 'speed': {
+        if (!Number.isInteger(ev.modifier) || ev.modifier === 0 || ev.modifier < -100 || ev.modifier > 100 || ev.modifier === this.speed) break;
+        this.speed = ev.modifier;
+        this.adapter.setSpeed(this.speed);
+        this.broadcastText({ t: 'speed', modifier: this.speed });
+        break;
+      }
+      case 'visibility':
+        e.visible = !!ev.visible;
+        this.syncPause();
+        break;
       case 'key': {
         if (!Number.isInteger(ev.code) || ev.code < -1000 || ev.code > 0x10ffff) return;
         if (ev.s === 'D' || ev.s === 'R') {
@@ -332,6 +404,9 @@ export class Session {
         this.adapter.answerPermission(ev.id, !!ev.allow);
         break;
       }
+      case 'text':
+        if (typeof ev.text === 'string' && this.textArea && ev.text.length <= TEXT_INPUT_MAX) this.adapter.setText(ev.text);
+        break;
       case 'audio':
         e.audio = !!ev.on;
         break;
@@ -370,6 +445,7 @@ export class SessionManager {
   constructor(
     private cfg: Config,
     private lib: Library,
+    private soundfontPath: () => string | null = () => null,
   ) {
     mkdirSync(cfg.runDir, { recursive: true, mode: 0o700 });
   }
@@ -409,7 +485,8 @@ export class SessionManager {
     const userPath = this.lib.savesDir(owner, game.id);
     this.lib.pruneLogs();
     // Per-app emulator settings (device preset, key codes of the chosen layout) go to midlets.ini
-    writeMidletsIni(userPath, { jarPath: paths.jar, width: overrides.width, height: overrides.height, keys: KEY_LAYOUTS[overrides.layout].keys, preset });
+    writeSoundfontProperty(userPath, this.soundfontPath());
+    writeMidletsIni(userPath, { jarPath: paths.jar, width: overrides.width, height: overrides.height, keys: KEY_LAYOUTS[overrides.layout].keys, preset, tweaks: overrides.emulation });
     const adapter = new KEmulatorAdapter({
       adapterBin: this.cfg.adapterBin,
       javaBin: this.cfg.javaBin,

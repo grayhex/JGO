@@ -1,0 +1,54 @@
+diff --git a/src/main/emulator/ui/bridge/BridgeFrontend.java b/src/main/emulator/ui/bridge/BridgeFrontend.java
+index 114c58fb..1d428842 100644
+--- a/src/main/emulator/ui/bridge/BridgeFrontend.java
++++ b/src/main/emulator/ui/bridge/BridgeFrontend.java
+@@ -21,6 +21,8 @@ import java.util.Properties;
+ import java.util.Vector;
+ 
+ public class BridgeFrontend implements IEmulatorFrontend {
++
++	private final IMessage message = new BridgeMessage();
+ 	public final MappedByteBuffer frameBuffer;
+ 	private final FileChannel bufferChannel;
+ 	public final BufferedReader inputpipe;
+@@ -143,7 +145,7 @@ public class BridgeFrontend implements IEmulatorFrontend {
+ 
+ 	@Override
+ 	public IMessage getMessage() {
+-		return null;
++		return message;
+ 	}
+ 
+ 	@Override
+diff --git a/src/main/emulator/ui/bridge/BridgeMessage.java b/src/main/emulator/ui/bridge/BridgeMessage.java
+new file mode 100644
+index 00000000..378d578c
+--- /dev/null
++++ b/src/main/emulator/ui/bridge/BridgeMessage.java
+@@ -0,0 +1,26 @@
++package emulator.ui.bridge;
++
++import emulator.ui.IMessage;
++
++import javax.wireless.messaging.Message;
++import java.io.IOException;
++import java.io.InterruptedIOException;
++
++/**
++ * j2me-web: there is no SMS console in the Bridge frontend. IEmulatorFrontend.getMessage() used to return
++ * null, so a game that used javax.wireless.messaging died with a NullPointerException. A phone without
++ * a SIM card reports an IOException on send and never receives anything: do the same.
++ */
++final class BridgeMessage implements IMessage {
++
++	@Override
++	public Message receive(String address) throws IOException, InterruptedIOException {
++		return null;
++	}
++
++	@Override
++	public void send(Message message, String address) throws IOException, InterruptedIOException {
++		System.out.println("[sms] message to " + address + " was not sent: SMS is not available in this player");
++		throw new IOException("SMS is not available");
++	}
++}

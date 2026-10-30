@@ -1,6 +1,6 @@
 import { resolvePhone } from '@j2me-web/protocol';
 import { execFile } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { createReadStream, readFileSync } from 'node:fs';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { existsSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
@@ -18,8 +18,11 @@ import { registerAdminRoutes } from './adminRoutes.js';
 import { Library, newId, validateSettings } from './library.js';
 import { MetadataService } from './metadata.js';
 import { DEFAULT_API_BASE, MobyClient } from './mobygames.js';
+import { buildDiagnostics } from './diagnostics.js';
+import { GAME_FILES_QUOTA_BYTES, GameFiles } from './gameFiles.js';
 import { gameDefaults, ScanManager } from './scanner.js';
 import { SettingsStore } from './settingsStore.js';
+import { SoundfontStore } from './soundfont.js';
 import { SessionError, SessionManager, type StreamClient } from './sessions.js';
 
 /** The release being run: JGO_VERSION (set by the systemd unit), else the VERSION file of the release tree, else the dev default. */
@@ -69,7 +72,8 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
   settings.markLegacyIfPopulated(library.count());
   // stale bridge dirs from a crashed run
   if (existsSync(cfg.runDir)) for (const d of readdirSync(cfg.runDir)) rmSync(path.join(cfg.runDir, d), { recursive: true, force: true });
-  const sessions = new SessionManager(cfg, library);
+  const soundfont = new SoundfontStore(cfg.dataDir);
+  const sessions = new SessionManager(cfg, library, () => soundfont.path());
   const java = await javaVersion(cfg.javaBin);
   const moby = new MobyClient(() => settings.mobygamesKey(), { base: process.env.MOBYGAMES_API_BASE || DEFAULT_API_BASE, ...(process.env.MOBYGAMES_MIN_INTERVAL_MS ? { minIntervalMs: Number(process.env.MOBYGAMES_MIN_INTERVAL_MS) } : {}), onWait: (until) => metadata.setWaiting(until) });
   const metadata = new MetadataService(library, cfg.dataDir, () => moby, () => moby.hasKey());
@@ -208,6 +212,32 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
     return reply.code(duplicate ? 200 : 201).send({ game, duplicate });
   });
 
+  // --- the game's file area (JSR-75 `file:///`): look, download, upload, delete. Paths are relative and checked in gameFiles.ts ---
+  const filesOf = (id: string) => {
+    if (!library.get(id)) throw new UploadError('not_found', 'Game not found', 404);
+    return new GameFiles(library.savesDir(owner, id));
+  };
+  app.get<{ Params: { id: string }; Querystring: { path?: string } }>('/api/games/:id/files', async (req) => {
+    const files = filesOf(req.params.id);
+    return { path: req.query.path ?? '', ...files.list(req.query.path ?? ''), usedBytes: files.usedBytes(), quotaBytes: GAME_FILES_QUOTA_BYTES };
+  });
+  app.get<{ Params: { id: string }; Querystring: { path?: string } }>('/api/games/:id/files/download', async (req, reply) => {
+    const f = filesOf(req.params.id).file(req.query.path ?? '');
+    const name = path.basename(f.abs).replace(/[^\w.\- ]+/g, '_');
+    return reply.header('Content-Type', 'application/octet-stream').header('Content-Length', f.size).header('Content-Disposition', `attachment; filename="${name}"`).header('X-Content-Type-Options', 'nosniff').header('Cache-Control', 'no-store').send(createReadStream(f.abs));
+  });
+  app.put<{ Params: { id: string }; Querystring: { path?: string } }>('/api/games/:id/files', async (req, reply) => {
+    const files = filesOf(req.params.id);
+    if (!req.isMultipart()) throw new UploadError('bad_request', 'Expected multipart/form-data with a file');
+    const part = await req.file({ limits: { fileSize: cfg.maxUploadBytes } });
+    if (!part) throw new UploadError('no_file', 'No file in the upload', 400);
+    return reply.code(201).send(await files.save(req.query.path ?? '', part.filename ?? '', part.file));
+  });
+  app.delete<{ Params: { id: string }; Querystring: { path?: string } }>('/api/games/:id/files', async (req, reply) => {
+    filesOf(req.params.id).remove(req.query.path ?? '');
+    return reply.code(204).send();
+  });
+
   app.get('/api/devices', async () => devicePresets());
 
   app.get<{ Params: { id: string } }>('/api/games/:id/analysis', async (req) => {
@@ -230,8 +260,11 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
     if (patchSettings && typeof patchSettings === 'object') {
       const cur = library.get(req.params.id);
       if (cur) {
+        const resetEmulation = (patchSettings as Record<string, unknown>).emulation === null;
         const valid = validateSettings(patchSettings, cur.settings);
         patchSettings = valid.profileMode === 'auto' || 'device' in patchSettings ? withDevice(valid, patchSettings as Record<string, unknown>) : valid;
+        // `valid` is a complete settings object, so "remove the options" has to survive as an explicit null
+        if (resetEmulation) patchSettings = { ...(patchSettings as object), emulation: null };
       }
     }
     const g = library.update(req.params.id, { ...(typeof req.body?.favorite === 'boolean' ? { favorite: req.body.favorite } : {}), settings: patchSettings });
@@ -267,6 +300,13 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
     const s = sessions.get(req.params.id);
     if (!s) throw new SessionError('not_found', 'Session not found', 404);
     return s.status();
+  });
+
+  app.get<{ Params: { id: string } }>('/api/sessions/:id/diagnostics', async (req, reply) => {
+    const s = sessions.get(req.params.id);
+    if (!s) throw new SessionError('not_found', 'Session not found', 404);
+    const text = await buildDiagnostics({ status: s.status(), gameName: s.game.name, settings: s.game.settings, logTail: s.logTail.slice(-300), bridgeDir: s.bridgeDir, javaBin: cfg.javaBin, version: VERSION });
+    return reply.header('Content-Type', 'text/plain; charset=utf-8').header('Content-Disposition', `attachment; filename="jgo-diagnostics-${s.id}.txt"`).header('Cache-Control', 'no-store').send(text);
   });
 
   app.delete<{ Params: { id: string } }>('/api/sessions/:id', async (req, reply) => {
@@ -315,7 +355,7 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
     socket.on('error', gone);
   });
 
-  registerAdminRoutes(app, { cfg, library, store: settings, scan, metadata, moby, version: VERSION, java });
+  registerAdminRoutes(app, { cfg, library, store: settings, soundfont, scan, metadata, moby, version: VERSION, java });
 
   // --- static web UI (production) ---
   if (cfg.webDir) {

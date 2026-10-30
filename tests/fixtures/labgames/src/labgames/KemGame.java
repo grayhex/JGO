@@ -13,8 +13,10 @@ import javax.microedition.midlet.MIDlet;
 /** CC0 "typical 2D game": GameCanvas + key polling + TiledLayer background + animated Sprite, full screen. */
 public class KemGame extends MIDlet {
 	private Loop loop;
+	private int starts;
 
 	protected void startApp() {
+		System.out.println("LIFECYCLE startApp " + (++starts));
 		if (loop == null) {
 			loop = new Loop();
 			Display.getDisplay(this).setCurrent(loop);
@@ -23,6 +25,7 @@ public class KemGame extends MIDlet {
 	}
 
 	protected void pauseApp() {
+		System.out.println("LIFECYCLE pauseApp");
 	}
 
 	protected void destroyApp(boolean u) {
@@ -60,6 +63,14 @@ public class KemGame extends MIDlet {
 			lm.append(tiles);
 		}
 
+		protected void hideNotify() {
+			System.out.println("LIFECYCLE hideNotify");
+		}
+
+		protected void showNotify() {
+			System.out.println("LIFECYCLE showNotify");
+		}
+
 		public void run() {
 			Graphics g = getGraphics();
 			while (alive) {
@@ -81,6 +92,7 @@ public class KemGame extends MIDlet {
 				g.setColor(0xffffff);
 				g.drawString("KemGame " + frame, 2, 2, Graphics.TOP | Graphics.LEFT);
 				flushGraphics();
+				if (frame % 25 == 0) System.out.println("GAME_CLOCK frame=" + frame + " game_ms=" + System.currentTimeMillis() + " real_ms=" + System.nanoTime() / 1000000L);
 				try {
 					Thread.sleep(25);
 				} catch (InterruptedException e) {

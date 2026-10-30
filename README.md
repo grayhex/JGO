@@ -23,6 +23,7 @@
 - **Сессии на сервере.** Обновление страницы и обрыв сети не прерывают игру.
 - **Десять телефонов** на выбор: Nokia 6100, 6230i, N95-1, E71, 5800 XpressMusic; Sony Ericsson K750i, W995, K790i; Motorola RAZR V3; Samsung S5230 Star. У каждого есть полный вид и приближение экрана.
 - **Управление:** кнопки корпуса, экранная клавиатура, клавиатура ПК, геймпад, мультитач.
+- **Ввод текста** в `TextField`/`TextBox`, **пауза**, **скорость** игры, снимок экрана, **запись и воспроизведение** ввода, **файлы игры** (JSR-75), загрузка **SoundFont** для MIDI.
 - **Экран:** поворот картинки, альбомный режим, полный экран, светлая и тёмная темы, русский и английский интерфейс.
 - **Библиотека:** загрузка JAR/JAD перетаскиванием или импорт каталога; поиск дубликатов; необязательные метаданные [MobyGames](https://www.mobygames.com).
 - **Установка в один шаг** в LXC-контейнер Proxmox VE, команда `jgo` для обновлений и резервных копий. Запасной вариант — Docker Compose.
@@ -86,7 +87,7 @@ npm start          # http://127.0.0.1:8080
 
 Поддерживаются MIDP 2.0 / CLDC 1.0–1.1 и class-файлы версии ≤ 48 (настоящие J2ME-JAR). Известные ограничения:
 
-- ввод текста в `TextField`/`TextBox` не поддерживается: экраны отображаются, но набирать в них нельзя;
+- нет поддержки: датчиков и геолокации, SMS, камеры и Bluetooth (игры получают штатную ошибку), видео;
 - у игр нет доступа к сети (`jgo network allow` отключает изоляцию);
 - не проверялись Mascot Capsule 3D, видео и камера.
 
@@ -168,7 +169,7 @@ cargo test --manifest-path bridge/kemulator-adapter/Cargo.toml
 | [UI.md](docs/UI.md), [PLAYER_CONTROLS.md](docs/PLAYER_CONTROLS.md) | интерфейс, телефоны, управление |
 | [SESSION_RECOVERY.md](docs/SESSION_RECOVERY.md) | восстановление сессий, сохранения RMS |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md), [BRIDGE.md](docs/BRIDGE.md) | устройство системы, патчи Bridge |
-| [EMULATOR_FEATURE_MATRIX.md](docs/EMULATOR_FEATURE_MATRIX.md) | покрытие возможностей KEmulator |
+| [EMULATOR_FEATURE_MATRIX.md](docs/EMULATOR_FEATURE_MATRIX.md), [SENSORS.md](docs/SENSORS.md) | покрытие возможностей KEmulator, датчики |
 | [COMPATIBILITY.md](docs/COMPATIBILITY.md), [LAB.md](docs/LAB.md) | совместимость, лаборатория |
 | [SECURITY.md](docs/SECURITY.md) | безопасность |
 

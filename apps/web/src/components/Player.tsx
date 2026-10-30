@@ -1,9 +1,15 @@
 import { t as translateUI } from '../i18n';
 import { useDeveloperMode } from '../developer';
 import { isPhoneId, resolvePhone } from '@j2me-web/protocol';
+import { TextEditor } from './TextEditor';
+import { RecordingPanel } from './RecordingPanel';
+import { GameFilesPanel } from './GameFilesPanel';
+import { EmulationTweaksForm } from './EmulationTweaksForm';
+import { Recorder, Replayer } from '../recording';
+import { downloadBlob, fileSafe, framePng } from '../snapshot';
 import { GamepadPoller, loadPadProfile, type PadAction, type PadState } from '../gamepad';
 import { GamepadSettings } from './GamepadSettings';
-import { KEY_LAYOUTS, SCREEN_PRESETS, type DevicePreset, type GameMeta, type HealthStatus, type LayoutId, type ServerEvent, type SessionState, type SessionStatus } from '@j2me-web/protocol';
+import { KEY_LAYOUTS, SCREEN_PRESETS, type DevicePreset, type EmulationTweaks, type GameMeta, type HealthStatus, type LayoutId, type ServerEvent, type SessionState, type SessionStatus } from '@j2me-web/protocol';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError, type JarAnalysisView } from '../api';
 import type { Toast } from '../App';
@@ -58,6 +64,11 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   const [client, setClient] = useState({ fps: 0, rtt: null as number | null, decode: 0, kbps: 0 });
   const [fpsHist, setFpsHist] = useState<number[]>([]);
   const [cpuHist, setCpuHist] = useState<number[]>([]);
+  const recorder = useRef(new Recorder()).current;
+  const replayer = useRef(new Replayer()).current;
+  const [link, setLink] = useState<string | null>(null);
+  const [pauseInfo, setPauseInfo] = useState<{ on: boolean; reason: 'manual' | 'hidden' } | null>(null);
+  const [textArea, setTextArea] = useState<Extract<ServerEvent, { t: 'text' }>['area']>(null);
   const [menu, setMenu] = useState<Extract<ServerEvent, { t: 'menu' }> | null>(null);
   const [perm, setPerm] = useState<Extract<ServerEvent, { t: 'permission' }> | null>(null);
   // Automatic mode synchronizes the skin; Advanced keeps presentation independent.
@@ -65,6 +76,8 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   const [res, setRes] = useState<{ width: number; height: number } | null>(null);
   const [device, setDevice] = useState('');
   const [heapMb, setHeapMb] = useState(256);
+  const [tweaks, setTweaks] = useState<EmulationTweaks>({});
+  const [speed, setSpeed] = useState(1);
   const [devices, setDevices] = useState<DevicePreset[]>([]);
   const [analysis, setAnalysis] = useState<{ analysis: JarAnalysisView; recommendedDevice: string | null } | null>(null);
   // Presentation
@@ -139,7 +152,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
         const g = (await api.games()).find((x) => x.id === gameId);
         if (!g) { toast('error', 'Game not found'); onExit(); return; }
         if (dead) return;
-        setGame(g); setLayout(g.settings.layout); setRes({ width: g.settings.width, height: g.settings.height }); setDevice(g.settings.device ?? ''); setHeapMb(g.settings.heapMb); setAdvanced(g.settings.profileMode === 'advanced'); if (g.settings.skinId && isSkinId(g.settings.skinId)) setPrefs({skinId:g.settings.skinId}); setLoaded(true);
+        setGame(g); setLayout(g.settings.layout); setRes({ width: g.settings.width, height: g.settings.height }); setDevice(g.settings.device ?? ''); setHeapMb(g.settings.heapMb); setTweaks(g.settings.emulation ?? {}); setAdvanced(g.settings.profileMode === 'advanced'); if (g.settings.skinId && isSkinId(g.settings.skinId)) setPrefs({skinId:g.settings.skinId}); setLoaded(true);
         const running = (await api.sessions()).find((s) => s.gameId === gameId && (s.state === 'running' || s.state === 'starting'));
         if (running && !dead) attach(running);
       } catch (e) { toast('error', (e as Error).message); }
@@ -150,7 +163,9 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameId]);
 
-  const send = useCallback((ev: Parameters<SessionStream['send']>[0]) => streamRef.current?.send(ev), []);
+  const sendRaw = useCallback((ev: Parameters<SessionStream['send']>[0]) => streamRef.current?.send(ev), []);
+  /** Everything the player does goes through here, so a recording sees it. */
+  const send = useCallback((ev: Parameters<SessionStream['send']>[0]) => { recorder.push(ev); sendRaw(ev); }, [recorder, sendRaw]);
   useEffect(() => { input.layout = session && (state === 'running' || state === 'starting') ? session.layout : layout; }, [input, layout, session?.layout, state]);
 
   const onEvent = useCallback((ev: ServerEvent) => {
@@ -159,7 +174,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
       case 'state':
         setState(ev.state);
         if (ev.state === 'exited' || ev.state === 'failed') {
-          input.releaseAll();
+          input.releaseAll(); replayer.stop(); setTextArea(null); setPauseInfo(null); setSpeed(1);
           if (ev.state === 'failed') toast('error', translateUI('Emulator stopped: {detail}', {detail:ev.detail ?? translateUI('unknown error')}));
         }
         break;
@@ -169,10 +184,13 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
       case 'stats': setServer({ fps: ev.fps, dropped: ev.dropped, latencyMs: ev.latencyMs }); break;
       case 'menu': setMenu(ev); break;
       case 'menu-close': setMenu(null); break;
+      case 'text': setTextArea(ev.area); break;
+      case 'speed': setSpeed(ev.modifier); break;
+      case 'paused': setPauseInfo({ on: ev.on, reason: ev.reason }); break;
       case 'permission': setPerm(ev); break;
       case 'vibrate': if (ev.ms > 0) buzz(Math.min(ev.ms, 2000)); else navigator.vibrate?.(0); break;
       case 'displayable': break; // the Bridge draws every screen into the framebuffer (patch 0006): the kind needs no UI
-      case 'url': toast('info', translateUI('The game wants to open {url} (blocked)', {url:ev.url})); break;
+      case 'url': setLink(ev.url); break;
       default: break;
     }
   }, [input, toast]);
@@ -180,7 +198,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   const attach = useCallback((s: SessionStatus) => {
     streamRef.current?.close();
     sessionRef.current = s;
-    setSession(s); setState(s.state); setFrameSize({ w: s.width, h: s.height }); setLog(s.logTail);
+    setSession(s); setSpeed(s.speed ?? 1); setState(s.state); setFrameSize({ w: s.width, h: s.height }); setLog(s.logTail);
     const st = new SessionStream(s.id, {
       onEvent,
       onFrame: (img) => {
@@ -198,7 +216,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
       },
     });
     streamRef.current = st;
-    input.setSend((ev) => st.send(ev as never));
+    input.setSend((ev) => { recorder.push(ev as never); st.send(ev as never); });
     st.connect();
   }, [input, onEvent, audio]);
 
@@ -223,6 +241,14 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
     return () => window.clearInterval(t);
   }, [audio]);
   const live = state === 'running';
+  // the game is suspended while no viewer has the page in front of them (the server decides, see Session.syncPause)
+  useEffect(() => {
+    if (!live || conn !== 'open') return;
+    const sync = () => send({ t: 'visibility', visible: !document.hidden });
+    sync();
+    document.addEventListener('visibilitychange', sync);
+    return () => document.removeEventListener('visibilitychange', sync);
+  }, [live, conn, send]);
   useEffect(() => {
     if (!sessionRef.current || !(state === 'running' || state === 'starting')) return;
     const t = window.setInterval(() => {
@@ -281,12 +307,14 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
     window.addEventListener('pagehide',release);window.addEventListener('beforeunload',warn);
     return()=>{window.removeEventListener('pagehide',release);window.removeEventListener('beforeunload',warn);};
   },[input,state]);
+  const emuPatch = Object.keys(tweaks).length ? tweaks : null;
+  const emuKey = JSON.stringify(tweaks);
   const start = async () => {
     if (!game || busy || !loaded || (!advanced && !matched)) return;
     setBusy(true); setLog([]); setMenu(null); setPerm(null); setCpuHist([]); setFpsHist([]);
     void audio.resume(); // inside the click handler: allowed by autoplay policy
     try {
-      attach(await api.startSession(game.id, { layout, heapMb, ...(res ?? {}), device: device || null, skinId: prefs.skinId, profileMode: advanced ? 'advanced' : 'auto' }));
+      attach(await api.startSession(game.id, { layout, heapMb, ...(res ?? {}), device: device || null, skinId: prefs.skinId, profileMode: advanced ? 'advanced' : 'auto', emulation: emuPatch }));
     } catch (e) {
       const err = e as ApiError;
       toast('error', err.message);
@@ -312,6 +340,19 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
     } finally { setBusy(false); }
   };
   const leave = async () => { if (sessionRef.current && (state === 'running' || state === 'starting' || state === 'stopping') && !await stop()) return; onExit(); };
+  const shot = async (how: 'save' | 'copy') => {
+    const c = canvasEl.current;
+    if (!c) return;
+    try {
+      const png = await framePng(c, rotation);
+      if (how === 'save') downloadBlob(png, `${fileSafe(game?.name ?? 'game')}-${c.width}x${c.height}.png`);
+      else {
+        if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') throw new Error('Copying pictures needs a secure (https) page; use Save instead.');
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
+        toast('info', 'Screenshot copied.');
+      }
+    } catch (e) { toast('error', (e as Error).message); }
+  };
   const fullscreen = () => { const promise = document.fullscreenElement ? document.exitFullscreen() : card.current?.requestFullscreen?.(); promise?.catch(() => toast('info','Fullscreen is unavailable; Lights Out still works in this window.')); };
 
   const pointer = (s: 'D' | 'M' | 'U') => (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -345,11 +386,11 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   useEffect(() => {
     if (!loaded || !res) return;
     if (!advanced && matched && (device !== matched.preset.id || res.width !== matched.preset.width || res.height !== matched.preset.height || layout !== matched.preset.layout)) return;
-    api.patchGame(gameId,{settings:{skinId:prefs.skinId,profileMode:advanced?'advanced':'auto',device:device || null,...res,layout,heapMb}}).catch(e=>toast('error',(e as Error).message));
-  }, [loaded,prefs.skinId,advanced,device,res?.width,res?.height,layout,heapMb,gameId]);
+    api.patchGame(gameId,{settings:{skinId:prefs.skinId,profileMode:advanced?'advanced':'auto',device:device || null,...res,layout,heapMb,emulation:emuPatch}}).catch(e=>toast('error',(e as Error).message));
+  }, [loaded,prefs.skinId,advanced,device,res?.width,res?.height,layout,heapMb,gameId,emuKey]);
   const saveDefaults = async () => {
     if (!game || !res) return;
-    try { await api.patchGame(game.id, { settings: { ...res, layout, heapMb, device: device || null, skinId:prefs.skinId,profileMode:advanced?'advanced':'auto' } }); toast('info', 'Saved as this game’s defaults'); } catch (e) { toast('error', (e as Error).message); }
+    try { await api.patchGame(game.id, { settings: { ...res, layout, heapMb, device: device || null, skinId:prefs.skinId,profileMode:advanced?'advanced':'auto', emulation: emuPatch } }); toast('info', 'Saved as this game’s defaults'); } catch (e) { toast('error', (e as Error).message); }
   };
 
   const running = state === 'running' || state === 'starting' || state === 'stopping';
@@ -388,10 +429,13 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
             </div>
           </div>
           <div className="stage-actions">
-            <span className={`badge ${STATE_BADGE[state] ?? ''} ${live ? 'live' : ''}`} data-testid="state-badge"><span className="dot" />{translateUI(state === 'idle' ? 'stopped' : state)}{translateUI(conn === 'reconnecting' ? ' · reconnecting…' : '')}</span>
+            <span className={`badge ${STATE_BADGE[state] ?? ''} ${live ? 'live' : ''}`} data-testid="state-badge"><span className="dot" />{translateUI(state === 'idle' ? 'stopped' : state)}{translateUI(conn === 'reconnecting' ? ' · reconnecting…' : '')}{pauseInfo?.on && live ? translateUI(' · paused') : ''}</span>
+            {live && <button className="btn ghost sm" onClick={() => send({ t: 'pause', on: !(pauseInfo?.on && pauseInfo.reason === 'manual') })} aria-pressed={!!pauseInfo?.on && pauseInfo.reason === 'manual'} title={translateUI('Suspend the game: pauseApp is called, the picture stops')}>{translateUI(pauseInfo?.on && pauseInfo.reason === 'manual' ? '▶ Resume' : '⏸ Pause')}</button>}
             <Seg label={translateUI("View")} value={prefs.view} onChange={(view) => setPrefs({ view })} options={[{ value: 'full', label: <><Icon name="phone" /> {translateUI("Phone")}</>, title: 'Whole phone, body keys active' }, { value: 'screen', label: <><Icon name="zoom" /> {translateUI("Screen")}</>, title: 'Enlarged display; controls below' }]} />
             {prefs.view === 'screen' && <button className="btn ghost sm" onClick={()=>setLights(v=>!v)} aria-label={translateUI("Lights Out")} aria-pressed={lights} title={translateUI("Lights Out · Alt+L")}>{translateUI("☾ Lights Out")}</button>}
             <button className="btn ghost sm icon" onClick={() => setRotation(nextRotation(rotation))} aria-label={translateUI("Rotate the picture")} title={translateUI("Rotate the picture (for games made for landscape)")} data-testid="rotate"><Icon name="rotate" /></button>
+            <button className="btn ghost sm icon" onClick={() => void shot('save')} disabled={!lastFrame.current} aria-label={translateUI("Save a screenshot")} title={translateUI("Save a screenshot (PNG, the game's own size)")} data-testid="screenshot"><Icon name="camera" /></button>
+            <button className="btn ghost sm icon" onClick={() => void shot('copy')} disabled={!lastFrame.current} aria-label={translateUI("Copy a screenshot")} title={translateUI("Copy a screenshot to the clipboard")} data-testid="screenshot-copy"><Icon name="copy" /></button>
             <button className="btn ghost sm icon" onClick={fullscreen} aria-label={translateUI("Toggle fullscreen")} title={translateUI("Fullscreen")}><Icon name="fullscreen" /></button>
           </div>
         </div>
@@ -414,6 +458,8 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
           ) : <p className="muted center">{translateUI("Loading the phone…")}</p>}
         </div>
 
+        {textArea && live && <TextEditor key={textArea.kind} area={textArea} onText={(text) => send({ t: 'text', text })} />}
+
         <SkinPicker skins={skins} value={prefs.skinId} onChange={(id) => isSkinId(id) && setPrefs({ skinId: id })} />
 
         {external && (
@@ -432,7 +478,13 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
               : <button className="btn danger grow" onClick={stop} disabled={busy || state === 'stopping'}><Icon name="stop" /> {translateUI("Stop")}</button>}
             {running && <button className="btn" disabled={busy || state === 'stopping'} onClick={async () => { if (await stop()) setTimeout(start, 400); }}><Icon name="restart" /> {translateUI("Restart")}</button>}
           </div>
+          {running && <div className="field"><span className="label-caps">{translateUI("Game speed")}</span>
+            <Seg<string> label={translateUI("Game speed")} value={String(speed)} onChange={(v) => send({ t: 'speed', modifier: Number(v) })}
+              options={[{ value: '-75', label: '×0.25' }, { value: '-50', label: '×0.5' }, { value: '1', label: '×1' }, { value: '2', label: '×2' }, { value: '4', label: '×4' }]} />
+            {![-75, -50, 1, 2, 4].includes(speed) && <span className="hint">{translateUI("Custom speed")}: {speed}</span>}
+          </div>}
           {running && <div className="note">{translateUI("Stop requests a safe MIDlet shutdown. An unresponsive game may be forcibly closed after 8 seconds; unsaved in-game progress can be lost. Save inside the game first.")}</div>}
+          {session && <button className="btn ghost sm" onClick={() => api.diagnostics(session.id).then((b) => downloadBlob(b, `jgo-diagnostics-${fileSafe(game?.name ?? 'game')}.txt`), (e) => toast('error', (e as Error).message))} title={translateUI("A text report with the settings, the emulator log and the JVM state: attach it to a bug report")} data-testid="diagnostics">{translateUI("Download diagnostics")}</button>}
           {state === 'failed' && <div className="note err">{translateUI("The emulator stopped unexpectedly. The log below has the details.")}</div>}
           {health?.ok === false && <div className="note warn">{translateUI("The emulator runtime is not ready on this server.")}</div>}
         </Panel>
@@ -475,6 +527,10 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
           <button className="btn sm" onClick={saveDefaults} disabled={!game || !res}>{translateUI("Save as game defaults")}</button>
         </Panel>
 
+        <Panel icon="sliders" title={translateUI("Game compatibility options")} open={false}>
+          <EmulationTweaksForm value={tweaks} onChange={setTweaks} />
+        </Panel>
+
         <Panel icon="layers" title={translateUI("Display")}>
           <div className="statline"><span className="label-caps">{translateUI("Phone model")}</span><span className="small mono">{translateUI(skin ? `${skin.config.manufacturer} ${skin.config.model}` : '…')}</span></div>
           {skin && <div className="statline"><SkinStatus status={skin.config.status} /><span className="hint">{translateUI("display")} {skin.config.screen.width}×{skin.config.screen.height}</span></div>}
@@ -515,6 +571,14 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
           <Switch checked={external} disabled={keypadRequired} onChange={setShowKeypad}>{translateUI("On-screen keypad")}</Switch>
           <div className="btn-row"><button className="btn sm" onClick={() => setKeymap(true)}>{translateUI("Remap keyboard")}</button></div>
           <p className="hint">{translateUI("Arrows · Enter = OK · Q/W = soft keys · 0–9 · X = * · Z = #.")} {translateUI(skin?.config.input?.kind === 'touchscreen' ? 'Touch the display; use the keypad below for games that need buttons.' : prefs.view === 'full' ? 'Click or touch the phone’s keys; several at once work.' : 'In the Screen view the keys are below the picture.')}{translateUI(pad ? ` Gamepad: ${pad.slice(0, 28)}.` : '')}</p>
+        </Panel>
+
+        <Panel icon="log" title={translateUI("Input recording")} open={false}>
+          <RecordingPanel gameId={gameId} gameName={game?.name ?? gameId} frame={frameSize} live={live} recorder={recorder} replayer={replayer} sendRaw={sendRaw} toast={toast} />
+        </Panel>
+
+        <Panel icon="library" title={translateUI("Game files")} open={false}>
+          <GameFilesPanel gameId={gameId} toast={toast} refreshKey={state} />
         </Panel>
 
         <Panel icon="volume" title={translateUI("Audio")} open={false}>
@@ -568,6 +632,17 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
           <ul className="menu-list">
             {menu.items.map((i) => <li key={i.id}><button className="btn block" onClick={() => { send({ t: 'cmd', id: i.id }); setMenu(null); }}>{translateUI(i.kind === 'radio-selected' ? '◉ ' : i.kind === 'radio' ? '○ ' : '')}{i.text}</button></li>)}
           </ul>
+        </Modal>
+      )}
+      {link && (
+        <Modal title={translateUI("The game wants to open a link")} onClose={() => setLink(null)}>
+          <p>{translateUI("Open this address only if you trust it:")}</p>
+          <p><code className="link-url" data-testid="game-link">{link}</code></p>
+          <div className="modal-actions">
+            <span className="spacer" />
+            <button className="btn" onClick={() => setLink(null)}>{translateUI("Cancel")}</button>
+            <a className="btn primary" href={link} target="_blank" rel="noopener noreferrer" onClick={() => setLink(null)}>{translateUI("Open")}</a>
+          </div>
         </Modal>
       )}
       {perm && (

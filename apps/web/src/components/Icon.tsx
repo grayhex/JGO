@@ -35,6 +35,8 @@ const P: Record<string, ReactNode> = {
   alert: <><path d="M12 3.5l9.5 16.5h-19z" /><path d="M12 10v4.5M12 17.5v.01" /></>,
   info: <><circle cx="12" cy="12" r="9" /><path d="M12 11v5.5M12 7.5v.01" /></>,
   trash: <><path d="M4 7h16M10 7V4h4v3M6.5 7l1 13h9l1-13" /></>,
+  camera: <><path d="M4 8h3l1.5-2.5h7L17 8h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></>,
+  copy: <><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" /></>,
   grid: <><path d="M4 4h16v16H4zM4 12h16M12 4v16" /></>,
 };
 
