@@ -18,6 +18,7 @@ import { registerAdminRoutes } from './adminRoutes.js';
 import { Library, newId, validateSettings } from './library.js';
 import { MetadataService } from './metadata.js';
 import { DEFAULT_API_BASE, MobyClient } from './mobygames.js';
+import { buildDiagnostics } from './diagnostics.js';
 import { gameDefaults, ScanManager } from './scanner.js';
 import { SettingsStore } from './settingsStore.js';
 import { SoundfontStore } from './soundfont.js';
@@ -272,6 +273,13 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
     const s = sessions.get(req.params.id);
     if (!s) throw new SessionError('not_found', 'Session not found', 404);
     return s.status();
+  });
+
+  app.get<{ Params: { id: string } }>('/api/sessions/:id/diagnostics', async (req, reply) => {
+    const s = sessions.get(req.params.id);
+    if (!s) throw new SessionError('not_found', 'Session not found', 404);
+    const text = await buildDiagnostics({ status: s.status(), gameName: s.game.name, settings: s.game.settings, logTail: s.logTail.slice(-300), bridgeDir: s.bridgeDir, javaBin: cfg.javaBin, version: VERSION });
+    return reply.header('Content-Type', 'text/plain; charset=utf-8').header('Content-Disposition', `attachment; filename="jgo-diagnostics-${s.id}.txt"`).header('Cache-Control', 'no-store').send(text);
   });
 
   app.delete<{ Params: { id: string } }>('/api/sessions/:id', async (req, reply) => {

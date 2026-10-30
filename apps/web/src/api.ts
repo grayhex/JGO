@@ -61,6 +61,12 @@ export const api = {
   analysis: (id: string) => req<{ analysis: JarAnalysisView; recommendedDevice: string | null }>(`/api/games/${id}/analysis`),
   sessions: () => req<SessionStatus[]>('/api/sessions'),
   session: (id: string) => req<SessionStatus>(`/api/sessions/${id}`),
+  /** Plain-text report of a session (settings, log, JVM heap and threads) to attach to a bug report. */
+  diagnostics: async (id: string): Promise<Blob> => {
+    const r = await fetch(`/api/sessions/${id}/diagnostics`, { credentials: 'same-origin' });
+    if (!r.ok) throw new ApiError(r.status, 'diagnostics', (await r.json().catch(() => ({}))).message ?? `HTTP ${r.status}`);
+    return r.blob();
+  },
   stopSession: (id: string) => req<SessionStatus>(`/api/sessions/${id}`, { method: 'DELETE' }),
 
   // first run, settings, system
