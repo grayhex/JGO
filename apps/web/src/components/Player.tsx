@@ -2,6 +2,7 @@ import { KEY_LAYOUTS, SCREEN_PRESETS, type GameMeta, type HealthStatus, type Lay
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../api';
 import type { Toast } from '../App';
+import { PcmAudio } from '../audio';
 import { GamepadPoller, InputController } from '../input';
 import { SessionStream } from '../stream';
 import { KeyMapDialog } from './KeyMapDialog';
@@ -34,7 +35,10 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   const [busy, setBusy] = useState(false);
   const [boxSize, setBoxSize] = useState({ w: 320, h: 480 });
   const [frameSize, setFrameSize] = useState({ w: 240, h: 320 });
-  const [vol, setVol] = useState(80);
+  const [vol, setVol] = useState(() => { try { return Number(localStorage.getItem('j2me-web.volume') ?? 80); } catch { return 80; } });
+  const [muted, setMuted] = useState(false);
+  const [audioInfo, setAudioInfo] = useState({ state: 'off' as string, rms: 0, kbps: 0, buffered: 0 });
+  const audio = useMemo(() => new PcmAudio(), []);
 
   const canvas = useRef<HTMLCanvasElement>(null);
   const stage = useRef<HTMLDivElement>(null);
@@ -100,18 +104,30 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
         if (c.width !== img.width || c.height !== img.height) { c.width = img.width; c.height = img.height; setFrameSize({ w: img.width, h: img.height }); }
         c.getContext('2d')!.putImageData(img, 0, 0);
       },
+      onAudio: (pcm) => audio.push(pcm),
       onConnection: (cs) => setConn(cs),
     });
     streamRef.current = st;
     input.setSend((ev) => st.send(ev as never));
     st.connect();
-  }, [input, onEvent]);
+  }, [input, onEvent, audio]);
+
+  // audio: needs a user gesture, so resume on the first interaction as well as on Start
+  useEffect(() => {
+    const go = () => { void audio.resume(); };
+    window.addEventListener('pointerdown', go, { once: true });
+    window.addEventListener('keydown', go, { once: true });
+    return () => { window.removeEventListener('pointerdown', go); window.removeEventListener('keydown', go); audio.close(); };
+  }, [audio]);
+  useEffect(() => { audio.setVolume(vol / 100); try { localStorage.setItem('j2me-web.volume', String(vol)); } catch { /* ignore */ } }, [audio, vol]);
+  useEffect(() => { audio.setMuted(muted); }, [audio, muted]);
 
   // client stats
   useEffect(() => {
     const t = window.setInterval(() => {
       const s = streamRef.current?.stats; if (!s) return;
       setClient({ fps: s.fps, rtt: s.rttMs, decode: s.decodeMs, kbps: Math.round((s.bytesPerSec * 8) / 1000) });
+      setAudioInfo({ state: audio.stats.state, rms: audio.stats.rms, kbps: 0, buffered: audio.stats.bufferedMs });
     }, 1000);
     return () => window.clearInterval(t);
   }, []);
@@ -154,6 +170,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   const start = async () => {
     if (!game || busy) return;
     setBusy(true); setLog([]); setMenu(null); setPerm(null);
+    void audio.resume(); // inside the click handler: allowed by autoplay policy
     try {
       const s = await api.startSession(game.id, { layout, ...(res ?? {}) });
       attach(s);
@@ -284,9 +301,12 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
 
           <div className="panel-sec">
             <h4>Audio</h4>
-            <label className="field"><span>Volume</span><input type="range" min={0} max={100} value={vol} onChange={(e) => setVol(Number(e.target.value))} disabled /></label>
-            <p className="note">Audio streaming is not implemented in this build (see docs/COMPATIBILITY.md). The control is disabled.</p>
-            <span hidden>{vol}</span>
+            <label className="field"><span>Volume</span><input type="range" min={0} max={100} value={vol} onChange={(e) => setVol(Number(e.target.value))} aria-label="Volume" /></label>
+            <label className="check"><input type="checkbox" checked={muted} onChange={(e) => setMuted(e.target.checked)} /> Mute</label>
+            {audioInfo.state !== 'running' && running && <p className="note">Sound is waiting for a click or key press (browser autoplay policy).</p>}
+            <p className="muted small" data-testid="audio-status" data-audio-state={audioInfo.state} data-audio-rms={audioInfo.rms.toFixed(4)}>
+              {audioInfo.state === 'running' ? `output ${audioInfo.rms > 0.0005 ? 'active' : 'idle'} · level ${(audioInfo.rms * 100).toFixed(1)}% · buffer ${audioInfo.buffered} ms` : `audio ${audioInfo.state}`}
+            </p>
           </div>
 
           <div className="panel-sec">

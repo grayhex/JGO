@@ -9,6 +9,7 @@ import {
   type ServerEvent,
   type SessionState,
   type SessionStatus,
+  WS_BIN_AUDIO,
 } from '@j2me-web/protocol';
 import { KEmulatorAdapter, type ExitInfo, type FrameMsg } from './kemulator/adapter.js';
 import { newId, type Library } from './library.js';
@@ -29,6 +30,8 @@ export interface StreamClient {
   sendText(s: string): void;
   /** Returns false when the frame was dropped because the socket is congested. */
   sendFrame(b: Buffer): boolean;
+  /** Audio chunk (already prefixed with the WS audio kind byte). Dropped when congested. */
+  sendAudio(b: Buffer): void;
   close(): void;
 }
 
@@ -59,7 +62,8 @@ export class Session {
   framesDropped = 0;
   latencyMs: number | null = null;
   endedAt: number | null = null;
-  readonly clients = new Map<string, { c: StreamClient; held: Set<number> }>();
+  readonly clients = new Map<string, { c: StreamClient; held: Set<number>; audio: boolean }>();
+  audioBytes = 0;
   private lastPacked: Buffer | null = null;
   private timers: NodeJS.Timeout[] = [];
   private pendingMenu: ServerEvent | null = null;
@@ -78,6 +82,7 @@ export class Session {
   ) {
     this.logFile = logFile;
     adapter.on('frame', (f) => this.onFrame(f));
+    adapter.on('audio', (a) => this.onAudio(a));
     adapter.on('state', (t, b) => this.onStatePacket(t, b));
     adapter.on('log', (l) => this.pushLog(l));
     adapter.on('exit', (e) => this.onExit(e));
@@ -112,6 +117,7 @@ export class Session {
       softkeys: this.softkeys,
       logTail: this.logTail.slice(-60),
       diagnostics: this.diagnostics,
+      audioBytes: this.audioBytes,
       encoding: this.cfg.frameEncoding,
     };
   }
@@ -142,6 +148,13 @@ export class Session {
     const packed = Buffer.concat([hdr, f.data]);
     this.lastPacked = packed;
     for (const { c } of this.clients.values()) if (!c.sendFrame(packed)) this.framesDropped++;
+  }
+
+  private onAudio(pcm: Buffer): void {
+    this.audioBytes += pcm.length;
+    if (![...this.clients.values()].some((e) => e.audio)) return;
+    const msg = Buffer.concat([Buffer.from([WS_BIN_AUDIO]), pcm]);
+    for (const e of this.clients.values()) if (e.audio) e.c.sendAudio(msg);
   }
 
   private onStatePacket(type: string, b: Buffer): void {
@@ -221,7 +234,7 @@ export class Session {
   }
 
   addClient(c: StreamClient): void {
-    this.clients.set(c.id, { c, held: new Set() });
+    this.clients.set(c.id, { c, held: new Set(), audio: false });
     this.clearIdle();
     c.sendText(JSON.stringify({ t: 'hello', sessionId: this.id, width: this.settings.width, height: this.settings.height, state: this.state } satisfies ServerEvent));
     c.sendText(JSON.stringify({ t: 'softkeys', ...this.softkeys } satisfies ServerEvent));
@@ -273,6 +286,9 @@ export class Session {
         break;
       case 'perm':
         this.adapter.answerPermission(ev.id, !!ev.allow);
+        break;
+      case 'audio':
+        e.audio = !!ev.on;
         break;
       case 'ping':
         e.c.sendText(JSON.stringify({ t: 'pong', ts: ev.ts } satisfies ServerEvent));

@@ -58,6 +58,8 @@ export interface SessionStatus {
   logTail: string[];
   /** Human-readable findings extracted from the emulator log (unsupported APIs, load failures). */
   diagnostics: string[];
+  /** PCM bytes the emulator has produced so far (0 = the game never made a sound). */
+  audioBytes: number;
   /** Width/height of frames actually produced. */
   encoding: 'raw' | 'deflate';
 }
@@ -85,6 +87,10 @@ export interface ApiError {
 export const WS_BIN_FRAME = 0x01;
 export const FRAME_ENC_RGBA = 0;
 export const FRAME_ENC_DEFLATE_RAW = 1;
+/** Audio chunk: kind u8 | s16le stereo PCM @ AUDIO_RATE (any length, multiple of 4 bytes). */
+export const WS_BIN_AUDIO = 0x02;
+export const AUDIO_RATE = 44100;
+export const AUDIO_CHANNELS = 2;
 /** Binary frame layout: kind u8 | seq u32 | enc u8 | width u16 | height u16 | serverTs u32 (ms, wraps) | pixels. */
 export const WS_FRAME_HEADER_BYTES = 1 + 4 + 1 + 2 + 2 + 4;
 
@@ -112,6 +118,7 @@ export type ClientEvent =
   | { t: 'perm'; id: number; allow: boolean }
   /** Release every key the server believes is held (focus loss, reconnect). */
   | { t: 'release-all' }
+  | { t: 'audio'; on: boolean }
   | { t: 'ping'; ts: number };
 
 // ---- Keys ----------------------------------------------------------------------------------

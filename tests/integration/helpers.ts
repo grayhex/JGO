@@ -77,12 +77,15 @@ export async function upload(base: string, file: string | Buffer, name = 'game.j
 }
 
 export function javaProcs(): number[] {
-  // processes whose command line mentions our KEmulator jar
+  // Only real emulator processes: argv[0] is java (running KEmulator.jar) or kem-adapter.
+  // (Matching the raw command line would also hit any shell whose script text mentions them.)
   const out: number[] = [];
   for (const pid of readdirSync('/proc').filter((d) => /^\d+$/.test(d))) {
     try {
-      const cmd = readFileSync(`/proc/${pid}/cmdline`, 'utf8');
-      if ((cmd.includes('KEmulator.jar') || cmd.includes('kem-adapter')) && Number(pid) !== process.pid) out.push(Number(pid));
+      const argv = readFileSync(`/proc/${pid}/cmdline`, 'utf8').split('\0');
+      const exe = path.basename(argv[0] ?? '');
+      if (Number(pid) === process.pid) continue;
+      if (exe === 'kem-adapter' || (exe === 'java' && argv.some((a) => a.endsWith('KEmulator.jar')))) out.push(Number(pid));
     } catch { /* gone */ }
   }
   return out;
@@ -91,13 +94,14 @@ export function javaProcs(): number[] {
 export function killJava(): void {
   for (const pid of javaProcs()) {
     try {
-      const cmd = readFileSync(`/proc/${pid}/cmdline`, 'utf8');
-      if (cmd.startsWith('java') || cmd.includes('/bin/java')) process.kill(pid, 'SIGKILL');
+      const exe = path.basename(readFileSync(`/proc/${pid}/cmdline`, 'utf8').split('\0')[0] ?? '');
+      if (exe === 'java') process.kill(pid, 'SIGKILL');
     } catch { /* gone */ }
   }
 }
 
 export interface Stream {
+  audio: Buffer[];
   ws: WebSocket;
   events: ServerEvent[];
   frames: { seq: number; w: number; h: number; enc: number; pixels: Uint8Array; at: number }[];
@@ -109,12 +113,13 @@ export async function openStream(base: string, sessionId: string, headers?: Reco
   const url = base.replace('http', 'ws') + `/api/sessions/${sessionId}/stream`;
   const ws = new WebSocket(url, headers ? ({ headers } as any) : undefined);
   ws.binaryType = 'arraybuffer';
-  const s: Stream = { ws, events: [], frames: [], send: (ev) => ws.send(JSON.stringify(ev)), close: () => ws.close() };
+  const s: Stream = { ws, audio: [], events: [], frames: [], send: (ev) => ws.send(JSON.stringify(ev)), close: () => ws.close() };
   ws.onmessage = (m) => {
     if (typeof m.data === 'string') s.events.push(JSON.parse(m.data));
     else {
       const u8 = new Uint8Array(m.data as ArrayBuffer);
-      if (u8[0] === WS_BIN_FRAME) {
+      if (u8[0] === 0x02) s.audio.push(Buffer.from(u8.subarray(1)));
+      else if (u8[0] === WS_BIN_FRAME) {
         const h = decodeFrameHeader(u8);
         s.frames.push({ ...h, pixels: u8.subarray(14), at: Date.now() });
         if (s.frames.length > 400) s.frames.splice(0, 200);

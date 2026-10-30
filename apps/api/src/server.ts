@@ -204,6 +204,9 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
         socket.send(b, { binary: true });
         return true;
       },
+      sendAudio: (b) => {
+        if (socket.readyState === 1 && socket.bufferedAmount < 64 * 1024) socket.send(b, { binary: true });
+      },
       close: () => socket.close(1000, 'session ended'),
     };
     s.addClient(client);

@@ -4,6 +4,7 @@
 //! adapter -> API (stdout):
 //!   'R' ready   : u16 width | u16 height                      (bridge handshake finished)
 //!   'F' frame   : u32 seq | u64 ts_us | u8 enc | pixels        (enc 0 = RGBA, 1 = raw-deflate(RGBA))
+//!   'A' audio   : s16le stereo 44.1 kHz PCM chunk (from the `audio` FIFO written by the JVM's virtual sound card)
 //!   'S' state   : u8 packet type | body                        (KEmulator statepipe packet, verbatim)
 //!   'L' log     : UTF-8 line (KEmulator stdout/stderr)
 //!   'X' exit    : i32 exit code | u8 reason | UTF-8 detail     (always the last message)
@@ -39,4 +40,27 @@ pub fn read_msg<R: Read>(r: &mut R) -> io::Result<Option<(u8, Vec<u8>)>> {
     let mut buf = vec![0u8; len];
     r.read_exact(&mut buf)?;
     Ok(Some((head[0], buf)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Cursor;
+
+    #[test]
+    fn roundtrip_multi_part() {
+        let mut v = Vec::new();
+        write_msg(&mut v, b'F', &[b"ab", b"cde"]).unwrap();
+        assert_eq!(&v[..5], &[b'F', 0, 0, 0, 5]);
+        let (t, p) = read_msg(&mut Cursor::new(v)).unwrap().unwrap();
+        assert_eq!((t, p.as_slice()), (b'F', &b"abcde"[..]));
+    }
+
+    #[test]
+    fn eof_is_none_and_oversize_is_rejected() {
+        assert!(read_msg(&mut Cursor::new(Vec::<u8>::new())).unwrap().is_none());
+        let mut huge = vec![b'I'];
+        huge.extend_from_slice(&(2u32 << 20).to_be_bytes());
+        assert!(read_msg(&mut Cursor::new(huge)).is_err());
+    }
 }

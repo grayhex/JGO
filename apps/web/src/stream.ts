@@ -1,8 +1,10 @@
-import { decodeFrameHeader, FRAME_ENC_DEFLATE_RAW, type ClientEvent, type ServerEvent, WS_BIN_FRAME, WS_FRAME_HEADER_BYTES } from '@j2me-web/protocol';
+import { decodeFrameHeader, FRAME_ENC_DEFLATE_RAW, type ClientEvent, type ServerEvent, WS_BIN_AUDIO, WS_BIN_FRAME, WS_FRAME_HEADER_BYTES } from '@j2me-web/protocol';
 
 export interface StreamHandlers {
   onEvent(ev: ServerEvent): void;
   onFrame(img: ImageData): void;
+  /** s16le stereo PCM chunk (transferable). */
+  onAudio?(pcm: ArrayBuffer): void;
   onConnection(state: 'connecting' | 'open' | 'reconnecting' | 'closed'): void;
 }
 
@@ -44,6 +46,7 @@ export class SessionStream {
       this.retry = 0;
       this.h.onConnection('open');
       this.send({ t: 'release-all' }); // a fresh connection starts with nothing pressed
+      this.send({ t: 'audio', on: true });
       this.pingTimer = window.setInterval(() => this.send({ t: 'ping', ts: performance.now() }), 2000);
       this.statTimer = window.setInterval(() => this.updateStats(), 500);
     };
@@ -55,6 +58,10 @@ export class SessionStream {
         return;
       }
       const u8 = new Uint8Array(m.data as ArrayBuffer);
+      if (u8[0] === WS_BIN_AUDIO) {
+        this.h.onAudio?.((m.data as ArrayBuffer).slice(1));
+        return;
+      }
       if (u8[0] !== WS_BIN_FRAME || u8.length < WS_FRAME_HEADER_BYTES) return;
       this.bytesWindow.push({ t: performance.now(), n: u8.length });
       this.pending = { u8 }; // overwrite: stale frames are never rendered

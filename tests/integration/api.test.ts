@@ -131,6 +131,23 @@ describe('J2ME Web API against a real KEmulator (Bridge)', () => {
     await expectClean();
   });
 
+  it('diagnoses a missing API from the emulator log', async () => {
+    const s = await startSession();
+    const ws = await openStream(env.base, s.body.id);
+    await waitFor(() => ws.frames.length > 3, 'frames');
+    ws.send({ t: 'key', s: 'D', code: 51 }); // "3": the MIDlet loads a class that does not exist
+    ws.send({ t: 'key', s: 'U', code: 51 });
+    const st = await waitFor(async () => {
+      const x = await json(await api(`/api/sessions/${s.body.id}`));
+      return x.diagnostics.length ? x : null;
+    }, 'a diagnostic');
+    assert.match(st.diagnostics[0], /Missing class com\.vendor\.MissingApi/);
+    assert.ok(ws.events.some((e) => e.t === 'log' && /Missing class/.test((e as any).line)), 'pushed to the client too');
+    ws.close();
+    await stopSession(s.body.id);
+    await expectClean();
+  });
+
   it('enforces the session limit', async () => {
     const a = await startSession();
     assert.equal(a.status, 201);

@@ -43,6 +43,13 @@ mkdir -p "$work/stage"
 javac -nowarn -encoding UTF-8 -source 8 -target 8 -XDignore.symbol.file \
   -cp "$CP" -d "$work/stage" @"$work/sources.txt" 2>&1 | grep -v '^Note:\|JAVA_TOOL_OPTIONS\|^warning' || true
 
+# headless Java Sound provider (no sound card in containers); plain JDK APIs, our own code
+mkdir -p "$work/audio-classes"
+javac -nowarn -source 8 -target 8 -XDignore.symbol.file -d "$work/stage" $(find "$runtime_dir/audio/src" -name '*.java') 2>&1 \
+  | grep -v '^Note:\|JAVA_TOOL_OPTIONS\|^warning' || true
+mkdir -p "$work/stage/META-INF/services"
+cp "$runtime_dir/audio/src/META-INF/services/javax.sound.sampled.spi.MixerProvider" "$work/stage/META-INF/services/"
+
 # resources
 cp -r src/res/. "$work/stage/"
 for d in src/main src/media; do

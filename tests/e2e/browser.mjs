@@ -76,6 +76,14 @@ try {
   const frame1 = await page.locator('canvas').screenshot();
   await page.screenshot({ path: path.join(outDir, '03-player-running.png') });
 
+  // audio: the Start click unlocked the AudioContext; key "1" makes the game play a 440 Hz WAV
+  await page.waitForFunction(() => document.querySelector('[data-testid=audio-status]')?.getAttribute('data-audio-state') === 'running', null, { timeout: 8000 });
+  ok('browser AudioContext is running (unlocked by the Start click)', true);
+  await page.keyboard.press('Digit1');
+  await page.waitForFunction(() => Number(document.querySelector('[data-testid=audio-status]')?.getAttribute('data-audio-rms')) > 0.02, null, { timeout: 8000 });
+  const lvl = await page.evaluate(() => document.querySelector('[data-testid=audio-status]').textContent);
+  ok('game audio reaches the browser audio graph (worklet output level > 0)', true, lvl);
+
   // animation is live: the "frame N" text changes the canvas
   await page.waitForTimeout(600);
   const frame2 = await page.locator('canvas').screenshot();

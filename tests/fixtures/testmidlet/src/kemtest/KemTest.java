@@ -4,6 +4,8 @@ import javax.microedition.lcdui.Canvas;
 import javax.microedition.lcdui.Display;
 import javax.microedition.lcdui.Font;
 import javax.microedition.lcdui.Graphics;
+import javax.microedition.media.Manager;
+import javax.microedition.media.Player;
 import javax.microedition.midlet.MIDlet;
 import javax.microedition.rms.RecordStore;
 
@@ -109,7 +111,46 @@ public class KemTest extends MIDlet {
 			g.drawString("launches " + launches, 4, h - 12 - f.getHeight(), Graphics.TOP | Graphics.LEFT);
 		}
 
+		/** 1 s, 440 Hz, 22.05 kHz mono 16-bit WAV generated in memory. */
+		static byte[] sineWav() {
+			int rate = 22050, n = rate;
+			byte[] w = new byte[44 + n * 2];
+			put(w, 0, "RIFF"); le32(w, 4, 36 + n * 2); put(w, 8, "WAVE"); put(w, 12, "fmt "); le32(w, 16, 16);
+			w[20] = 1; w[22] = 1; le32(w, 24, rate); le32(w, 28, rate * 2); w[32] = 2; w[34] = 16;
+			put(w, 36, "data"); le32(w, 40, n * 2);
+			for (int i = 0; i < n; i++) {
+				int v = (int) (Math.sin(2 * Math.PI * 440 * i / rate) * 12000);
+				w[44 + i * 2] = (byte) v;
+				w[45 + i * 2] = (byte) (v >> 8);
+			}
+			return w;
+		}
+
+		static void put(byte[] b, int o, String s) { for (int i = 0; i < s.length(); i++) b[o + i] = (byte) s.charAt(i); }
+		static void le32(byte[] b, int o, int v) { b[o] = (byte) v; b[o + 1] = (byte) (v >> 8); b[o + 2] = (byte) (v >> 16); b[o + 3] = (byte) (v >> 24); }
+
+		void playAudio(int k) {
+			try {
+				if (k == KEY_NUM1) {
+					Player p = Manager.createPlayer(new java.io.ByteArrayInputStream(sineWav()), "audio/x-wav");
+					p.realize();
+					p.prefetch();
+					p.start();
+					System.out.println("AUDIO_WAV_STARTED");
+				} else if (k == KEY_NUM3) {
+					Class.forName("com.vendor.MissingApi"); // simulates a game using an API the emulator lacks
+				} else if (k == KEY_NUM2) {
+					Manager.playTone(69, 1000, 100); // A4 via the MIDI synthesizer
+					System.out.println("AUDIO_TONE_STARTED");
+				}
+			} catch (Throwable t) {
+				if (k == KEY_NUM3) t.printStackTrace();
+				else System.out.println("AUDIO_FAILED " + t);
+			}
+		}
+
 		protected void keyPressed(int k) {
+			playAudio(k);
 			lastKey = k;
 			try { lastAction = getGameAction(k); } catch (Exception e) { lastAction = -99; }
 			down = true;

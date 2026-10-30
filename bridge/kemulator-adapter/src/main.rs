@@ -91,6 +91,8 @@ fn parse_args() -> Result<Config, String> {
 struct Outbox {
     ctrl: Mutex<VecDeque<(u8, Vec<u8>)>>,
     frame: Mutex<Option<(u32, u64, Vec<u8>)>>,
+    /// Bounded: when the consumer is slow the oldest audio is dropped (latency stays bounded).
+    audio: Mutex<VecDeque<Vec<u8>>>,
     cv: Condvar,
     dropped: AtomicU32,
     closed: AtomicBool,
@@ -99,6 +101,15 @@ struct Outbox {
 impl Outbox {
     fn ctrl(&self, ty: u8, payload: Vec<u8>) {
         self.ctrl.lock().unwrap().push_back((ty, payload));
+        self.cv.notify_one();
+    }
+    fn audio(&self, pcm: Vec<u8>) {
+        let mut q = self.audio.lock().unwrap();
+        if q.len() >= 64 {
+            q.pop_front();
+        }
+        q.push_back(pcm);
+        drop(q);
         self.cv.notify_one();
     }
     fn frame(&self, seq: u32, ts: u64, rgba: Vec<u8>) {
@@ -195,6 +206,7 @@ fn main() {
     let out = Arc::new(Outbox {
         ctrl: Mutex::new(VecDeque::new()),
         frame: Mutex::new(None),
+        audio: Mutex::new(VecDeque::new()),
         cv: Condvar::new(),
         dropped: AtomicU32::new(0),
         closed: AtomicBool::new(false),
@@ -211,6 +223,27 @@ fn main() {
         }
     }
     let _ = std::fs::remove_file(cfg.dir.join("screen"));
+    // virtual sound card: the JVM writes PCM into this FIFO (see runtime/audio). Opened O_RDWR so
+    // neither side can block on open and the JVM never sees EPIPE when we are between reads.
+    {
+        let p = cfg.dir.join("audio");
+        let _ = std::fs::remove_file(&p);
+        if mkfifo(&p).is_ok() {
+            if let Ok(f) = OpenOptions::new().read(true).write(true).open(&p) {
+                let out = out.clone();
+                thread::spawn(move || {
+                    let mut f = f;
+                    let mut buf = vec![0u8; 8820]; // 50 ms
+                    loop {
+                        match f.read(&mut buf) {
+                            Ok(0) | Err(_) => break,
+                            Ok(n) => out.audio(buf[..n - n % 4].to_vec()),
+                        }
+                    }
+                });
+            }
+        }
+    }
 
     // --- stdout writer ---------------------------------------------------------------------
     let writer = {
@@ -220,12 +253,13 @@ fn main() {
             let stdout = io::stdout();
             let mut so = io::BufWriter::with_capacity(1 << 20, stdout.lock());
             loop {
-                let (ctrl, frame) = {
+                let (ctrl, frame, audio) = {
                     let mut c = out.ctrl.lock().unwrap();
                     loop {
                         let f = out.frame.lock().unwrap().take();
-                        if !c.is_empty() || f.is_some() {
-                            break (c.pop_front(), f);
+                        let a = out.audio.lock().unwrap().pop_front();
+                        if !c.is_empty() || f.is_some() || a.is_some() {
+                            break (c.pop_front(), f, a);
                         }
                         if out.closed.load(Ordering::SeqCst) {
                             return;
@@ -235,6 +269,11 @@ fn main() {
                 };
                 if let Some((ty, p)) = ctrl {
                     if write_msg(&mut so, ty, &[&p]).is_err() {
+                        return;
+                    }
+                }
+                if let Some(pcm) = audio {
+                    if write_msg(&mut so, b'A', &[&pcm]).is_err() {
                         return;
                     }
                 }
@@ -427,7 +466,7 @@ fn finish(out: &Arc<Outbox>, writer: thread::JoinHandle<()>, cfg: &Config) {
     out.closed.store(true, Ordering::SeqCst);
     out.cv.notify_all();
     let _ = writer.join();
-    for n in ["inputpipe", "statepipe", "readypipe", "readpipe", "screen"] {
+    for n in ["inputpipe", "statepipe", "readypipe", "readpipe", "screen", "audio"] {
         let _ = std::fs::remove_file(cfg.dir.join(n));
     }
 }

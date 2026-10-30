@@ -49,6 +49,8 @@ export interface ExitInfo {
 export interface AdapterEvents {
   ready: [{ width: number; height: number }];
   frame: [FrameMsg];
+  /** s16le stereo 44.1 kHz PCM chunk from the emulator's virtual sound device. */
+  audio: [Buffer];
   /** Verbatim KEmulator statepipe packet. */
   state: [type: string, body: Buffer];
   log: [string];
@@ -128,6 +130,11 @@ export class KEmulatorAdapter extends EventEmitter<AdapterEvents> {
       '-Dfile.encoding=UTF-8',
       '-Dswt.autoScale=false',
       `-Dkem.userpath=${o.userPath}`,
+      // no sound card in the container: route Java Sound to our mixer, which writes PCM to the adapter
+      `-Dkem.audio.out=${path.join(o.bridgeDir, 'audio')}`,
+      '-Djavax.sound.sampled.Clip=cc.j2meweb.audio.WebMixerProvider',
+      '-Djavax.sound.sampled.SourceDataLine=cc.j2meweb.audio.WebMixerProvider',
+      '-Djavax.sound.sampled.Port=cc.j2meweb.audio.WebMixerProvider',
       // DISPLAY is only needed for 3D (GLFW/OpenGL); 2D works without it
       ...(o.display ? [] : ['-Djava.awt.headless=true']),
       `-javaagent:${kemJar}`,
@@ -228,6 +235,9 @@ export class KEmulatorAdapter extends EventEmitter<AdapterEvents> {
         this.emit('frame', f);
         break;
       }
+      case 'A':
+        this.emit('audio', Buffer.from(p));
+        break;
       case 'S':
         this.emit('state', String.fromCharCode(p[0]!), Buffer.from(p.subarray(1)));
         break;
