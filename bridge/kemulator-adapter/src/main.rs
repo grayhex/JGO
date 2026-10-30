@@ -493,6 +493,9 @@ fn main() {
                 } else {
                     EXIT_FAILED_HANDSHAKE
                 };
+                if r == EXIT_NORMAL && quit_race_exit(c, quitting.load(Ordering::SeqCst)) {
+                    break (0, r, "stopped on request".to_string());
+                }
                 break (c, r, bridge_exit_meaning(c).to_string());
             }
             Ok(None) => {}
@@ -553,6 +556,13 @@ fn exit_payload(code: i32, reason: u8, detail: &str) -> Vec<u8> {
     v
 }
 
+/// After a quit request the emulator may notice a closed pipe before it notices the closed
+/// inputpipe and exit with a pipe error (25-29, e.g. 27 "readpipe closed unexpectedly"). That is
+/// the requested shutdown racing itself, not a crash.
+fn quit_race_exit(code: i32, quitting: bool) -> bool {
+    quitting && (25..=29).contains(&code)
+}
+
 /// Exit codes documented in BridgeFrontendDocs.md.
 fn bridge_exit_meaning(code: i32) -> &'static str {
     match code {
@@ -568,5 +578,29 @@ fn bridge_exit_meaning(code: i32) -> &'static str {
         29 => "bridge: inputpipe read failed",
         30 => "bridge: started without a MIDlet",
         _ => "exited with error",
+    }
+}
+
+#[cfg(test)]
+mod quit_race_tests {
+    use super::quit_race_exit;
+
+    #[test]
+    fn pipe_errors_after_a_quit_request_are_a_clean_stop() {
+        for c in 25..=29 {
+            assert!(quit_race_exit(c, true), "code {c}");
+        }
+    }
+
+    #[test]
+    fn pipe_errors_without_a_quit_request_stay_failures() {
+        assert!(!quit_race_exit(27, false));
+    }
+
+    #[test]
+    fn other_codes_are_never_masked() {
+        for c in [1, 21, 22, 24, 30, -1] {
+            assert!(!quit_race_exit(c, true), "code {c}");
+        }
     }
 }
