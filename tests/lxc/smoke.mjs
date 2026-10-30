@@ -94,7 +94,14 @@ if (cmd === 'auth') {
 } else if (cmd === '3d') {
   const g = await upload('kemtest3d');
   const s = await start(g);
-  ok('3d: frames', (await waitFrames(s, 5)) >= 5, `${s.frames.length} frames`);
+  const nFrames = await waitFrames(s, 5);
+  ok('3d: frames', nFrames >= 5, `${nFrames} frames`);
+  if (nFrames < 5) {
+    const st = await (await api(`/api/sessions/${s.id}`)).json();
+    console.log((st.logTail ?? []).slice(-15).join('\n'));
+    await stop(s);
+    process.exit(1);
+  }
   let r = 0, gg = 0, b = 0;
   const deadline = Date.now() + 20000;
   while (Date.now() < deadline && !(r > 15 && gg > 15 && b > 15)) {

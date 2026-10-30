@@ -144,7 +144,7 @@ install_in() { # install_in <exec fn>
 
 run_ct() { # run the ct script as `update` does inside a container
   cx env COMMUNITY_SCRIPTS_CORE_DIR=/opt/cs-core COMMUNITY_SCRIPTS_ROOT=/opt/jgo-src COMMUNITY_SCRIPTS_CORE_URL=file:///opt/cs-core \
-    COMMUNITY_SCRIPTS_URL=file:///opt/jgo-src PHS_SILENT=1 TERM=dumb bash /opt/jgo-src/ct/jgo.sh
+    COMMUNITY_SCRIPTS_URL=file:///opt/jgo-src PHS_SILENT=1 TERM=xterm bash /opt/jgo-src/ct/jgo.sh
 }
 
 # ---------------------------------------------------------------------------------------------------------- scenarios
@@ -195,7 +195,7 @@ t_hardening() {
   check "java runs as jgo" eq "$(sh_ "ps -o user= -p $jpid" | tr -d ' ')" jgo
   check "java has no capabilities and NoNewPrivs" eq "$(sh_ "grep -E '^(CapEff|NoNewPrivs)' /proc/$jpid/status | tr -s '\t ' ' ' | tr '\n' ' '")" "CapEff: 0000000000000000 NoNewPrivs: 1 "
   check "java is in its own network namespace (no network for games)" ne "$(sh_ "readlink /proc/$jpid/ns/net")" "$(sh_ "readlink /proc/$npid/ns/net")"
-  check "inside that namespace there is no interface but lo" eq "$(sh_ "nsenter -t $jpid -n -- sh -c 'ls /sys/class/net | tr -d \"\\n\"'")" lo
+  check "inside that namespace there is no interface but lo" eq "$(sh_ "nsenter -t $jpid -n -- ip -o link | awk -F': ' '{print \$2}' | tr -d '\\n'")" lo
   check "java sits in the jgo.service cgroup" sh_ "grep -q 'jgo.service' /proc/$jpid/cgroup"
   check "memory, tasks and cpu limits are set on the unit" sh_ "systemctl show jgo -p MemoryMax -p TasksMax -p CPUQuotaPerSecUSec | grep -vq infinity"
   check "the JVM heap is capped (-Xmx768m)" sh_ "tr '\\0' ' ' </proc/$jpid/cmdline | grep -q -- '-Xmx768m'"

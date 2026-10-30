@@ -191,16 +191,23 @@ do_backup() { # do_backup <out> <label> <games 0|1> <stop 0|1>; prints the archi
   # shellcheck disable=SC2064
   trap "rm -rf '$stage'" RETURN
   mkdir -p "$stage/data" "$stage/etc"
-  chmod 711 "$stage"
-  chown "$JGO_USER" "$stage/data"
   if [[ -f $JGO_DATA/library.sqlite ]]; then
-    # a consistent snapshot even while the server is writing; run as the service user so that no root-owned -wal/-shm files appear
-    runuser -u "$JGO_USER" -- node -e '
+    # a consistent snapshot even while the server is writing. It runs as the service user (so no root-owned
+    # -wal/-shm files appear) and writes into a directory that user owns; root moves the result into the archive.
+    local snap
+    snap=$(mktemp -d "$JGO_DATA/.snapshot.XXXXXX")
+    chown "$JGO_USER:$JGO_USER" "$snap"
+    if runuser -u "$JGO_USER" -- node -e '
       const { DatabaseSync } = require("node:sqlite");
       const db = new DatabaseSync(process.argv[1]);
       db.exec("VACUUM INTO \x27" + process.argv[2].replace(/\x27/g, "\x27\x27") + "\x27");
-      db.close();' "$JGO_DATA/library.sqlite" "$stage/data/library.sqlite" 2>/dev/null ||
-      { warn "online snapshot of the library failed, copying the files"; cp -a "$JGO_DATA"/library.sqlite* "$stage/data/"; }
+      db.close();' "$JGO_DATA/library.sqlite" "$snap/library.sqlite" 2>/dev/null; then
+      mv "$snap/library.sqlite" "$stage/data/library.sqlite"
+    else
+      warn "online snapshot of the library failed, copying the files"
+      cp -a "$JGO_DATA"/library.sqlite* "$stage/data/"
+    fi
+    rm -rf "$snap"
   fi
   [[ -d $JGO_DATA/saves ]] && cp -a "$JGO_DATA/saves" "$stage/data/saves"
   if ((games)) && [[ -d $JGO_DATA/games ]]; then cp -a "$JGO_DATA/games" "$stage/data/games"; fi
