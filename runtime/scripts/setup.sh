@@ -12,5 +12,6 @@ npm run build
 bash tests/fixtures/testmidlet/build.sh runtime/build/kemulator/KEmulator.jar >/dev/null
 MIDLET_NAME=KemTest2 MIDLET_VERSION=2.0.0 bash tests/fixtures/testmidlet/build.sh runtime/build/kemulator/KEmulator.jar tests/fixtures/testmidlet/build/kemtest2.jar >/dev/null
 bash tests/fixtures/testmidlet3d/build.sh runtime/build/kemulator/KEmulator.jar >/dev/null
+bash tests/fixtures/labgames/build.sh runtime/build/kemulator/KEmulator.jar >/dev/null
 echo "OK. Start with:  npm start   (http://127.0.0.1:8080)"
 echo "3D games need a display: run under 'xvfb-run -a' or set KEM_DISPLAY=:99 with Xvfb running (see README)."

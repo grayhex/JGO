@@ -329,7 +329,9 @@ export function judge(res: GameResult): void {
     if (!res.exit.cleanShutdown && res.exit.state === 'failed') bad(`emulator crashed (${res.exit.detail ?? 'unknown'}, code ${res.exit.code})`);
     if (res.verdicts.blank) bad('picture is blank (single colour / black)');
     if (res.verdicts.static) warn('picture never changes, even after input');
-    if (res.verdicts.animated && res.frames.fpsIdle < 10) warn(`low frame rate (${res.frames.fpsIdle} fps)`);
+    // forms/lists/tickers repaint on events (a ticker ticks ~2 Hz): a low rate there is not a performance problem
+    const eventDriven = res.analysis?.apis.some((a) => a.id === 'lcdui-high' && !res.analysis?.apis.some((b) => b.id === 'gamecanvas'));
+    if (res.verdicts.animated && res.frames.fpsIdle < 10 && !eventDriven) warn(`low frame rate (${res.frames.fpsIdle} fps)`);
     if (res.verdicts.inputResponse === 'no') warn('no visible reaction to key presses');
   }
   if (res.diagnostics.length) warn(`${res.diagnostics.length} emulator diagnostic(s): ${res.diagnostics[0]}`);

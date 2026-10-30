@@ -415,7 +415,12 @@ fn main() {
             let mut rgba = vec![0u8; len];
             while ready.read_exact(&mut byte).is_ok() {
                 // the buffer is ours now. Copy (ARGB big-endian bytes -> RGBA) ...
-                for (d, s) in rgba.chunks_exact_mut(4).zip(screen.chunks_exact(4)) {
+                for (d, s) in rgba
+                    .as_chunks_mut::<4>()
+                    .0
+                    .iter_mut()
+                    .zip(screen.as_chunks::<4>().0)
+                {
                     d[0] = s[1];
                     d[1] = s[2];
                     d[2] = s[3];

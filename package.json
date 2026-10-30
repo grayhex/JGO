@@ -11,7 +11,7 @@
     "build:adapter": "cargo build --release --manifest-path bridge/kemulator-adapter/Cargo.toml",
     "build:fixtures": "bash tests/fixtures/testmidlet/build.sh runtime/build/kemulator/KEmulator.jar",
     "build": "npm run build -w @j2me-web/protocol && npm run build -w @j2me-web/api && npm run build -w @j2me-web/web",
-    "typecheck": "npm run typecheck -w @j2me-web/protocol -w @j2me-web/api -w @j2me-web/web",
+    "typecheck": "npm run build -w @j2me-web/protocol && npm run typecheck -w @j2me-web/protocol -w @j2me-web/api -w @j2me-web/web",
     "dev": "bash runtime/scripts/dev.sh",
     "start": "node apps/api/dist/server.js",
     "test": "npm run test -w @j2me-web/api",

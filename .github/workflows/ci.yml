@@ -153,6 +153,7 @@ jobs:
           docker compose cp app:/opt/kemulator/KEmulator.jar runtime/build/kemulator/KEmulator.jar
           bash tests/fixtures/testmidlet/build.sh runtime/build/kemulator/KEmulator.jar
           bash tests/fixtures/testmidlet3d/build.sh runtime/build/kemulator/KEmulator.jar
+          bash tests/fixtures/labgames/build.sh runtime/build/kemulator/KEmulator.jar
       - name: Container smoke (2D + audio, M3G on llvmpipe)
         run: node tests/e2e/container-smoke.mjs
       - name: Hardening is in effect
