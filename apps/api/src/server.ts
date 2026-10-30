@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { existsSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
@@ -6,10 +7,12 @@ import { fileURLToPath } from 'node:url';
 import fastifyMultipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import fastifyWebsocket from '@fastify/websocket';
-import type { ClientEvent, HealthStatus } from '@j2me-web/protocol';
+import type { ClientEvent, GameSettings, HealthStatus } from '@j2me-web/protocol';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { type Config, loadConfig, readKemCommit } from './config.js';
+import { findPreset, loadDevicePresets, recommendPreset } from './devices.js';
 import { UploadError } from './jar.js';
+import { analyzeJar, emulatorClassSet, readAttributes } from './lab/analyze.js';
 import { Library, newId, validateSettings } from './library.js';
 import { SessionError, SessionManager, type StreamClient } from './sessions.js';
 
@@ -47,6 +50,26 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
   if (existsSync(cfg.runDir)) for (const d of readdirSync(cfg.runDir)) rmSync(path.join(cfg.runDir, d), { recursive: true, force: true });
   const sessions = new SessionManager(cfg, library);
   const java = await javaVersion(cfg.javaBin);
+  let emuClasses: Set<string> | null = null;
+  const devicePresets = () => {
+    try {
+      return loadDevicePresets(cfg.kemDir);
+    } catch (e) {
+      throw new SessionError('devices_unavailable', `Cannot read KEmulator device presets: ${(e as Error).message}`, 503);
+    }
+  };
+  /** Applies a device preset to settings; explicit fields in `explicit` win over the preset. */
+  const withDevice = (settings: GameSettings, explicit: Record<string, unknown>): GameSettings => {
+    if (!settings.device) return settings;
+    const p = findPreset(devicePresets().presets, settings.device);
+    if (!p) throw new SessionError('unknown_device', `Unknown device preset "${settings.device}"`, 400);
+    return {
+      ...settings,
+      width: explicit.width !== undefined ? settings.width : p.width,
+      height: explicit.height !== undefined ? settings.height : p.height,
+      layout: explicit.layout !== undefined ? settings.layout : p.layout,
+    };
+  };
 
   const authCookie = cfg.authToken ? createHmac('sha256', cfg.authToken).update('j2me-web-session').digest('hex') : null;
   const safeEq = (a: string, b: string) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
@@ -148,8 +171,30 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
     return reply.code(duplicate ? 200 : 201).send({ game, duplicate });
   });
 
+  app.get('/api/devices', async () => devicePresets());
+
+  app.get<{ Params: { id: string } }>('/api/games/:id/analysis', async (req) => {
+    const g = library.get(req.params.id);
+    if (!g) throw new UploadError('not_found', 'Game not found', 404);
+    const p = library.paths(g.id);
+    emuClasses ??= emulatorClassSet(path.join(cfg.kemDir, 'KEmulator.jar'));
+    const jar = readFileSync(p.jar);
+    const attrs = readAttributes(jar, p.jad ? readFileSync(p.jad) : undefined);
+    const analysis = analyzeJar(jar, attrs, emuClasses, `${g.name}`);
+    let rec = null;
+    try {
+      rec = recommendPreset(devicePresets().presets, { family: analysis.platform.family, screens: analysis.screenHints });
+    } catch { /* presets unavailable: no recommendation */ }
+    return { analysis, recommendedDevice: rec?.id ?? null };
+  });
+
   app.patch<{ Params: { id: string }; Body: { favorite?: boolean; settings?: unknown } }>('/api/games/:id', async (req) => {
-    const g = library.update(req.params.id, { ...(typeof req.body?.favorite === 'boolean' ? { favorite: req.body.favorite } : {}), settings: req.body?.settings });
+    let patchSettings = req.body?.settings;
+    if (patchSettings && typeof patchSettings === 'object' && 'device' in patchSettings) {
+      const cur = library.get(req.params.id);
+      if (cur) patchSettings = withDevice(validateSettings(patchSettings, cur.settings), patchSettings as Record<string, unknown>);
+    }
+    const g = library.update(req.params.id, { ...(typeof req.body?.favorite === 'boolean' ? { favorite: req.body.favorite } : {}), settings: patchSettings });
     if (!g) throw new UploadError('not_found', 'Game not found', 404);
     return g;
   });
@@ -166,7 +211,10 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
   app.post<{ Body: { gameId?: string; settings?: unknown } }>('/api/sessions', async (req, reply) => {
     const game = typeof req.body?.gameId === 'string' ? library.get(req.body.gameId) : null;
     if (!game) throw new UploadError('not_found', 'Game not found', 404);
-    const settings = validateSettings(req.body?.settings, game.settings);
+    const requested = (req.body?.settings ?? {}) as Record<string, unknown>;
+    const merged = validateSettings(req.body?.settings, game.settings);
+    // a preset only rewrites size/layout when it is (re)selected in this request; otherwise the saved values stand
+    const settings = 'device' in requested ? withDevice(merged, requested) : merged;
     const s = await sessions.create(game, settings, owner);
     return reply.code(201).send(s.status());
   });

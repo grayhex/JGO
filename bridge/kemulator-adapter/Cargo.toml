@@ -2,6 +2,7 @@
 name = "kem-adapter"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.88"
 description = "Supervisor + KEmulator Bridge frontend: FIFO handshake, mmap framebuffer, framed stdio protocol for the Node API"
 license = "MIT"
 

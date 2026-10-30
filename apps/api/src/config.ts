@@ -26,6 +26,8 @@ export interface Config {
   /** Extra Origins allowed to call the API/WS besides same-origin. */
   allowedOrigins: string[];
   webDir: string | null;
+  /** A permission prompt nobody answers within this time is denied (the MIDlet thread would otherwise block forever). */
+  permissionTimeoutMs: number;
   /** CPU seconds budget for the emulator process (RLIMIT_CPU). */
   cpuSeconds: number;
   /** DISPLAY used for 3D (M3G/Mascot Capsule); empty = none. */
@@ -37,16 +39,16 @@ export interface Config {
   launchWrapper: string[];
 }
 
-function int(name: string, def: number): number {
-  const v = process.env[name];
+function int(env: NodeJS.ProcessEnv, name: string, def: number): number {
+  const v = env[name];
   if (v === undefined || v === '') return def;
   const n = Number(v);
   if (!Number.isFinite(n)) throw new Error(`${name} must be a number`);
   return n;
 }
 
-function list(name: string): string[] {
-  return (process.env[name] ?? '').split(/\s+/).filter(Boolean);
+function list(env: NodeJS.ProcessEnv, name: string): string[] {
+  return (env[name] ?? '').split(/\s+/).filter(Boolean);
 }
 
 export function loadConfig(env = process.env): Config {
@@ -55,26 +57,27 @@ export function loadConfig(env = process.env): Config {
   const shm = '/dev/shm';
   const cfg: Config = {
     host: env.HOST ?? '127.0.0.1',
-    port: int('PORT', 8080),
+    port: int(env, 'PORT', 8080),
     dataDir,
     kemDir: path.resolve(env.KEM_DIR ?? path.join(repoRoot, 'runtime/build/kemulator')),
     adapterBin: path.resolve(env.ADAPTER_BIN ?? path.join(repoRoot, 'bridge/kemulator-adapter/target/release/kem-adapter')),
     javaBin: env.JAVA_BIN ?? 'java',
     runDir: path.resolve(env.RUN_DIR ?? path.join(existsSync(shm) ? shm : tmpdir(), 'j2me-web')),
-    maxSessions: int('MAX_SESSIONS', 1),
-    sessionMaxMs: int('SESSION_MAX_MINUTES', 120) * 60_000,
-    sessionIdleMs: int('SESSION_IDLE_MINUTES', 5) * 60_000,
-    maxUploadBytes: int('MAX_UPLOAD_MB', 32) * 1024 * 1024,
-    libraryQuotaBytes: int('LIBRARY_QUOTA_MB', 2048) * 1024 * 1024,
+    maxSessions: int(env, 'MAX_SESSIONS', 1),
+    sessionMaxMs: int(env, 'SESSION_MAX_MINUTES', 120) * 60_000,
+    sessionIdleMs: int(env, 'SESSION_IDLE_MINUTES', 5) * 60_000,
+    maxUploadBytes: int(env, 'MAX_UPLOAD_MB', 32) * 1024 * 1024,
+    libraryQuotaBytes: int(env, 'LIBRARY_QUOTA_MB', 2048) * 1024 * 1024,
     authToken: env.AUTH_TOKEN ? env.AUTH_TOKEN : null,
     frameEncoding: env.FRAME_ENCODING === 'deflate' ? 'deflate' : 'raw',
-    allowedOrigins: list('ALLOWED_ORIGINS'),
+    allowedOrigins: list(env, 'ALLOWED_ORIGINS'),
     webDir: existsSync(webDirEnv) ? path.resolve(webDirEnv) : null,
-    cpuSeconds: int('KEM_CPU_SECONDS', 0),
+    permissionTimeoutMs: int(env, 'PERMISSION_TIMEOUT_SECONDS', 60) * 1000,
+    cpuSeconds: int(env, 'KEM_CPU_SECONDS', 0),
     display: env.KEM_DISPLAY ?? env.DISPLAY ?? '',
     logLevel: env.LOG_LEVEL ?? 'info',
-    jvmExtraArgs: list('KEM_JVM_ARGS'),
-    launchWrapper: list('KEM_LAUNCH_WRAPPER'),
+    jvmExtraArgs: list(env, 'KEM_JVM_ARGS'),
+    launchWrapper: list(env, 'KEM_LAUNCH_WRAPPER'),
   };
   const loopback = ['127.0.0.1', '::1', 'localhost'].includes(cfg.host);
   if (!loopback && !cfg.authToken && env.ALLOW_INSECURE_PUBLIC !== '1') {

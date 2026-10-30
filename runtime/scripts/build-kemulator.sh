@@ -9,6 +9,8 @@ set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
 runtime_dir="$(dirname "$here")"
+# shellcheck source=lib.sh
+. "$here/lib.sh"
 KEM_REPO="${KEM_REPO:-https://github.com/shinovon/KEmulator}"
 # v2.22 (tag object resolves to this commit)
 KEM_REF="${KEM_REF:-9ec1005af5448bca63a420e1dfa884ef53842d0f}"
@@ -25,6 +27,7 @@ if [ -z "$KEM_SRC" ]; then
   git -C "$KEM_SRC" checkout -q FETCH_HEAD
 else
   git -C "$KEM_SRC" checkout -q -f "$KEM_REF"
+  git -C "$KEM_SRC" clean -fdxq   # files left by previously applied patches
 fi
 actual="$(git -C "$KEM_SRC" rev-parse HEAD)"
 [ "$actual" = "$KEM_REF" ] || { echo "unexpected commit $actual (wanted $KEM_REF)" >&2; exit 1; }
@@ -40,13 +43,12 @@ CP="home/swt-win32-x86_64.jar:$(ls lib/*.jar home/swt-gtk-linux-x86_64.jar | tr 
 find src/main src/media src/midp src/nnapi src/nokia src/oem src/3d x64/src m3g_lwjgl/src micro3d_gl/src \
   -name '*.java' > "$work/sources.txt"
 mkdir -p "$work/stage"
-javac -nowarn -encoding UTF-8 -source 8 -target 8 -XDignore.symbol.file \
-  -cp "$CP" -d "$work/stage" @"$work/sources.txt" 2>&1 | grep -v '^Note:\|JAVA_TOOL_OPTIONS\|^warning' || true
+javac_checked -nowarn -encoding UTF-8 -source 8 -target 8 -XDignore.symbol.file \
+  -cp "$CP" -d "$work/stage" @"$work/sources.txt"
 
 # headless Java Sound provider (no sound card in containers); plain JDK APIs, our own code
-mkdir -p "$work/audio-classes"
-javac -nowarn -source 8 -target 8 -XDignore.symbol.file -d "$work/stage" $(find "$runtime_dir/audio/src" -name '*.java') 2>&1 \
-  | grep -v '^Note:\|JAVA_TOOL_OPTIONS\|^warning' || true
+find "$runtime_dir/audio/src" -name '*.java' > "$work/audio-sources.txt"
+javac_checked -nowarn -source 8 -target 8 -XDignore.symbol.file -d "$work/stage" @"$work/audio-sources.txt"
 mkdir -p "$work/stage/META-INF/services"
 cp "$runtime_dir/audio/src/META-INF/services/javax.sound.sampled.spi.MixerProvider" "$work/stage/META-INF/services/"
 

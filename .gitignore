@@ -9,3 +9,8 @@ tests/fixtures/**/build/
 test-results/
 apps/web/dist/
 .vite/
+lab-out/
+lab-data/
+games/
+*.jar
+*.jad

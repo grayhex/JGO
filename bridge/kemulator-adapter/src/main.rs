@@ -56,17 +56,30 @@ fn parse_args() -> Result<Config, String> {
             "--dir" => dir = Some(PathBuf::from(val("--dir")?)),
             "--width" => w = val("--width")?.parse().map_err(|_| "bad --width")?,
             "--height" => h = val("--height")?.parse().map_err(|_| "bad --height")?,
-            "--enc" => cfg.deflate = match val("--enc")?.as_str() {
-                "raw" => false,
-                "deflate" => true,
-                o => return Err(format!("unknown --enc {o}")),
-            },
-            "--grace-ms" => cfg.grace = Duration::from_millis(val("--grace-ms")?.parse().map_err(|_| "bad --grace-ms")?),
-            "--handshake-timeout-ms" => {
-                cfg.handshake_timeout = Duration::from_millis(val("--handshake-timeout-ms")?.parse().map_err(|_| "bad value")?)
+            "--enc" => {
+                cfg.deflate = match val("--enc")?.as_str() {
+                    "raw" => false,
+                    "deflate" => true,
+                    o => return Err(format!("unknown --enc {o}")),
+                }
             }
-            "--max-cpu-seconds" => cfg.max_cpu_seconds = val("--max-cpu-seconds")?.parse().map_err(|_| "bad value")?,
-            "--max-file-bytes" => cfg.max_file_bytes = val("--max-file-bytes")?.parse().map_err(|_| "bad value")?,
+            "--grace-ms" => {
+                cfg.grace =
+                    Duration::from_millis(val("--grace-ms")?.parse().map_err(|_| "bad --grace-ms")?)
+            }
+            "--handshake-timeout-ms" => {
+                cfg.handshake_timeout = Duration::from_millis(
+                    val("--handshake-timeout-ms")?
+                        .parse()
+                        .map_err(|_| "bad value")?,
+                )
+            }
+            "--max-cpu-seconds" => {
+                cfg.max_cpu_seconds = val("--max-cpu-seconds")?.parse().map_err(|_| "bad value")?
+            }
+            "--max-file-bytes" => {
+                cfg.max_file_bytes = val("--max-file-bytes")?.parse().map_err(|_| "bad value")?
+            }
             "--" => {
                 cfg.cmd = args.by_ref().collect();
                 break;
@@ -113,7 +126,13 @@ impl Outbox {
         self.cv.notify_one();
     }
     fn frame(&self, seq: u32, ts: u64, rgba: Vec<u8>) {
-        if self.frame.lock().unwrap().replace((seq, ts, rgba)).is_some() {
+        if self
+            .frame
+            .lock()
+            .unwrap()
+            .replace((seq, ts, rgba))
+            .is_some()
+        {
             self.dropped.fetch_add(1, Ordering::Relaxed);
         }
         self.cv.notify_one();
@@ -121,7 +140,10 @@ impl Outbox {
 }
 
 fn now_us() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_micros() as u64).unwrap_or(0)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_micros() as u64)
+        .unwrap_or(0)
 }
 
 fn mkfifo(path: &Path) -> io::Result<()> {
@@ -139,7 +161,10 @@ fn open_rw(path: &Path, write: bool) -> io::Result<File> {
 
 fn spawn_child(cfg: &Config) -> io::Result<Child> {
     let mut c = Command::new(&cfg.cmd[0]);
-    c.args(&cfg.cmd[1..]).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
+    c.args(&cfg.cmd[1..])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
     c.process_group(0);
     let (cpu, fsize) = (cfg.max_cpu_seconds, cfg.max_file_bytes);
     unsafe {
@@ -147,7 +172,10 @@ fn spawn_child(cfg: &Config) -> io::Result<Child> {
             // die with the adapter, even on SIGKILL of the adapter
             libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL);
             let lim = |res, v: u64| {
-                let r = libc::rlimit { rlim_cur: v, rlim_max: v };
+                let r = libc::rlimit {
+                    rlim_cur: v,
+                    rlim_max: v,
+                };
                 libc::setrlimit(res, &r);
             };
             if cpu > 0 {
@@ -282,7 +310,11 @@ fn main() {
                     hdr.extend_from_slice(&seq.to_be_bytes());
                     hdr.extend_from_slice(&ts.to_be_bytes());
                     // encoding happens here, off the framebuffer-ownership path
-                    let (flag, body) = if use_deflate { (1u8, deflate(&rgba)) } else { (0u8, rgba) };
+                    let (flag, body) = if use_deflate {
+                        (1u8, deflate(&rgba))
+                    } else {
+                        (0u8, rgba)
+                    };
                     hdr.push(flag);
                     if write_msg(&mut so, b'F', &[&hdr, &body]).is_err() {
                         return;
@@ -296,7 +328,10 @@ fn main() {
     let mut child = match spawn_child(&cfg) {
         Ok(c) => c,
         Err(e) => {
-            out.ctrl(b'X', exit_payload(-1, EXIT_FAILED_HANDSHAKE, &format!("spawn failed: {e}")));
+            out.ctrl(
+                b'X',
+                exit_payload(-1, EXIT_FAILED_HANDSHAKE, &format!("spawn failed: {e}")),
+            );
             finish(&out, writer, &cfg);
             std::process::exit(1);
         }
@@ -314,25 +349,36 @@ fn main() {
 
     // --- handshake + readers --------------------------------------------------------------
     {
-        let (cfg, out, input, handshaken) = (cfg.clone(), out.clone(), input.clone(), handshaken.clone());
+        let (cfg, out, input, handshaken) =
+            (cfg.clone(), out.clone(), input.clone(), handshaken.clone());
         thread::spawn(move || {
             let dir = &cfg.dir;
             let fin = open_rw(&dir.join("inputpipe"), true);
             let fstate = fin.and_then(|i| open_rw(&dir.join("statepipe"), false).map(|s| (i, s)));
-            let fready = fstate.and_then(|(i, s)| open_rw(&dir.join("readypipe"), false).map(|r| (i, s, r)));
-            let all = fready.and_then(|(i, s, r)| open_rw(&dir.join("readpipe"), true).map(|a| (i, s, r, a)));
+            let fready =
+                fstate.and_then(|(i, s)| open_rw(&dir.join("readypipe"), false).map(|r| (i, s, r)));
+            let all = fready
+                .and_then(|(i, s, r)| open_rw(&dir.join("readpipe"), true).map(|a| (i, s, r, a)));
             let (fin, fstate, fready, mut fack) = match all {
                 Ok(t) => t,
                 Err(e) => {
-                    out.ctrl(b'L', format!("kem-adapter: bridge handshake failed: {e}").into_bytes());
+                    out.ctrl(
+                        b'L',
+                        format!("kem-adapter: bridge handshake failed: {e}").into_bytes(),
+                    );
                     return;
                 }
             };
             let len = 4 * cfg.width * cfg.height;
-            let screen = match File::open(dir.join("screen")).and_then(|f| unsafe { memmap2::MmapOptions::new().len(len).map(&f) }) {
+            let screen = match File::open(dir.join("screen"))
+                .and_then(|f| unsafe { memmap2::MmapOptions::new().len(len).map(&f) })
+            {
                 Ok(m) => m,
                 Err(e) => {
-                    out.ctrl(b'L', format!("kem-adapter: cannot map screen: {e}").into_bytes());
+                    out.ctrl(
+                        b'L',
+                        format!("kem-adapter: cannot map screen: {e}").into_bytes(),
+                    );
                     return;
                 }
             };
@@ -369,7 +415,12 @@ fn main() {
             let mut rgba = vec![0u8; len];
             while ready.read_exact(&mut byte).is_ok() {
                 // the buffer is ours now. Copy (ARGB big-endian bytes -> RGBA) ...
-                for (d, s) in rgba.chunks_exact_mut(4).zip(screen.chunks_exact(4)) {
+                for (d, s) in rgba
+                    .as_chunks_mut::<4>()
+                    .0
+                    .iter_mut()
+                    .zip(screen.as_chunks::<4>().0)
+                {
                     d[0] = s[1];
                     d[1] = s[2];
                     d[2] = s[3];
@@ -388,7 +439,12 @@ fn main() {
 
     // --- stdin commands -----------------------------------------------------------------
     {
-        let (input, quitting, kd, grace) = (input.clone(), quitting.clone(), kill_deadline.clone(), cfg.grace);
+        let (input, quitting, kd, grace) = (
+            input.clone(),
+            quitting.clone(),
+            kill_deadline.clone(),
+            cfg.grace,
+        );
         thread::spawn(move || {
             let stdin = io::stdin();
             let mut si = stdin.lock();
@@ -432,7 +488,14 @@ fn main() {
                     break (-1, EXIT_SIGNALED, format!("killed by signal {sig}"));
                 }
                 let c = st.code().unwrap_or(-1);
-                let r = if handshaken.load(Ordering::SeqCst) { EXIT_NORMAL } else { EXIT_FAILED_HANDSHAKE };
+                let r = if handshaken.load(Ordering::SeqCst) {
+                    EXIT_NORMAL
+                } else {
+                    EXIT_FAILED_HANDSHAKE
+                };
+                if r == EXIT_NORMAL && quit_race_exit(c, quitting.load(Ordering::SeqCst)) {
+                    break (0, r, "stopped on request".to_string());
+                }
                 break (c, r, bridge_exit_meaning(c).to_string());
             }
             Ok(None) => {}
@@ -441,13 +504,21 @@ fn main() {
         if !handshaken.load(Ordering::SeqCst) && started.elapsed() > cfg.handshake_timeout {
             kill_group(pid, libc::SIGKILL);
             let _ = child.wait();
-            break (-1, EXIT_KILLED_TIMEOUT, "bridge handshake timed out".to_string());
+            break (
+                -1,
+                EXIT_KILLED_TIMEOUT,
+                "bridge handshake timed out".to_string(),
+            );
         }
         if let Some(dl) = *kill_deadline.lock().unwrap() {
             if Instant::now() > dl {
                 kill_group(pid, libc::SIGKILL);
                 let _ = child.wait();
-                break (-1, EXIT_KILLED_TIMEOUT, "did not stop within grace period, killed".to_string());
+                break (
+                    -1,
+                    EXIT_KILLED_TIMEOUT,
+                    "did not stop within grace period, killed".to_string(),
+                );
             }
         }
         thread::sleep(Duration::from_millis(20));
@@ -466,7 +537,14 @@ fn finish(out: &Arc<Outbox>, writer: thread::JoinHandle<()>, cfg: &Config) {
     out.closed.store(true, Ordering::SeqCst);
     out.cv.notify_all();
     let _ = writer.join();
-    for n in ["inputpipe", "statepipe", "readypipe", "readpipe", "screen", "audio"] {
+    for n in [
+        "inputpipe",
+        "statepipe",
+        "readypipe",
+        "readpipe",
+        "screen",
+        "audio",
+    ] {
         let _ = std::fs::remove_file(cfg.dir.join(n));
     }
 }
@@ -476,6 +554,13 @@ fn exit_payload(code: i32, reason: u8, detail: &str) -> Vec<u8> {
     v.push(reason);
     v.extend_from_slice(detail.as_bytes());
     v
+}
+
+/// After a quit request the emulator may notice a closed pipe before it notices the closed
+/// inputpipe and exit with a pipe error (25-29, e.g. 27 "readpipe closed unexpectedly"). That is
+/// the requested shutdown racing itself, not a crash.
+fn quit_race_exit(code: i32, quitting: bool) -> bool {
+    quitting && (25..=29).contains(&code)
 }
 
 /// Exit codes documented in BridgeFrontendDocs.md.
@@ -493,5 +578,29 @@ fn bridge_exit_meaning(code: i32) -> &'static str {
         29 => "bridge: inputpipe read failed",
         30 => "bridge: started without a MIDlet",
         _ => "exited with error",
+    }
+}
+
+#[cfg(test)]
+mod quit_race_tests {
+    use super::quit_race_exit;
+
+    #[test]
+    fn pipe_errors_after_a_quit_request_are_a_clean_stop() {
+        for c in 25..=29 {
+            assert!(quit_race_exit(c, true), "code {c}");
+        }
+    }
+
+    #[test]
+    fn pipe_errors_without_a_quit_request_stay_failures() {
+        assert!(!quit_race_exit(27, false));
+    }
+
+    #[test]
+    fn other_codes_are_never_masked() {
+        for c in [1, 21, 22, 24, 30, -1] {
+            assert!(!quit_race_exit(c, true), "code {c}");
+        }
     }
 }

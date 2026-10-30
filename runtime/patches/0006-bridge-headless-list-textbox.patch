@@ -1,0 +1,372 @@
+diff --git a/src/main/emulator/lcdui/IListImpl.java b/src/main/emulator/lcdui/IListImpl.java
+index 4a539955..5d4e26d7 100644
+--- a/src/main/emulator/lcdui/IListImpl.java
++++ b/src/main/emulator/lcdui/IListImpl.java
+@@ -9,4 +9,9 @@ import javax.microedition.lcdui.Graphics;
+ public interface IListImpl extends Choice, IScreenImpl {
+ 
+ 	void drawScrollBar(Graphics graphics);
++
++	/** j2me-web: cursor movement (Canvas.UP/DOWN) and fire for software lists; no-ops for SWT lists. */
++	default void keyScroll(int dir) { }
++
++	default void keyFire() { }
+ }
+diff --git a/src/main/emulator/lcdui/ListHeadless.java b/src/main/emulator/lcdui/ListHeadless.java
+new file mode 100644
+index 00000000..92f42f71
+--- /dev/null
++++ b/src/main/emulator/lcdui/ListHeadless.java
+@@ -0,0 +1,136 @@
++package emulator.lcdui;
++
++import emulator.Emulator;
++import javax.microedition.lcdui.Choice;
++import javax.microedition.lcdui.Font;
++import javax.microedition.lcdui.Graphics;
++import javax.microedition.lcdui.Image;
++import javax.microedition.lcdui.List;
++
++/**
++ * j2me-web: software List for the Bridge (headless) frontend. ListSWT builds SWT widgets, which do not
++ * exist there (the constructor died with an NPE and took the MIDlet with it). This keeps the same
++ * Choice model (ChoiceImpl) and draws the items into the framebuffer like Form/Alert are drawn.
++ */
++public class ListHeadless implements IListImpl {
++	private final List list;
++	private final int type;
++	private final ChoiceImpl choiceImpl;
++	private int focus; // item under the cursor (IMPLICIT/EXCLUSIVE follow the selection)
++	private int top; // first visible item
++
++	public ListHeadless(List list, String title, int type, String[] text, Image[] img) {
++		if (type != Choice.IMPLICIT && type != Choice.EXCLUSIVE && type != Choice.MULTIPLE) {
++			throw new IllegalArgumentException();
++		}
++		this.list = list;
++		this.type = type;
++		choiceImpl = new ChoiceImpl(type == Choice.MULTIPLE);
++		choiceImpl.check(text, img);
++		for (int i = 0; i < text.length; i++) {
++			choiceImpl.append(text[i], img != null ? img[i] : null);
++		}
++	}
++
++	// ---- Choice -------------------------------------------------------------------------------
++	public int append(String text, Image img) { return choiceImpl.append(text, img); }
++	public void insert(int position, String text, Image img) { choiceImpl.insert(position, text, img); }
++	public void set(int position, String text, Image img) { choiceImpl.set(position, text, img); }
++	public void delete(int position) { choiceImpl.delete(position); clamp(); }
++	public void deleteAll() { choiceImpl.deleteAll(); focus = top = 0; }
++	public int getFitPolicy() { return choiceImpl.getFitPolicy(); }
++	public Font getFont(int position) { return choiceImpl.getFont(position); }
++	public Image getImage(int position) { return choiceImpl.getImage(position); }
++	public String getString(int position) { return choiceImpl.getString(position); }
++	public int getSelectedFlags(boolean[] selectedArray) { return choiceImpl.getSelectedFlags(selectedArray); }
++	public int getSelectedIndex() { return choiceImpl.getSelectedIndex(); }
++	public boolean isSelected(int position) { return choiceImpl.isSelected(position); }
++	public void setFitPolicy(int newFitPolicy) { choiceImpl.setFitPolicy(newFitPolicy); }
++	public void setFont(int position, Font font) { choiceImpl.setFont(position, font); }
++	public void setSelectedFlags(boolean[] selectedArray) { choiceImpl.setSelectedFlags(selectedArray); }
++	public void setSelectedIndex(int position, boolean select) { choiceImpl.setSelected(position, select); focus = position; }
++	public int size() { return choiceImpl.size(); }
++
++	private void clamp() {
++		int n = choiceImpl.size();
++		if (focus >= n) focus = Math.max(0, n - 1);
++		if (top > focus) top = focus;
++	}
++
++	// ---- input (called from List._keyScroll / _invokeKeyPressed) ----------------------------------
++	public void keyScroll(int dir) {
++		int n = choiceImpl.size();
++		if (n == 0) return;
++		if (dir == javax.microedition.lcdui.Canvas.UP) focus = (focus + n - 1) % n;
++		else if (dir == javax.microedition.lcdui.Canvas.DOWN) focus = (focus + 1) % n;
++		else return;
++		if (type != Choice.MULTIPLE) choiceImpl.setSelected(focus, true);
++	}
++
++	public void keyFire() {
++		int n = choiceImpl.size();
++		if (n == 0) return;
++		if (type == Choice.MULTIPLE) choiceImpl.setSelected(focus, !choiceImpl.isSelected(focus));
++		else choiceImpl.setSelected(focus, true);
++		if (type == Choice.IMPLICIT) Emulator.getEventQueue().commandAction(list._getSelectCommand(), list);
++	}
++
++	// ---- painting ---------------------------------------------------------------------------------
++	public void layout() { }
++
++	private int rowHeight() { return Font.getDefaultFont().getHeight() + 4; }
++
++	public void paint(Graphics g) {
++		Font f = Font.getDefaultFont();
++		int w = getWidth(), h = getHeight();
++		int y0 = f.getHeight() + 4, rh = rowHeight();
++		int visible = Math.max(1, (h - y0 - rh) / rh);
++		int n = choiceImpl.size();
++		if (type != Choice.MULTIPLE && n > 0) focus = Math.max(0, Math.min(n - 1, choiceImpl.getSelectedIndex() >= 0 ? choiceImpl.getSelectedIndex() : focus));
++		if (focus < top) top = focus;
++		if (focus >= top + visible) top = focus - visible + 1;
++		g.setFont(f);
++		for (int i = top; i < n && i < top + visible; i++) {
++			int y = y0 + (i - top) * rh;
++			if (i == focus) {
++				g.setColor(0xFFE6E6E6);
++				g.fillRect(1, y, w - 8, rh - 1);
++				g.setColor(0xFF556D95);
++				g.drawRect(0, y, w - 8, rh - 1);
++			}
++			g.setColor(0xFF000000);
++			int x = 4;
++			if (type != Choice.IMPLICIT) {
++				int cy = y + (rh - 10) / 2;
++				if (type == Choice.MULTIPLE) {
++					g.drawRect(x, cy, 10, 10);
++					if (choiceImpl.isSelected(i)) g.fillRect(x + 3, cy + 3, 5, 5);
++				} else {
++					g.drawArc(x, cy, 10, 10, 0, 360);
++					if (choiceImpl.isSelected(i)) g.fillArc(x + 3, cy + 3, 5, 5, 0, 360);
++				}
++				x += 14;
++			}
++			Image im = choiceImpl.getImage(i);
++			if (im != null) {
++				g.drawImage(im, x, y + 1, Graphics.TOP | Graphics.LEFT);
++				x += im.getWidth() + 3;
++			}
++			Font itemFont = choiceImpl.getFont(i);
++			g.setFont(itemFont != null ? itemFont : f);
++			g.drawString(String.valueOf(choiceImpl.getString(i)), x, y + 2, Graphics.TOP | Graphics.LEFT);
++			g.setFont(f);
++		}
++	}
++
++	public void drawScrollBar(Graphics g) { }
++
++	// ---- IScreenImpl: nothing native to manage ------------------------------------------------------
++	public boolean isSWT() { return false; }
++	public void swtShown() { }
++	public void swtHidden() { }
++	public void swtUpdateSizes() { }
++	public Object getSwtContent() { return null; }
++	public int getWidth() { return Emulator.getEmulator().getScreen().getWidth(); }
++	public int getHeight() { return Emulator.getEmulator().getScreen().getHeight(); }
++}
+diff --git a/src/main/emulator/lcdui/TextBoxHeadless.java b/src/main/emulator/lcdui/TextBoxHeadless.java
+new file mode 100644
+index 00000000..0a6f93f2
+--- /dev/null
++++ b/src/main/emulator/lcdui/TextBoxHeadless.java
+@@ -0,0 +1,112 @@
++package emulator.lcdui;
++
++import emulator.Emulator;
++import javax.microedition.lcdui.Font;
++import javax.microedition.lcdui.Graphics;
++import javax.microedition.lcdui.TextField;
++
++/**
++ * j2me-web: software TextBox for the Bridge (headless) frontend. Holds the text model so MIDlet code
++ * (getString/setString/insert/delete/...) keeps working, and draws the text read-only into the
++ * framebuffer. Typing needs the Bridge "E" event, which KEmulator has not implemented yet.
++ */
++public class TextBoxHeadless implements ITextBoxImpl {
++	private StringBuffer text;
++	private int maxSize;
++	private int constraints;
++	private int caret;
++
++	public TextBoxHeadless(String text, int maxSize, int constraints) {
++		if (maxSize <= 0) throw new IllegalArgumentException("maxSize must be positive");
++		this.maxSize = maxSize;
++		this.constraints = constraints;
++		this.text = new StringBuffer(text == null ? "" : text);
++		if (this.text.length() > maxSize) throw new IllegalArgumentException("text longer than maxSize");
++		caret = this.text.length();
++	}
++
++	public int getCaretPosition() { return caret; }
++	public synchronized String getString() { return text.toString(); }
++
++	public synchronized void setString(String newText) {
++		String s = newText == null ? "" : newText;
++		if (s.length() > maxSize) throw new IllegalArgumentException("text longer than maxSize");
++		text = new StringBuffer(s);
++		caret = s.length();
++	}
++
++	public synchronized int getChars(char[] charData) {
++		if (charData.length < text.length()) throw new ArrayIndexOutOfBoundsException();
++		text.getChars(0, text.length(), charData, 0);
++		return text.length();
++	}
++
++	public synchronized void setChars(char[] charData, int offset, int length) {
++		if (charData == null) { setString(""); return; }
++		setString(new String(charData, offset, length));
++	}
++
++	public synchronized void insert(String s, int position) {
++		if (text.length() + s.length() > maxSize) throw new IllegalArgumentException("maxSize exceeded");
++		text.insert(Math.max(0, Math.min(position, text.length())), s);
++	}
++
++	public synchronized void delete(int offset, int length) {
++		if (offset < 0 || length < 0 || offset + length > text.length()) throw new StringIndexOutOfBoundsException();
++		text.delete(offset, offset + length);
++		caret = Math.min(caret, text.length());
++	}
++
++	public int getMaxSize() { return maxSize; }
++
++	public synchronized int setMaxSize(int newMaxSize) {
++		if (newMaxSize <= 0) throw new IllegalArgumentException();
++		if (text.length() > newMaxSize) text.setLength(newMaxSize);
++		return maxSize = newMaxSize;
++	}
++
++	public synchronized int size() { return text.length(); }
++	public void setConstraints(int newConstraints) { constraints = newConstraints; }
++	public int getConstraints() { return constraints; }
++	public void setInitialInputMode(String inputMode) { }
++	public void defocus() { }
++	public void focusCaret() { }
++
++	public void layout() { }
++
++	public synchronized void paint(Graphics g) {
++		Font f = Font.getDefaultFont();
++		int w = getWidth();
++		int y = f.getHeight() + 6;
++		g.setFont(f);
++		g.setColor(0xFF000000);
++		String s = (constraints & TextField.CONSTRAINT_MASK) == TextField.PASSWORD || (constraints & TextField.PASSWORD) != 0
++				? repeat('*', text.length()) : text.toString();
++		StringBuffer line = new StringBuffer();
++		for (int i = 0; i <= s.length(); i++) {
++			char c = i < s.length() ? s.charAt(i) : '\n';
++			if (c == '\n' || f.stringWidth(line.toString() + c) > w - 8) {
++				g.drawString(line.toString(), 4, y, Graphics.TOP | Graphics.LEFT);
++				y += f.getHeight() + 1;
++				line.setLength(0);
++				if (c != '\n') line.append(c);
++			} else {
++				line.append(c);
++			}
++		}
++	}
++
++	private static String repeat(char c, int n) {
++		StringBuffer sb = new StringBuffer(n);
++		for (int i = 0; i < n; i++) sb.append(c);
++		return sb.toString();
++	}
++
++	public boolean isSWT() { return false; }
++	public void swtShown() { }
++	public void swtHidden() { }
++	public void swtUpdateSizes() { }
++	public Object getSwtContent() { return null; }
++	public int getWidth() { return Emulator.getEmulator().getScreen().getWidth(); }
++	public int getHeight() { return Emulator.getEmulator().getScreen().getHeight(); }
++}
+diff --git a/src/main/emulator/ui/bridge/BridgeOutput.java b/src/main/emulator/ui/bridge/BridgeOutput.java
+index fbccc6e0..69a7c8cf 100644
+--- a/src/main/emulator/ui/bridge/BridgeOutput.java
++++ b/src/main/emulator/ui/bridge/BridgeOutput.java
+@@ -13,8 +13,6 @@ import emulator.ui.IScreen;
+ import emulator.ui.TargetedCommand;
+ 
+ import javax.microedition.lcdui.Displayable;
+-import javax.microedition.lcdui.List;
+-import javax.microedition.lcdui.TextBox;
+ import java.io.IOException;
+ import java.io.InputStream;
+ import java.nio.ByteBuffer;
+@@ -235,13 +233,9 @@ final class BridgeOutput implements IScreen {
+ 
+ 	@Override
+ 	public void setCurrent(Displayable d) {
+-		if (d instanceof TextBox) {
+-			throw new IllegalArgumentException("Not implemented");
+-		} else if (d instanceof List) {
+-			throw new IllegalArgumentException("Not implemented");
+-		} else {
+-			bridge.sendToState('D', new byte[]{(byte) 'B'});
+-		}
++		// j2me-web: TextBox and List are drawn by their software (headless) implementations into the
++		// framebuffer, like Form and Alert, so every screen is a "buffer" screen for the client.
++		bridge.sendToState('D', new byte[]{(byte) 'B'});
+ 		updateTitle();
+ 	}
+ 
+diff --git a/src/midp/javax/microedition/lcdui/List.java b/src/midp/javax/microedition/lcdui/List.java
+index 27edcb0f..517cbac0 100644
+--- a/src/midp/javax/microedition/lcdui/List.java
++++ b/src/midp/javax/microedition/lcdui/List.java
+@@ -2,6 +2,7 @@ package javax.microedition.lcdui;
+ 
+ import emulator.UILocale;
+ import emulator.lcdui.IListImpl;
++import emulator.lcdui.ListHeadless;
+ import emulator.lcdui.ListSWT;
+ 
+ public class List extends Screen implements Choice {
+@@ -21,7 +22,10 @@ public class List extends Screen implements Choice {
+ 			throw new IllegalArgumentException();
+ 		}
+ 		this.type = type;
+-		impl = new ListSWT(this, title, type, text, img);
++		// the Bridge frontend has no SWT display: use the software implementation there
++		impl = emulator.Emulator.getEmulator() instanceof emulator.ui.bridge.BridgeFrontend
++				? new ListHeadless(this, title, type, text, img)
++				: new ListSWT(this, title, type, text, img);
+ 	}
+ 
+ 	public void setSelectCommand(Command cmd) {
+@@ -223,6 +227,20 @@ public class List extends Screen implements Choice {
+ 		impl.drawScrollBar(graphics);
+ 	}
+ 
++	void _keyScroll(int key, boolean repeat) {
++		impl.keyScroll(key);
++		repaintScreen();
++	}
++
++	public void _invokeKeyPressed(final int n) {
++		if (n == emulator.KeyMapping.getArrowKeyFromDevice(Canvas.FIRE)) {
++			impl.keyFire();
++			repaintScreen();
++			return;
++		}
++		super._invokeKeyPressed(n);
++	}
++
+ 	void _paint(Graphics graphics) {
+ 		impl.paint(graphics);
+ 	}
+diff --git a/src/midp/javax/microedition/lcdui/TextBox.java b/src/midp/javax/microedition/lcdui/TextBox.java
+index 2f73501b..2fa9c01d 100644
+--- a/src/midp/javax/microedition/lcdui/TextBox.java
++++ b/src/midp/javax/microedition/lcdui/TextBox.java
+@@ -1,6 +1,7 @@
+ package javax.microedition.lcdui;
+ 
+ import emulator.lcdui.ITextBoxImpl;
++import emulator.lcdui.TextBoxHeadless;
+ import emulator.lcdui.TextBoxSWT;
+ 
+ public class TextBox extends Screen {
+@@ -9,7 +10,9 @@ public class TextBox extends Screen {
+ 
+ 	public TextBox(String title, String text, int maxSize, int constraints) {
+ 		super(title);
+-		impl = new TextBoxSWT(this, title, text, maxSize, constraints);
++		impl = emulator.Emulator.getEmulator() instanceof emulator.ui.bridge.BridgeFrontend
++				? new TextBoxHeadless(text, maxSize, constraints)
++				: new TextBoxSWT(this, title, text, maxSize, constraints);
+ 	}
+ 
+ 	void focusCaret() {

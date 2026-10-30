@@ -4,24 +4,32 @@
   "version": "0.1.0",
   "description": "Self-hosted web player for Java ME games, powered by KEmulator nnmod (Bridge frontend)",
   "type": "module",
-  "engines": { "node": ">=22.13" },
-  "workspaces": ["packages/*", "apps/*"],
+  "engines": {
+    "node": ">=22.13"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
     "build:runtime": "bash runtime/scripts/build-kemulator.sh",
     "build:adapter": "cargo build --release --manifest-path bridge/kemulator-adapter/Cargo.toml",
     "build:fixtures": "bash tests/fixtures/testmidlet/build.sh runtime/build/kemulator/KEmulator.jar",
     "build": "npm run build -w @j2me-web/protocol && npm run build -w @j2me-web/api && npm run build -w @j2me-web/web",
-    "typecheck": "npm run typecheck -w @j2me-web/protocol -w @j2me-web/api -w @j2me-web/web",
+    "typecheck": "npm run build -w @j2me-web/protocol && npm run typecheck -w @j2me-web/protocol -w @j2me-web/api -w @j2me-web/web",
     "dev": "bash runtime/scripts/dev.sh",
     "start": "node apps/api/dist/server.js",
     "test": "npm run test -w @j2me-web/api",
+    "lab": "node --import tsx apps/api/src/lab/cli.ts",
     "setup": "bash runtime/scripts/setup.sh",
     "test:integration": "node --import tsx --test --test-concurrency=1 tests/integration/*.test.ts",
-    "test:e2e": "node tests/e2e/browser.mjs"
+    "test:e2e": "node tests/e2e/browser.mjs",
+    "test:lab-report": "node tests/e2e/lab-report.mjs"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
+    "playwright": "1.63.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.6.0",
-    "@types/node": "^22.0.0"
+    "typescript": "^5.6.0"
   }
 }

@@ -6,11 +6,15 @@ import {
   encodeFrameHeader,
   type GameMeta,
   type GameSettings,
+  KEY_LAYOUTS,
   type ServerEvent,
   type SessionState,
   type SessionStatus,
   WS_BIN_AUDIO,
 } from '@j2me-web/protocol';
+import { ResourceMeter } from './procstats.js';
+import { writeMidletsIni } from './appSettings.js';
+import { findPreset, loadDevicePresets } from './devices.js';
 import { KEmulatorAdapter, type ExitInfo, type FrameMsg } from './kemulator/adapter.js';
 import { newId, type Library } from './library.js';
 import type { Config } from './config.js';
@@ -64,9 +68,12 @@ export class Session {
   endedAt: number | null = null;
   readonly clients = new Map<string, { c: StreamClient; held: Set<number>; audio: boolean }>();
   audioBytes = 0;
+  readonly meter = new ResourceMeter();
   private lastPacked: Buffer | null = null;
   private timers: NodeJS.Timeout[] = [];
   private pendingMenu: ServerEvent | null = null;
+  /** permission prompts waiting for a viewer's answer (id -> deny timer) */
+  private pendingPerms = new Map<number, NodeJS.Timeout>();
   private logFile: string;
 
   constructor(
@@ -88,6 +95,7 @@ export class Session {
     adapter.on('exit', (e) => this.onExit(e));
     this.timers.push(
       setInterval(() => this.broadcastText({ t: 'stats', ...this.stats() }), 1000),
+      setInterval(() => this.meter.sample(this.adapter.getStatus().pid), 500),
       setTimeout(() => void this.stop('max duration reached'), cfg.sessionMaxMs),
     );
     for (const t of this.timers) t.unref();
@@ -118,6 +126,9 @@ export class Session {
       logTail: this.logTail.slice(-60),
       diagnostics: this.diagnostics,
       audioBytes: this.audioBytes,
+      firstFrameMs: st.firstFrameAt ? st.firstFrameAt - this.createdAt : null,
+      resources: this.meter.peakRssKb ? this.meter.usage() : null,
+      device: this.settings.device ?? null,
       encoding: this.cfg.frameEncoding,
     };
   }
@@ -200,12 +211,33 @@ export class Session {
       case 'V':
         if (b.length >= 8) this.broadcastText({ t: 'vibrate', ms: Number(b.readBigUInt64BE(0)) });
         break;
-      case 'P':
-        this.broadcastText({ t: 'permission', id: b.readUInt32BE(0), message: b.subarray(4).toString('utf8') });
+      case 'P': {
+        const id = b.readUInt32BE(0);
+        const message = b.subarray(4).toString('utf8');
+        // The MIDlet thread is blocked until we answer. Nobody watching -> deny at once; otherwise give
+        // the viewer a bounded time, so a closed tab can never freeze the game forever.
+        if (!this.clients.size) {
+          this.pushLog(`[session] permission denied (no viewer connected): ${message}`);
+          this.adapter.answerPermission(id, false);
+          break;
+        }
+        const t = setTimeout(() => {
+          this.pendingPerms.delete(id);
+          this.pushLog(`[session] permission denied (no answer in ${Math.round(this.cfg.permissionTimeoutMs / 1000)} s): ${message}`);
+          this.adapter.answerPermission(id, false);
+        }, this.cfg.permissionTimeoutMs);
+        t.unref();
+        this.pendingPerms.set(id, t);
+        this.broadcastText({ t: 'permission', id, message });
         break;
-      case 'U':
-        this.broadcastText({ t: 'url', url: b.toString('utf8') });
+      }
+      case 'U': {
+        const url = b.toString('utf8');
+        // only schemes a browser can handle safely; file:, vlc: and friends are never forwarded
+        if (/^(https?|mailto|tel):/i.test(url)) this.broadcastText({ t: 'url', url });
+        else this.pushLog(`[session] ignored platformRequest to ${url.slice(0, 80)}`);
         break;
+      }
       case 'L':
         this.pushLog(`[emulator] ${b.toString('utf8')}`);
         break;
@@ -220,6 +252,8 @@ export class Session {
     this.state = e.reason === 0 && (e.code === 0 || e.code === null) ? 'exited' : 'failed';
     if (this.state === 'failed' && e.code !== null && e.code !== 0) this.pushLog(`[adapter] emulator exited with code ${e.code}: ${e.detail}`);
     for (const t of this.timers) clearTimeout(t), clearInterval(t);
+    for (const t of this.pendingPerms.values()) clearTimeout(t);
+    this.pendingPerms.clear();
     this.broadcastText({ t: 'state', state: this.state, exitCode: e.code, detail: e.detail });
     for (const { c } of [...this.clients.values()]) c.close();
     this.clients.clear();
@@ -252,6 +286,8 @@ export class Session {
     for (const k of e.held) this.adapter.keyUp(k); // never leave keys stuck
     if (!this.clients.size) {
       this.adapter.releaseAll();
+      for (const [id, t] of this.pendingPerms) { clearTimeout(t); this.adapter.answerPermission(id, false); }
+      this.pendingPerms.clear();
       this.startIdle();
     }
   }
@@ -284,9 +320,14 @@ export class Session {
       case 'cmd':
         this.adapter.invokeCommand(ev.id);
         break;
-      case 'perm':
+      case 'perm': {
+        const t = this.pendingPerms.get(ev.id);
+        if (!t) break; // unknown or already expired
+        clearTimeout(t);
+        this.pendingPerms.delete(ev.id);
         this.adapter.answerPermission(ev.id, !!ev.allow);
         break;
+      }
       case 'audio':
         e.audio = !!ev.on;
         break;
@@ -348,11 +389,22 @@ export class SessionManager {
       throw new SessionError('unsupported_jar', `This JAR contains Java ${game.classVersion - 44}+ class files; KEmulator only runs J2ME-era classes (version <= 48).`, 422);
     }
     const paths = this.lib.paths(game.id);
+    let preset;
+    if (overrides.device) {
+      try {
+        preset = findPreset(loadDevicePresets(this.cfg.kemDir).presets, overrides.device);
+      } catch (e) {
+        throw new SessionError('devices_unavailable', `Cannot read KEmulator device presets: ${(e as Error).message}`, 503);
+      }
+      if (!preset) throw new SessionError('unknown_device', `Unknown device preset "${overrides.device}"`, 400);
+    }
     const sid = newId(12);
     const bridgeDir = path.join(this.cfg.runDir, sid);
     mkdirSync(bridgeDir, { recursive: true, mode: 0o700 });
     const userPath = this.lib.savesDir(owner, game.id);
     this.lib.pruneLogs();
+    // Per-app emulator settings (device preset, key codes of the chosen layout) go to midlets.ini
+    writeMidletsIni(userPath, { jarPath: paths.jar, width: overrides.width, height: overrides.height, keys: KEY_LAYOUTS[overrides.layout].keys, preset });
     const adapter = new KEmulatorAdapter({
       adapterBin: this.cfg.adapterBin,
       javaBin: this.cfg.javaBin,

@@ -2,7 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { DEFAULT_SETTINGS, type GameMeta, type GameSettings, SCREEN_PRESETS, type LayoutId } from '@j2me-web/protocol';
+import { DEFAULT_SETTINGS, type GameMeta, type GameSettings, KEY_LAYOUTS, SCREEN_PRESETS, type LayoutId } from '@j2me-web/protocol';
 import { parseJad, parseJar, sanitizeText, UploadError } from './jar.js';
 
 interface Row {
@@ -24,7 +24,7 @@ interface Row {
   warnings_json: string;
 }
 
-const LAYOUTS: LayoutId[] = ['nokia', 'sonyericsson', 'siemens', 'motorola'];
+const LAYOUTS = Object.keys(KEY_LAYOUTS) as LayoutId[];
 
 export function validateSettings(input: unknown, base: GameSettings = DEFAULT_SETTINGS): GameSettings {
   const o = (input ?? {}) as Record<string, unknown>;
@@ -43,6 +43,11 @@ export function validateSettings(input: unknown, base: GameSettings = DEFAULT_SE
   if (o.midlet !== undefined) {
     if (typeof o.midlet !== 'string' || !/^[A-Za-z0-9_.$/]{1,200}$/.test(o.midlet)) throw new UploadError('bad_settings', 'invalid midlet class name');
     out.midlet = o.midlet;
+  }
+  if (o.device !== undefined) {
+    if (o.device === null || o.device === '') delete out.device;
+    else if (typeof o.device !== 'string' || !/^[a-z0-9][a-z0-9-]{0,120}$/.test(o.device)) throw new UploadError('bad_settings', 'invalid device id');
+    else out.device = o.device;
   }
   void SCREEN_PRESETS;
   return out;

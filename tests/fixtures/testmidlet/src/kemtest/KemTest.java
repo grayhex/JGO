@@ -23,6 +23,7 @@ public class KemTest extends MIDlet {
 			canvas = new TestCanvas();
 			canvas.launches = bumpLaunchCounter();
 			System.out.println("LAUNCHES " + canvas.launches);
+			System.out.println("PLATFORM " + System.getProperty("microedition.platform"));
 			Display.getDisplay(this).setCurrent(canvas);
 			running = true;
 			new Thread(canvas).start();
@@ -155,6 +156,7 @@ public class KemTest extends MIDlet {
 			try { lastAction = getGameAction(k); } catch (Exception e) { lastAction = -99; }
 			down = true;
 			System.out.println("KEY_DOWN " + k);
+			System.out.println("ACTION " + k + " " + lastAction);
 			switch (lastAction) {
 				case LEFT: dx = -Math.abs(dx); break;
 				case RIGHT: dx = Math.abs(dx); break;

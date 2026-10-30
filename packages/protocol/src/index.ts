@@ -15,6 +15,8 @@ export interface GameSettings {
   heapMb: number;
   /** Optional MIDlet class when the JAR declares several. */
   midlet?: string;
+  /** Id of a KEmulator device preset (see GET /api/devices); sets key codes, fullscreen policy, platform string. */
+  device?: string;
 }
 
 export interface GameMeta {
@@ -40,6 +42,18 @@ export interface GameMeta {
 
 export type SessionState = 'starting' | 'running' | 'stopping' | 'exited' | 'failed';
 
+/** Resource usage of the emulator process tree (adapter + JVM), sampled by the API. */
+export interface ResourceUsage {
+  rssMb: number;
+  peakRssMb: number;
+  /** Cumulative CPU time of the tree, seconds. */
+  cpuSeconds: number;
+  /** Average CPU use since the session started, in % of one core. */
+  cpuPercentAvg: number;
+  /** CPU use over the last sampling interval, in % of one core. */
+  cpuPercentNow: number;
+}
+
 export interface SessionStatus {
   id: string;
   gameId: string;
@@ -58,6 +72,11 @@ export interface SessionStatus {
   logTail: string[];
   /** Human-readable findings extracted from the emulator log (unsupported APIs, load failures). */
   diagnostics: string[];
+  /** Milliseconds from session creation to the first frame (null until one arrives). */
+  firstFrameMs: number | null;
+  resources: ResourceUsage | null;
+  /** Effective device preset id, if any. */
+  device: string | null;
   /** PCM bytes the emulator has produced so far (0 = the game never made a sound). */
   audioBytes: number;
   /** Width/height of frames actually produced. */
@@ -123,7 +142,7 @@ export type ClientEvent =
 
 // ---- Keys ----------------------------------------------------------------------------------
 
-export type LayoutId = 'nokia' | 'sonyericsson' | 'siemens' | 'motorola';
+export type LayoutId = 'nokia' | 'sonyericsson' | 'siemens' | 'motorola' | 'motorola-triplets' | 'motorola-v8' | 'motorola-i670' | 'motorola-v300' | 'lg' | 'sagem' | 'sharp';
 
 export interface KeyCodes {
   up: number;
@@ -142,6 +161,14 @@ export const KEY_LAYOUTS: Record<LayoutId, { label: string; keys: KeyCodes }> = 
   sonyericsson: { label: 'Sony Ericsson', keys: { up: -1, down: -2, left: -3, right: -4, fire: -5, softLeft: -6, softRight: -7, clear: -8 } },
   siemens: { label: 'Siemens', keys: { up: -59, down: -60, left: -61, right: -62, fire: -26, softLeft: -1, softRight: -4, clear: -8 } },
   motorola: { label: 'Motorola', keys: { up: -1, down: -6, left: -2, right: -5, fire: -20, softLeft: -21, softRight: -22, clear: -8 } },
+  // The layouts below are taken verbatim from KEmulator's presets.xml (<layout> blocks).
+  'motorola-triplets': { label: 'Motorola Triplets', keys: { up: -1, down: -6, left: -2, right: -5, fire: -8, softLeft: -21, softRight: -22, clear: -8 } },
+  'motorola-v8': { label: 'Motorola Motomagx', keys: { up: -1, down: -2, left: -3, right: -4, fire: -5, softLeft: -21, softRight: -22, clear: -8 } },
+  'motorola-i670': { label: 'Motorola i670', keys: { up: -10, down: -11, left: -13, right: -14, fire: -23, softLeft: -20, softRight: -21, clear: -8 } },
+  'motorola-v300': { label: 'Motorola V300', keys: { up: 1, down: 6, left: 2, right: 5, fire: 8, softLeft: 21, softRight: 22, clear: -8 } },
+  lg: { label: 'LG', keys: { up: -1, down: -2, left: -3, right: -4, fire: -5, softLeft: -202, softRight: -203, clear: -8 } },
+  sagem: { label: 'Sagem', keys: { up: -1, down: -2, left: -3, right: -4, fire: -5, softLeft: -7, softRight: -6, clear: -8 } },
+  sharp: { label: 'Sharp / DoCoMo', keys: { up: -1, down: -6, left: -2, right: -5, fire: -20, softLeft: -21, softRight: -22, clear: -8 } },
 };
 
 export const KEY_NUM0 = 48;
@@ -178,4 +205,28 @@ export function decodeFrameHeader(b: ArrayBuffer | Uint8Array): { seq: number; e
   const u8 = b instanceof Uint8Array ? b : new Uint8Array(b);
   const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
   return { seq: dv.getUint32(1), enc: u8[5]!, w: dv.getUint16(6), h: dv.getUint16(8), tsMs: dv.getUint32(10) };
+}
+
+// ---- Device presets (parsed from KEmulator's own res/presets.xml) ---------------------------
+
+export interface DevicePreset {
+  /** Stable id: slug of the preset name. */
+  id: string;
+  /** Exact KEmulator preset name (what `DevicePreset=` in midlets.ini expects). */
+  name: string;
+  /** Phone model from the comment preceding the preset in presets.xml (may be empty). */
+  model: string;
+  vendor: 'nokia' | 'sonyericsson' | 'samsung' | 'motorola' | 'siemens' | 'lg' | 'sharp' | 'softbank' | 'common' | 'other';
+  width: number;
+  height: number;
+  /** KEmulator's FORCE_FULLSCREEN: ignore Canvas.setFullScreenMode(false). */
+  forceFullscreen: boolean;
+  layout: LayoutId;
+  /** KEmulator layout name as written in presets.xml. */
+  layoutName: string;
+  keys: KeyCodes;
+  /** microedition.platform presented to the game, when we know a conventional value (else the emulator default). */
+  platform: string | null;
+  /** Free-text platform notes for the UI/report. */
+  notes: string[];
 }
