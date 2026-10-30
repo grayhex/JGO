@@ -1,0 +1,11 @@
+{
+  "tool": "image_gen",
+  "date": "2026-10-30",
+  "sourceGeneration": "exec-fcb71322-3e20-4b3c-a46d-13288773eae4.png",
+  "initialGeneration": "exec-fcb71322-3e20-4b3c-a46d-13288773eae4.png",
+  "phoneInstruction": "Sony Ericsson W995 (2009) retail Progressive Black, NUMERIC SLIDER FULLY OPEN. Preserve real W995 geometry shown by the references: straight black brushed rectangular upper sliding shell; silver horizontal speaker and small front camera at top, Sony Ericsson words above LCD, active display exactly 240:320=3:4. Silver-white Walkman W symbol centered below LCD (NOT turquoise prototype logo). Large metallic rounded octagonal circular navigation ring with black round OK center, four separate silver wedge-shaped soft/shortcut keys around it and black call/end side arcs. Lower exposed keypad is a silver inset panel with twelve small dark pill-shaped keys in 4 rows x 3 columns, precise legends 1 2 ABC 3 DEF / 4 GHI 5 JKL 6 MNO / 7 PQRS 8 TUV 9 WXYZ / * 0 + #. No extra rows. Full extended slider shape longer than the closed phone, clearly separated upper and lower blocks. All visible physical key borders clear. Use first reference for the OPEN keypad, second for black upper shell detail. No reference watermark.",
+  "method": "Original orthographic illustration conditioned on photographic references; not a crop or embedding of a source photo.",
+  "technicalEdits": "Measured silhouette alpha and LCD mask, transparent-margin crop, resize, lossless PNG/WebP and upper-shell zoom. See layout.json and tools/phones/export_measured.py.",
+  "referenceDossier": "apps/web/public/phones/sony-ericsson-w995/references.md",
+  "historicalAcceptance": "review-draft"
+}

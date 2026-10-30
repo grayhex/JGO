@@ -1,0 +1,11 @@
+{
+  "tool": "image_gen",
+  "date": "2026-10-30",
+  "sourceGeneration": "exec-151345f5-3f7c-4e11-acdd-6b6b468b5daa.png",
+  "initialGeneration": "exec-151345f5-3f7c-4e11-acdd-6b6b468b5daa.png",
+  "phoneInstruction": "Samsung GT-S5230 Star / Tocco Lite (2009) original Black version, NOT S5230W, S5233 or S5600. Strict front orthographic bar, original 104 x 53 mm proportions, rounded corners, gloss black plastic front with thin polished silver/chrome outer perimeter. Oval fine perforated silver earpiece centered near top, large accurate SAMSUNG silver wordmark just below speaker above the screen. No front camera. Tall active resistive touch LCD 240:400=3:5 EXACT transparent rectangular aperture, generous original black borders; not an all-screen modern smartphone. Bottom separate horizontally brushed black strip has THREE physical buttons only: left black oval call key with white handset, middle near-square rounded black BACK key with bright silver frame and WHITE RETURN ARROW symbol, right black oval end/power with white handset/power. There is no D-pad, no numbers, no invented center home icon. Preserve original narrow rounded body and wide top/lower bezels. Use the images for original proportions and logos; no drawn widget, wallpaper, reflections or text inside the transparent LCD.",
+  "method": "Original orthographic illustration conditioned on photographic references; not a crop or embedding of a source photo.",
+  "technicalEdits": "Measured silhouette alpha and LCD mask, transparent-margin crop, resize, lossless PNG/WebP and upper-shell zoom. See layout.json and tools/phones/export_measured.py.",
+  "referenceDossier": "apps/web/public/phones/samsung-s5230/references.md",
+  "historicalAcceptance": "review-draft"
+}

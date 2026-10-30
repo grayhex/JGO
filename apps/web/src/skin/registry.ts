@@ -4,8 +4,8 @@ import { ACTIONS, type Action } from '../input';
 import { parseHitboxSvg } from './hitboxes';
 import type { Hitbox, LoadedSkin, SkinConfig, SkinViewId } from './types';
 
-/** The five handsets, in the order the picker shows them. Files: /phones/<id>/ (see public/phones/README.md). */
-export const SKIN_IDS = ['nokia-6100', 'nokia-6230i', 'sony-ericsson-k750i', 'nokia-n95', 'nokia-e71'] as const;
+/** Handsets in picker order. Files: /phones/<id>/ (see public/phones/README.md). */
+export const SKIN_IDS = ['nokia-6100', 'nokia-6230i', 'sony-ericsson-k750i', 'nokia-n95', 'nokia-e71', 'sony-ericsson-w995', 'sony-ericsson-k790i', 'motorola-razr-v3', 'nokia-5800', 'samsung-s5230'] as const;
 export type SkinId = (typeof SKIN_IDS)[number];
 /** 240x320 is the default emulated screen and the N95's real display. */
 export const DEFAULT_SKIN: SkinId = 'nokia-n95';
@@ -109,7 +109,7 @@ export function usePrefs(): [SkinPrefs, (patch: Partial<SkinPrefs>) => void] {
   return [p, (patch) => setP((cur) => { const next = { ...cur, ...patch }; savePrefs(next); return next; })];
 }
 
-/** All five models (config + hitboxes), for the picker and /phones. Null until every file has arrived. */
+/** All models (config + hitboxes), for the picker and /phones. Null until every file has arrived. */
 export function useCatalog(): { skins: LoadedSkin[] | null; error: string | null } {
   const [state, setState] = useState<{ skins: LoadedSkin[] | null; error: string | null }>({ skins: null, error: null });
   useEffect(() => {

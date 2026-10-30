@@ -1,5 +1,5 @@
 // Browser end-to-end test of the phone skins: real Chromium -> built web UI -> API -> kem-adapter -> KEmulator (KemTest MIDlet).
-// Covers: /phones for all five models and both views, hitboxes (hold, slide, several fingers, cancel, blur),
+// Covers: /phones for all ten models and both views, hitboxes (hold, slide, several fingers, cancel, blur),
 // keys without a binding, the live canvas under the transparent window without stretching, zoom without a restart,
 // release on model/view change.
 // Usage: npm run test:e2e:dev   (needs the runtime and fixtures built)
@@ -19,7 +19,7 @@ const jar = path.join(root, 'tests/fixtures/testmidlet/build/kemtest.jar');
 const dataDir = mkdtempSync(path.join(tmpdir(), 'j2me-skins-'));
 const port = 18700 + Math.floor(Math.random() * 400);
 const base = `http://127.0.0.1:${port}`;
-const IDS = ['nokia-6100', 'nokia-6230i', 'sony-ericsson-k750i', 'nokia-n95', 'nokia-e71'];
+const IDS = ['nokia-6100', 'nokia-6230i', 'sony-ericsson-k750i', 'nokia-n95', 'nokia-e71', 'sony-ericsson-w995', 'sony-ericsson-k790i', 'motorola-razr-v3', 'nokia-5800', 'samsung-s5230'];
 const results = [];
 const ok = (name, cond, extra = '') => { results.push({ name, pass: !!cond, extra }); console.log(`${cond ? '✔' : '✖'} ${name}${extra ? ` — ${extra}` : ''}`); if (!cond) process.exitCode = 1; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -65,14 +65,14 @@ try {
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   await page.goto(base + '/phones');
   await page.waitForSelector('[data-testid=phone-nokia-e71]');
-  await page.waitForFunction(() => [...document.querySelectorAll('.skin-body')].every((i) => i.complete && i.naturalWidth > 0) && document.querySelectorAll('.skin-body').length === 10, null, { timeout: 20000 });
-  ok('/phones shows all five models in both views (10 pictures, all loaded)', true);
+  await page.waitForFunction((count) => [...document.querySelectorAll('.skin-body')].every((i) => i.complete && i.naturalWidth > 0) && document.querySelectorAll('.skin-body').length === count * 2, IDS.length, { timeout: 20000 });
+  ok('/phones shows all ten models in both views (20 pictures, all loaded)', true);
   for (const id of IDS) {
     const c = cfg[id];
     const n = await page.locator(`[data-testid=phone-${id}] .skin-box`).count();
     ok(`${c.model}: two views`, n === 2);
   }
-  ok('every card says review draft', (await page.locator('.phone-card .badge:has-text("review draft")').count()) === 5);
+  ok('every card says review draft', (await page.locator('.phone-card .badge:has-text("review draft")').count()) === IDS.length);
 
   // each model: the display window is transparent in the asset, the canvas sits under it at the right place and ratio
   for (const id of IDS) {
@@ -193,7 +193,7 @@ try {
   await page.click('article.game-card button.card-main');
   await page.waitForSelector('[data-testid=skin-lcd]');
   await page.getByRole('radio', { name: /N95/ }).click();
-  ok('the player offers five models', (await page.locator('.skin-picker [role=radio]').count()) === 5);
+  ok('the player offers ten models', (await page.locator('.skin-picker [role=radio]').count()) === IDS.length);
   await page.click('.skin-lcd-overlay button.primary');
   await page.waitForFunction(() => document.querySelector('[data-testid=state-badge]')?.textContent?.includes('running'), null, { timeout: 25000 });
   const px = () => page.evaluate(() => { const c = document.querySelector('canvas'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let y = 0; for (let i = 0; i < d.length; i += 4) if (d[i] === 255 && d[i + 1] === 255 && d[i + 2] === 0) y++; return { w: c.width, h: c.height, yellow: y, tl: [d[0], d[1], d[2]] }; });

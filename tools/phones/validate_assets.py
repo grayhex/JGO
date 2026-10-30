@@ -2,10 +2,14 @@ from pathlib import Path
 import json
 import numpy as np
 from PIL import Image, ImageDraw
-base=Path(__file__).resolve().parents[2]/'apps/web/public/phones'
+root=Path(__file__).resolve().parents[2]
+base=root/'apps/web/public/phones'
 fail=[]
 for path in sorted(base.glob('*/config.json')):
  c=json.loads(path.read_text());im=Image.open(path.parent/'body.png').convert('RGBA');w,h=im.size;r=c['screen']['rect']
+ assert c['body']['width']==w and c['body']['height']==h
+ assert len({b['id'] for b in c['buttons']})==len(c['buttons'])
+ assert set(c['keyMappings'])=={b['id'] for b in c['buttons']}
  x,y,rw,rh=[round(r[k]*s) for k,s in [('x',w),('y',h),('width',w),('height',h)]]
  for ext in ['png','webp']:
   a=np.array(Image.open(path.parent/f'body.{ext}').convert('RGBA'))[:,:,3]
@@ -20,11 +24,15 @@ for path in sorted(base.glob('*/config.json')):
   assert zim.height<h
  occupied=np.zeros((2048,2048),dtype=np.uint8)
  for b in c['buttons']:
+  assert all(0<=x<=1 and 0<=y<=1 for x,y in b['polygon']),(c['id'],'hitbox outside asset')
   mask=Image.new('1',(2048,2048));ImageDraw.Draw(mask).polygon([(round(x*2047),round(y*2047)) for x,y in b['polygon']],fill=1)
   z=np.array(mask,dtype=np.uint8)
   if np.any(occupied*z):fail.append((c['id'],'overlap',b['id']))
   occupied+=z
   assert b['id'] in c['keyMappings']
+ if (root/'design/phones'/c['id']/'layout.json').exists():
+  a=np.array(im)[:,:,3]
+  assert not np.any(a[:2]) and not np.any(a[-2:]) and not np.any(a[:,:2]) and not np.any(a[:,-2:]),(c['id'],'non-transparent outer margin')
  print(c['id'],len(c['buttons']),'buttons',im.size)
 print('FAILURES',fail)
 raise SystemExit(bool(fail))

@@ -1,0 +1,11 @@
+{
+  "tool": "image_gen",
+  "date": "2026-10-30",
+  "sourceGeneration": "exec-c078f310-4de6-4db3-8bfc-e48cf869e676.png",
+  "initialGeneration": "exec-75895103-f5d9-4a7b-a06d-d1d0def34d8c.png",
+  "phoneInstruction": "Original Motorola RAZR V3 (2004) SILVER, CLAMSHELL FULLY OPEN, front view of INSIDE BOTH HALVES. NOT V3i, V3x, RAZR2 or a modern folding smartphone. Follow first image for the entire single device and second image LEFT PHONE ONLY for clean legends. Long slender opened proportions: approximately height 3.1 times width. Rounded top lid with original five dark earpiece slits and tiny circular Motorola batwing medallion centered above them, silver MOTOROLA text above the main LCD. Main active LCD is 176:220=4:5, an empty transparent rectangular hole in the dark inner bezel. Original horizontal silver cylinder hinge visibly separates upper display lid from lower keypad body. Bottom half is a continuous brushed aluminum laser-etched flat keypad sheet with elegant curved laser divider lines (NOT separate thick plastic buttons). Correct round silver 4-way ring with central OK; left/right soft keys above, menu short key centered above ring, web and envelope shortcuts, green Call left, red End right, then 4x3 1–9 *0# etched T9 numerals. Thin pale blue-gray engraving lines. Near bottom a curved grille with seven slim vertical black slits above the flared silver chin. Phone is opened flat for the orthographic elevation, both halves straight and aligned, no bend/perspective. No second device, exterior mini-screen or camera on this interior view.",
+  "method": "Original orthographic illustration conditioned on photographic references; not a crop or embedding of a source photo.",
+  "technicalEdits": "Measured silhouette alpha and LCD mask, transparent-margin crop, resize, lossless PNG/WebP and upper-shell zoom. See layout.json and tools/phones/export_measured.py.",
+  "referenceDossier": "apps/web/public/phones/motorola-razr-v3/references.md",
+  "historicalAcceptance": "review-draft"
+}

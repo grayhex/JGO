@@ -360,7 +360,8 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   const diag = session?.diagnostics ?? [];
   const logDiag = log.filter((l) => l.startsWith('⚠'));
   const res_ = session?.resources ?? null;
-  const external = prefs.view === 'screen' || showKeypad;
+  const keypadRequired = prefs.view === 'screen' || skin?.config.input?.externalKeypad === true;
+  const external = keypadRequired || showKeypad;
   const skinScreen = skin?.config.screen;
 
   const overlay = !running ? (
@@ -395,7 +396,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
           </div>
         </div>
 
-        <div className={`stage ${prefs.view === 'screen' ? 'stage-screen' : ''}`}>
+        <div className={`stage ${prefs.view === 'screen' ? 'stage-screen' : ''} ${skin?.config.input?.kind === 'touchscreen' ? 'stage-touchscreen' : ''}`}>
           {shownSkin.current ? (
             <PhoneSkin
               skin={shownSkin.current}
@@ -511,9 +512,9 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
           <button className="btn" onClick={()=>{input.releaseAll();setPadMenu(v=>!v);}}>{translateUI("Gamepad settings / UI navigation")}</button>
           {padMenu && <GamepadSettings gameId={gameId} poller={gamepad.current} state={padState} />}
           {!!padState.pressed.length && <div className="note">{translateUI("Held:")} {padState.pressed.join(', ')}</div>}
-          <Switch checked={showKeypad} onChange={setShowKeypad}>{translateUI("On-screen keypad")}</Switch>
+          <Switch checked={external} disabled={keypadRequired} onChange={setShowKeypad}>{translateUI("On-screen keypad")}</Switch>
           <div className="btn-row"><button className="btn sm" onClick={() => setKeymap(true)}>{translateUI("Remap keyboard")}</button></div>
-          <p className="hint">{translateUI("Arrows · Enter = OK · Q/W = soft keys · 0–9 · X = * · Z = #.")} {translateUI(prefs.view === 'full' ? 'Click or touch the phone’s keys; several at once work.' : 'In the Screen view the keys are below the picture.')}{translateUI(pad ? ` Gamepad: ${pad.slice(0, 28)}.` : '')}</p>
+          <p className="hint">{translateUI("Arrows · Enter = OK · Q/W = soft keys · 0–9 · X = * · Z = #.")} {translateUI(skin?.config.input?.kind === 'touchscreen' ? 'Touch the display; use the keypad below for games that need buttons.' : prefs.view === 'full' ? 'Click or touch the phone’s keys; several at once work.' : 'In the Screen view the keys are below the picture.')}{translateUI(pad ? ` Gamepad: ${pad.slice(0, 28)}.` : '')}</p>
         </Panel>
 
         <Panel icon="volume" title={translateUI("Audio")} open={false}>
