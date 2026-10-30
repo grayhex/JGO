@@ -23,6 +23,7 @@ English · [Русский](README.md)
 - **Server-side sessions.** Reloading the page or losing the connection does not interrupt the game.
 - **Five handsets:** Nokia 6100, 6230i, N95-1, E71, Sony Ericsson K750i.
 - **Controls:** handset keys, on-screen keypad, PC keyboard, gamepad, multi-touch.
+- **Text input** in `TextField`/`TextBox`, **pause**, game **speed**, screenshots, **input recording and playback**, **game files** (JSR-75), a custom MIDI **SoundFont**.
 - **Display:** picture rotation, landscape mode, full screen, light and dark themes, English and Russian UI.
 - **Library:** drag-and-drop JAR/JAD or import a whole folder; duplicate detection; optional [MobyGames](https://www.mobygames.com) metadata.
 - **One-step install** into a Proxmox VE LXC container, the `jgo` command for updates and backups. Docker Compose as a fallback.
@@ -86,7 +87,7 @@ npm start          # http://127.0.0.1:8080
 
 MIDP 2.0 / CLDC 1.0–1.1 and class files version ≤ 48 (genuine J2ME JARs) are supported. Known limitations:
 
-- text input in `TextField`/`TextBox` is not supported: the screens are shown, but you cannot type into them;
+- no sensors, geolocation, SMS, camera or Bluetooth (games get a regular error), no video;
 - games have no network access (`jgo network allow` disables the isolation);
 - Mascot Capsule 3D, video and camera were not verified.
 
