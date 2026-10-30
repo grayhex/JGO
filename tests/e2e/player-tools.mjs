@@ -88,6 +88,18 @@ try {
   await p.locator('input[type=file][accept*=json]').setInputFiles({ name: 'other.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(rec)) });
   await p.getByText(/belongs to another game/).waitFor();
 
+  // ---- the game's file area ----
+  await p.getByText('Game files', { exact: true }).click();
+  const panel = p.locator('details.panel', { hasText: 'Game files' });
+  await panel.getByText(/Empty\./).waitFor();
+  await panel.locator('input[type=file]').setInputFiles({ name: 'save.dat', mimeType: 'application/octet-stream', buffer: Buffer.from('12345') });
+  await panel.getByRole('link', { name: 'save.dat' }).waitFor();
+  const [file] = await Promise.all([p.waitForEvent('download'), panel.getByRole('link', { name: 'save.dat' }).click()]);
+  assert.equal(readFileSync(await file.path(), 'utf8'), '12345');
+  p.once('dialog', (d) => d.accept());
+  await panel.getByRole('button', { name: 'Delete save.dat' }).click();
+  await panel.getByText(/Empty\./).waitFor();
+
   assert.deepEqual(errors, []);
   console.log('player tools e2e OK');
 } finally {

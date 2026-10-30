@@ -3,6 +3,7 @@ import { useDeveloperMode } from '../developer';
 import { isPhoneId, resolvePhone } from '@j2me-web/protocol';
 import { TextEditor } from './TextEditor';
 import { RecordingPanel } from './RecordingPanel';
+import { GameFilesPanel } from './GameFilesPanel';
 import { EmulationTweaksForm } from './EmulationTweaksForm';
 import { Recorder, Replayer } from '../recording';
 import { downloadBlob, fileSafe, framePng } from '../snapshot';
@@ -573,6 +574,10 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
 
         <Panel icon="log" title={translateUI("Input recording")} open={false}>
           <RecordingPanel gameId={gameId} gameName={game?.name ?? gameId} frame={frameSize} live={live} recorder={recorder} replayer={replayer} sendRaw={sendRaw} toast={toast} />
+        </Panel>
+
+        <Panel icon="library" title={translateUI("Game files")} open={false}>
+          <GameFilesPanel gameId={gameId} toast={toast} refreshKey={state} />
         </Panel>
 
         <Panel icon="volume" title={translateUI("Audio")} open={false}>

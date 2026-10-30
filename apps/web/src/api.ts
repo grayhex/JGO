@@ -1,4 +1,4 @@
-import type { DevicePreset, EmulationTweaks, GameInfo, GameMeta, GameSettings, HealthStatus, LibraryCheck, LibraryRoot, MetadataJob, MobyCandidate, PublicSettings, ScanReport, SessionStatus, SettingsResponse, SystemStatus } from '@j2me-web/protocol';
+import type { DevicePreset, EmulationTweaks, GameFileEntry, GameInfo, GameMeta, GameSettings, HealthStatus, LibraryCheck, LibraryRoot, MetadataJob, MobyCandidate, PublicSettings, ScanReport, SessionStatus, SettingsResponse, SystemStatus } from '@j2me-web/protocol';
 
 export type GameSettingsPatch = Partial<Omit<GameSettings, 'device' | 'emulation'>> & { device?: string | null; emulation?: EmulationTweaks | null };
 
@@ -67,6 +67,14 @@ export const api = {
     if (!r.ok) throw new ApiError(r.status, 'diagnostics', (await r.json().catch(() => ({}))).message ?? `HTTP ${r.status}`);
     return r.blob();
   },
+  gameFiles: (id: string, dir: string) => req<{ path: string; entries: GameFileEntry[]; truncated: boolean; usedBytes: number; quotaBytes: number }>(`/api/games/${id}/files?path=${encodeURIComponent(dir)}`),
+  gameFileUrl: (id: string, file: string) => `/api/games/${id}/files/download?path=${encodeURIComponent(file)}`,
+  uploadGameFile: (id: string, dir: string, file: File) => {
+    const fd = new FormData();
+    fd.append('file', file, file.name);
+    return req<GameFileEntry>(`/api/games/${id}/files?path=${encodeURIComponent(dir)}`, { method: 'PUT', body: fd });
+  },
+  deleteGameFile: (id: string, file: string) => req<void>(`/api/games/${id}/files?path=${encodeURIComponent(file)}`, { method: 'DELETE' }),
   stopSession: (id: string) => req<SessionStatus>(`/api/sessions/${id}`, { method: 'DELETE' }),
 
   // first run, settings, system

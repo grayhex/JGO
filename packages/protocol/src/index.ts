@@ -26,6 +26,14 @@ export interface EmulationTweaks {
 export const EMULATION_DEFAULTS = { frameRate: 30, startAppOnResume: true, locale: 'en-US', pointerEvents: true, fontSizes: { small: 12, medium: 14, large: 16 } } as const;
 export const EMULATION_LIMITS = { frameRate: [1, 120], fontSize: [6, 64] } as const;
 
+/** One entry of a game's file area (what the MIDlet sees as `file:///`, JSR-75). */
+export interface GameFileEntry {
+  name: string;
+  dir: boolean;
+  size: number;
+  modified: string;
+}
+
 export interface GameSettings {
   /** Options beyond the phone profile; see {@link EmulationTweaks}. */
   emulation?: EmulationTweaks;

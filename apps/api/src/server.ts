@@ -1,6 +1,6 @@
 import { resolvePhone } from '@j2me-web/protocol';
 import { execFile } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { createReadStream, readFileSync } from 'node:fs';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { existsSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
@@ -19,6 +19,7 @@ import { Library, newId, validateSettings } from './library.js';
 import { MetadataService } from './metadata.js';
 import { DEFAULT_API_BASE, MobyClient } from './mobygames.js';
 import { buildDiagnostics } from './diagnostics.js';
+import { GAME_FILES_QUOTA_BYTES, GameFiles } from './gameFiles.js';
 import { gameDefaults, ScanManager } from './scanner.js';
 import { SettingsStore } from './settingsStore.js';
 import { SoundfontStore } from './soundfont.js';
@@ -209,6 +210,32 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
     }
     const { game, duplicate } = library.add(jar, jad, cfg.libraryQuotaBytes, { origin: 'upload', defaults: gameDefaults(settings.get().phone, settings.explicitPhone()) });
     return reply.code(duplicate ? 200 : 201).send({ game, duplicate });
+  });
+
+  // --- the game's file area (JSR-75 `file:///`): look, download, upload, delete. Paths are relative and checked in gameFiles.ts ---
+  const filesOf = (id: string) => {
+    if (!library.get(id)) throw new UploadError('not_found', 'Game not found', 404);
+    return new GameFiles(library.savesDir(owner, id));
+  };
+  app.get<{ Params: { id: string }; Querystring: { path?: string } }>('/api/games/:id/files', async (req) => {
+    const files = filesOf(req.params.id);
+    return { path: req.query.path ?? '', ...files.list(req.query.path ?? ''), usedBytes: files.usedBytes(), quotaBytes: GAME_FILES_QUOTA_BYTES };
+  });
+  app.get<{ Params: { id: string }; Querystring: { path?: string } }>('/api/games/:id/files/download', async (req, reply) => {
+    const f = filesOf(req.params.id).file(req.query.path ?? '');
+    const name = path.basename(f.abs).replace(/[^\w.\- ]+/g, '_');
+    return reply.header('Content-Type', 'application/octet-stream').header('Content-Length', f.size).header('Content-Disposition', `attachment; filename="${name}"`).header('X-Content-Type-Options', 'nosniff').header('Cache-Control', 'no-store').send(createReadStream(f.abs));
+  });
+  app.put<{ Params: { id: string }; Querystring: { path?: string } }>('/api/games/:id/files', async (req, reply) => {
+    const files = filesOf(req.params.id);
+    if (!req.isMultipart()) throw new UploadError('bad_request', 'Expected multipart/form-data with a file');
+    const part = await req.file({ limits: { fileSize: cfg.maxUploadBytes } });
+    if (!part) throw new UploadError('no_file', 'No file in the upload', 400);
+    return reply.code(201).send(await files.save(req.query.path ?? '', part.filename ?? '', part.file));
+  });
+  app.delete<{ Params: { id: string }; Querystring: { path?: string } }>('/api/games/:id/files', async (req, reply) => {
+    filesOf(req.params.id).remove(req.query.path ?? '');
+    return reply.code(204).send();
   });
 
   app.get('/api/devices', async () => devicePresets());

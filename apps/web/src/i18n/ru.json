@@ -442,5 +442,15 @@
   "Back to the emulator defaults": "Вернуть значения эмулятора",
   "Applied when the game is started the next time.": "Применяется при следующем запуске игры.",
   "Download diagnostics": "Скачать диагностику",
-  "A text report with the settings, the emulator log and the JVM state: attach it to a bug report": "Текстовый отчёт: настройки, журнал эмулятора и состояние JVM — приложите его к описанию проблемы"
+  "A text report with the settings, the emulator log and the JVM state: attach it to a bug report": "Текстовый отчёт: настройки, журнал эмулятора и состояние JVM — приложите его к описанию проблемы",
+  "Game files": "Файлы игры",
+  "↑ up": "↑ вверх",
+  "Delete the folder “{name}” with everything in it?": "Удалить папку «{name}» со всем содержимым?",
+  "Delete “{name}”?": "Удалить «{name}»?",
+  "Delete {name}": "Удалить {name}",
+  "Empty. A game writes here with its file API; you can also put files in.": "Пусто. Игра пишет сюда через файловый API; файлы можно и загрузить.",
+  "Only the first entries are shown.": "Показаны только первые записи.",
+  "Upload a file…": "Загрузить файл…",
+  "Refresh": "Обновить",
+  "used": "занято"
 }
