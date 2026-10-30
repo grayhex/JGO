@@ -27,7 +27,7 @@ for (let i = 0; i < 100; i++) { try { if ((await fetch(base + '/api/health')).ok
 // a fresh data directory opens the first-run wizard (covered by setup.mjs); these tests are about something else
 await fetch(base + '/api/setup/skip', { method: 'POST' });
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 try {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await ctx.newPage();

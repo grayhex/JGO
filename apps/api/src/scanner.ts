@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { GameSettings, PublicSettings, ScanReport } from '@j2me-web/protocol';
+import { isPhoneId, type GameSettings, type PublicSettings, type ScanReport } from '@j2me-web/protocol';
 import type { Config } from './config.js';
 import { UploadError } from './jar.js';
 import type { Library } from './library.js';
@@ -12,12 +12,15 @@ const MAX_REPORTED_ERRORS = 200;
 const tick = () => new Promise<void>((r) => setImmediate(r));
 
 /** The "default phone" of the settings, as the settings a freshly added game starts with. */
-export function gameDefaults(p: PublicSettings['phone']): Partial<GameSettings> {
-  return { width: p.width, height: p.height, layout: p.layout, heapMb: p.heapMb, ...(p.device ? { device: p.device } : {}) };
+export function gameDefaults(p: PublicSettings['phone'], explicit: Partial<PublicSettings['phone']> = {}): Partial<GameSettings> {
+  // the phone picture is only pinned to a new game when somebody chose a default phone: otherwise the player keeps using the browser's own choice
+  return { width: p.width, height: p.height, layout: p.layout, heapMb: p.heapMb, ...(p.device ? { device: p.device } : {}), ...(isPhoneId(explicit.skinId) ? { skinId: explicit.skinId } : {}) };
 }
 
 export interface ScanHooks {
   settings(): PublicSettings;
+  /** The phone values somebody actually chose (not the built-in defaults). */
+  explicitPhone?(): Partial<PublicSettings['phone']>;
   onFinished?(report: ScanReport): void;
 }
 
@@ -99,7 +102,7 @@ export class ScanManager {
       if (stats.unreadableDirs.length) r.errors.push({ path: stats.unreadableDirs[0]!, code: 'unreadable_dir', message: `${stats.unreadableDirs.length} directory(ies) could not be read and were skipped` });
 
       const settings = this.hooks.settings();
-      const defaults = gameDefaults(settings.phone);
+      const defaults = gameDefaults(settings.phone, this.hooks.explicitPhone?.());
       const seen = new Set<string>();
       const sorted = [...jars.values()].sort((a, b) => a.rel.localeCompare(b.rel));
       const dirCounts = new Map<string, { jars: number; jad: WalkEntry | null }>();

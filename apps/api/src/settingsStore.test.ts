@@ -44,6 +44,17 @@ describe('settings store', () => {
     assert.equal(s2.get().server.sessionIdleMinutes, 17);
   });
 
+  it('stores only what was set: unrelated edits do not pin the default phone', () => {
+    const cfg = testConfig();
+    const s = new SettingsStore(cfg.dataDir, cfg, {});
+    s.update({ audio: { volume: 10 } });
+    assert.deepEqual(s.explicitPhone(), {});
+    s.update({ phone: { skinId: 'nokia-e71' } });
+    s.update({ audio: { volume: 20 } });
+    assert.deepEqual(s.explicitPhone(), { skinId: 'nokia-e71' });
+    assert.deepEqual(JSON.parse(readFileSync(s.file, 'utf8')).settings.audio, { volume: 20 });
+  });
+
   it('keeps the API key in a separate 0600 file and never in settings.json', () => {
     const cfg = testConfig();
     const s = new SettingsStore(cfg.dataDir, cfg, {});

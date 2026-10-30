@@ -1,11 +1,11 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { KEY_LAYOUTS, type LayoutId, type PublicSettings, type SetupStatus } from '@j2me-web/protocol';
+import { isPhoneId, KEY_LAYOUTS, PHONE_PROFILES, type LayoutId, type PublicSettings, type SetupStatus } from '@j2me-web/protocol';
 import type { Config } from './config.js';
 import { UploadError } from './jar.js';
 
-/** Phone skins shipped with the web UI (apps/web/public/phones); a test keeps this list in sync with the directory. */
-export const SKIN_IDS = ['nokia-6100', 'nokia-6230i', 'sony-ericsson-k750i', 'nokia-n95', 'nokia-e71'] as const;
+/** Phone skins shipped with the web UI (apps/web/public/phones); the list lives in the protocol package, a test keeps it in sync with the directory. */
+export const SKIN_IDS = Object.keys(PHONE_PROFILES);
 
 const SCHEMA_VERSION = 1;
 const LAYOUTS = Object.keys(KEY_LAYOUTS) as LayoutId[];
@@ -87,7 +87,7 @@ export function mergeSettings(base: PublicSettings, patch: unknown): PublicSetti
     const o = obj(p.phone, 'phone');
     noExtra(o, ['skinId', 'view', 'device', 'layout', 'width', 'height', 'heapMb'], 'phone');
     if ('skinId' in o) {
-      if (typeof o.skinId !== 'string' || !(SKIN_IDS as readonly string[]).includes(o.skinId)) bad(`phone.skinId must be one of ${SKIN_IDS.join(', ')}`);
+      if (!isPhoneId(o.skinId)) bad(`phone.skinId must be one of ${SKIN_IDS.join(', ')}`);
       out.phone.skinId = o.skinId;
     }
     if ('view' in o) {
@@ -228,10 +228,25 @@ export class SettingsStore {
     for (const k of Object.keys(next.server) as (keyof PublicSettings['server'])[]) {
       if (next.server[k] !== this.envDefaults[k]) (overrides as Record<string, unknown>)[k] = next.server[k];
     }
-    this.data.settings = { ...next, server: overrides as PublicSettings['server'] };
+    // keep what was saved sparse: only values somebody set are stored, the rest keep following the defaults
+    const stored: Record<string, unknown> = { ...this.data.settings, server: overrides };
+    const p = patch as Record<string, unknown>;
+    for (const k of ['libraryPath', 'autoScan', 'autoMetadata'] as const) if (k in p) stored[k] = next[k];
+    for (const sec of ['phone', 'audio', 'controls'] as const) {
+      if (!(sec in p)) continue;
+      const cur = (stored[sec] ?? {}) as Record<string, unknown>;
+      for (const key of Object.keys(p[sec] as object)) cur[key] = (next[sec] as Record<string, unknown>)[key];
+      stored[sec] = cur;
+    }
+    this.data.settings = stored as Partial<PublicSettings>;
     this.save();
     this.applyToConfig();
     return next;
+  }
+
+  /** The phone values that were saved explicitly (settings.json), as opposed to the built-in defaults. */
+  explicitPhone(): Partial<PublicSettings['phone']> {
+    return { ...(this.data.settings.phone ?? {}) };
   }
 
   setup(): SettingsFile['setup'] {

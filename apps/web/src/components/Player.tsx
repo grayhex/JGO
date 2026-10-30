@@ -1,9 +1,12 @@
+import { isPhoneId, resolvePhone } from '@j2me-web/protocol';
+import { GamepadPoller, loadPadProfile, type PadAction, type PadState } from '../gamepad';
+import { GamepadSettings } from './GamepadSettings';
 import { KEY_LAYOUTS, SCREEN_PRESETS, type DevicePreset, type GameMeta, type HealthStatus, type LayoutId, type ServerEvent, type SessionState, type SessionStatus } from '@j2me-web/protocol';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError, type JarAnalysisView } from '../api';
 import type { Toast } from '../App';
 import { PcmAudio } from '../audio';
-import { GamepadPoller, InputController } from '../input';
+import { InputController } from '../input';
 import { isSkinId, useCatalog, usePrefs } from '../skin/registry';
 import { PhoneSkin } from '../skin/PhoneSkin';
 import type { LoadedSkin } from '../skin/types';
@@ -52,7 +55,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   const [cpuHist, setCpuHist] = useState<number[]>([]);
   const [menu, setMenu] = useState<Extract<ServerEvent, { t: 'menu' }> | null>(null);
   const [perm, setPerm] = useState<Extract<ServerEvent, { t: 'permission' }> | null>(null);
-  // Emulation profile: independent of the skin (the picture only)
+  // Automatic mode synchronizes the skin; Advanced keeps presentation independent.
   const [layout, setLayout] = useState<LayoutId>('nokia');
   const [res, setRes] = useState<{ width: number; height: number } | null>(null);
   const [device, setDevice] = useState('');
@@ -64,6 +67,31 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   const [smooth, setSmooth] = useState(false);
   const [showKeypad, setShowKeypad] = useState(() => { const k = controlSettings().keypad; return k === 'always' || (k === 'auto' && matchMedia('(pointer: coarse)').matches); });
   const [keymap, setKeymap] = useState(false);
+  const [advanced, setAdvanced] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [padMenu, setPadMenu] = useState(false);
+  const [padState, setPadState] = useState<PadState>({controllers:[],pressed:[]});
+  const gamepad = useRef<GamepadPoller | null>(null);
+  const [lights, setLights] = useState(() => { try { return localStorage.getItem('j2me-web.lights.v1') === 'true'; } catch { return false; } });
+  const [awake, setAwake] = useState(true);
+  const [touchControls, setTouchControls] = useState(false);
+  const wakeTimer = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(()=>()=>clearTimeout(wakeTimer.current),[]);
+  const lightsActive = lights && prefs.view === 'screen';
+  const wake = () => { setAwake(true); clearTimeout(wakeTimer.current); wakeTimer.current = setTimeout(() => setAwake(false), 2500); };
+  useEffect(() => { try { localStorage.setItem('j2me-web.lights.v1', String(lights)); } catch {} }, [lights]);
+  useEffect(() => {
+    if (!lightsActive) return;
+    wake();
+    const key = (e: KeyboardEvent) => { if(e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setLights(false); } };
+    const changed = () => { if (!document.fullscreenElement) setLights(false); };
+    window.addEventListener('keydown', key, true);document.addEventListener('fullscreenchange',changed);
+    return () => { clearTimeout(wakeTimer.current);window.removeEventListener('keydown',key,true);document.removeEventListener('fullscreenchange',changed); };
+  }, [lightsActive]);
+  useEffect(() => {
+    const key=(e:KeyboardEvent)=>{if(e.altKey && e.code==='KeyL' && !e.repeat){e.preventDefault();setPrefs({view:'screen'});setLights(v=>!v);}};
+    window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);
+  }, []);
   const [pad, setPad] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [frameSize, setFrameSize] = useState({ w: 240, h: 320 });
@@ -105,7 +133,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
         const g = (await api.games()).find((x) => x.id === gameId);
         if (!g) { toast('error', 'Game not found'); onExit(); return; }
         if (dead) return;
-        setGame(g); setLayout(g.settings.layout); setRes({ width: g.settings.width, height: g.settings.height }); setDevice(g.settings.device ?? ''); setHeapMb(g.settings.heapMb);
+        setGame(g); setLayout(g.settings.layout); setRes({ width: g.settings.width, height: g.settings.height }); setDevice(g.settings.device ?? ''); setHeapMb(g.settings.heapMb); setAdvanced(g.settings.profileMode === 'advanced'); if (g.settings.skinId && isSkinId(g.settings.skinId)) setPrefs({skinId:g.settings.skinId}); setLoaded(true);
         const running = (await api.sessions()).find((s) => s.gameId === gameId && (s.state === 'running' || s.state === 'starting'));
         if (running && !dead) attach(running);
       } catch (e) { toast('error', (e as Error).message); }
@@ -117,7 +145,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   }, [gameId]);
 
   const send = useCallback((ev: Parameters<SessionStream['send']>[0]) => streamRef.current?.send(ev), []);
-  useEffect(() => { input.layout = layout; }, [input, layout]);
+  useEffect(() => { input.layout = session && (state === 'running' || state === 'starting') ? session.layout : layout; }, [input, layout, session?.layout, state]);
 
   const onEvent = useCallback((ev: ServerEvent) => {
     switch (ev.t) {
@@ -195,7 +223,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   }, [state, session?.id]);
 
   // ---- input wiring: keyboard, focus loss, gamepad
-  useEffect(() => { input.enabled = live && !keymap && !menu && !perm; if (!input.enabled) input.releaseAll(); }, [input, live, keymap, menu, perm]);
+  useEffect(() => { input.enabled = live && !keymap && !menu && !perm && !padMenu; if (!input.enabled) input.releaseAll(); }, [input, live, keymap, menu, perm, padMenu]);
   useEffect(() => {
     window.addEventListener('keydown', input.onKeyDown);
     window.addEventListener('keyup', input.onKeyUp);
@@ -203,7 +231,11 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
     const vis = () => { if (document.hidden) rel(); };
     window.addEventListener('blur', rel);
     document.addEventListener('visibilitychange', vis);
-    const gp = new GamepadPoller(input, setPad);
+    const gp = new GamepadPoller(input, setPad, loadPadProfile(gameId));
+    gamepad.current = gp;
+    let previous = '';
+    gp.onState = (s) => { const serialized=JSON.stringify(s);if(serialized!==previous){previous=serialized;setPadState(s);} };
+    gp.onUi = (action) => uiRef.current(action);
     if (controlSettings().gamepad) gp.start();
     return () => {
       window.removeEventListener('keydown', input.onKeyDown); window.removeEventListener('keyup', input.onKeyUp);
@@ -211,17 +243,34 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
       gp.stop(); input.releaseAll();
     };
   }, [input]);
+  const uiRef = useRef<(action: PadAction) => void>(() => undefined);
+  uiRef.current = (action) => {
+    wake();
+    if(action==='ui:menu'){input.releaseAll();setLights(false);setPadMenu(v=>!v);return;}
+    if(action==='ui:back'){if(perm){send({t:'perm',id:perm.id,allow:false});setPerm(null);}setMenu(null);setKeymap(false);setPadMenu(false);setLights(false);return;}
+    if(action==='ui:lights'){setPrefs({view:'screen'});setLights(v=>!v);return;}
+    if(action==='ui:fullscreen'){fullscreen();return;}
+    if(action==='up'||action==='down'||action==='left'||action==='right'){
+      const root=document.querySelector('[role=dialog]') ?? document.querySelector('.player-grid');
+      const controls=[...(root?.querySelectorAll<HTMLElement>('button:not(:disabled),select,input,a[href]')??[])].filter(e=>e.getClientRects().length && getComputedStyle(e).visibility!=='hidden');
+      const selected=document.activeElement;
+      if((action==='left'||action==='right') && selected instanceof HTMLSelectElement){selected.selectedIndex=Math.max(0,Math.min(selected.options.length-1,selected.selectedIndex+(action==='left'?-1:1)));selected.dispatchEvent(new Event('change',{bubbles:true}));return;}
+      const at=controls.indexOf(document.activeElement as HTMLElement), delta=action==='up'||action==='left'?-1:1;
+      controls[(at+delta+controls.length)%controls.length]?.focus();
+    } else if(action==='fire') (document.activeElement as HTMLElement)?.click();
+  };
+  useEffect(()=>{if(gamepad.current)gamepad.current.uiMode=padMenu || !live || !!menu || !!perm || keymap;},[padMenu,live,menu,perm,keymap]);
   // the held-key state is shared by every control surface: changing the picture or the view lets go of everything
   useEffect(() => { input.releaseAll(); }, [input, prefs.skinId, prefs.view]);
 
   useEffect(() => () => { streamRef.current?.close(); }, []);
 
   const start = async () => {
-    if (!game || busy) return;
+    if (!game || busy || !loaded || (!advanced && !matched)) return;
     setBusy(true); setLog([]); setMenu(null); setPerm(null); setCpuHist([]); setFpsHist([]);
     void audio.resume(); // inside the click handler: allowed by autoplay policy
     try {
-      attach(await api.startSession(game.id, { layout, heapMb, ...(res ?? {}), ...(device ? { device } : {}) }));
+      attach(await api.startSession(game.id, { layout, heapMb, ...(res ?? {}), device: device || null, skinId: prefs.skinId, profileMode: advanced ? 'advanced' : 'auto' }));
     } catch (e) {
       const err = e as ApiError;
       toast('error', err.message);
@@ -237,7 +286,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
     setState('exited'); setConn('idle');
   };
   const leave = async () => { if (sessionRef.current && (state === 'running' || state === 'starting')) await stop(); onExit(); };
-  const fullscreen = () => { if (document.fullscreenElement) void document.exitFullscreen(); else void card.current?.requestFullscreen?.(); };
+  const fullscreen = () => { const promise = document.fullscreenElement ? document.exitFullscreen() : card.current?.requestFullscreen?.(); promise?.catch(() => toast('info','Fullscreen is unavailable; Lights Out still works in this window.')); };
 
   const pointer = (s: 'D' | 'M' | 'U') => (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!live) return;
@@ -254,15 +303,26 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
     const p = devices.find((d) => d.id === id);
     if (p) { setRes({ width: p.width, height: p.height }); setLayout(p.layout); }
   };
+  const matched = !advanced && isPhoneId(prefs.skinId) && devices.length ? resolvePhone(prefs.skinId, devices) : null;
+  useEffect(() => {
+    if (!loaded || advanced || !isPhoneId(prefs.skinId) || !devices.length) return;
+    const { preset } = resolvePhone(prefs.skinId, devices);
+    setDevice(preset.id); setLayout(preset.layout); setRes({width:preset.width,height:preset.height});
+  }, [loaded,advanced,prefs.skinId,devices]);
+  useEffect(() => {
+    if (!loaded || !res) return;
+    if (!advanced && matched && (device !== matched.preset.id || res.width !== matched.preset.width || res.height !== matched.preset.height || layout !== matched.preset.layout)) return;
+    api.patchGame(gameId,{settings:{skinId:prefs.skinId,profileMode:advanced?'advanced':'auto',device:device || null,...res,layout,heapMb}}).catch(e=>toast('error',(e as Error).message));
+  }, [loaded,prefs.skinId,advanced,device,res?.width,res?.height,layout,heapMb,gameId]);
   const saveDefaults = async () => {
     if (!game || !res) return;
-    try { await api.patchGame(game.id, { settings: { ...res, layout, heapMb, ...(device ? { device } : {}) } }); toast('info', 'Saved as this game’s defaults'); } catch (e) { toast('error', (e as Error).message); }
+    try { await api.patchGame(game.id, { settings: { ...res, layout, heapMb, device: device || null, skinId:prefs.skinId,profileMode:advanced?'advanced':'auto' } }); toast('info', 'Saved as this game’s defaults'); } catch (e) { toast('error', (e as Error).message); }
   };
 
   const running = state === 'running' || state === 'starting' || state === 'stopping';
   const canStart = !!game && !running && !busy && health?.ok !== false;
   const resKey = res ? `${res.width}x${res.height}` : '';
-  const needRestart = running && res && session && (res.width !== session.width || res.height !== session.height);
+  const needRestart = running && res && session && (res.width !== session.width || res.height !== session.height || device !== (session.device ?? '') || layout !== session.layout || heapMb !== session.heapMb);
   const dev = devices.find((d) => d.id === device);
   const diag = session?.diagnostics ?? [];
   const logDiag = log.filter((l) => l.startsWith('⚠'));
@@ -282,8 +342,9 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   ) : undefined;
 
   return (
-    <div className="player-grid">
+    <div className={`player-grid ${lightsActive ? 'lights-out' : ''} ${awake ? 'hud-awake' : ''} ${touchControls ? 'touch-controls' : ''}`} onPointerMove={wake} onPointerDown={wake}>
       <section className={`card stage-card ${prefs.view === 'screen' ? 'is-screen' : ''}`} ref={card} aria-label="Phone">
+        {lightsActive && <div className="lights-hud"><button className="btn" onClick={()=>setLights(false)} aria-label="Exit Lights Out">☀ Exit · Esc</button><button className="btn transient" onClick={fullscreen}>Fullscreen</button><button className="btn transient" onClick={()=>setTouchControls(v=>!v)}>Touch controls</button></div>}
         <div className="stage-bar">
           <button className="btn ghost sm" onClick={leave}><Icon name="back" /> Library</button>
           <div className="title">
@@ -292,6 +353,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
           </div>
           <span className={`badge ${STATE_BADGE[state] ?? ''} ${live ? 'live' : ''}`} data-testid="state-badge"><span className="dot" />{state === 'idle' ? 'stopped' : state}{conn === 'reconnecting' ? ' · reconnecting…' : ''}</span>
           <Seg label="View" value={prefs.view} onChange={(view) => setPrefs({ view })} options={[{ value: 'full', label: <><Icon name="phone" /> Phone</>, title: 'Whole phone, body keys active' }, { value: 'screen', label: <><Icon name="zoom" /> Screen</>, title: 'Enlarged display; controls below' }]} />
+          {prefs.view === 'screen' && <button className="btn ghost sm" onClick={()=>setLights(v=>!v)} aria-label="Lights Out" aria-pressed={lights} title="Lights Out · Alt+L">☾ Lights Out</button>}
           <button className="btn ghost sm icon" onClick={fullscreen} aria-label="Toggle fullscreen" title="Fullscreen"><Icon name="fullscreen" /></button>
         </div>
 
@@ -335,7 +397,9 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
         </Panel>
 
         <Panel icon="device" title="Emulation profile">
-          <p className="hint">What the game sees. The phone picture below does not change any of this.</p>
+          <Switch checked={advanced} onChange={setAdvanced}>Advanced: choose skin and profile independently</Switch>
+          {matched && <div className={`note ${matched.exact ? 'info':'warn'}`} data-testid="phone-profile-match">{matched.exact?'Exact preset':'Generic fallback'}: {matched.preset.name}. {matched.reason}</div>}
+          <fieldset disabled={!advanced} style={{border:0,padding:0,margin:0}}>
           <label className="field"><span className="label-caps">Device preset</span>
             <select className="select" value={device} onChange={(e) => applyDevice(e.target.value)} aria-label="Device preset">
               <option value="">None — resolution and layout only</option>
@@ -351,13 +415,15 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
               {res && !SCREEN_PRESETS.some((p) => `${p.width}x${p.height}` === resKey) && <option value="custom">{res.width}×{res.height}</option>}
             </select>
           </label>
-          {needRestart && <div className="note warn">Resolution changes apply after a restart.</div>}
+
           <label className="field"><span className="label-caps">Key layout</span>
             <select className="select" aria-label="Key layout" value={layout} onChange={(e) => { input.releaseAll(); setLayout(e.target.value as LayoutId); }}>
               {Object.entries(KEY_LAYOUTS).map(([id, l]) => <option key={id} value={id}>{l.label}</option>)}
             </select>
           </label>
           <label className="field"><span className="label-caps">Heap (MB)</span><input className="input" type="number" min={64} max={1024} step={32} value={heapMb} onChange={(e) => setHeapMb(Number(e.target.value))} aria-label="Heap in MB" /></label>
+          </fieldset>
+          {needRestart && <div className="note warn" role="status">The running game keeps its current profile. Restart to apply the selected phone/profile. <button className="btn sm" onClick={async()=>{await stop();await start();}}>Restart with selected profile</button></div>}
           <button className="btn sm" onClick={saveDefaults} disabled={!game || !res}>Save as game defaults</button>
         </Panel>
 
@@ -368,7 +434,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
           {skinScreen && res && (res.width !== skinScreen.width || res.height !== skinScreen.height) && (
             <div className="note info">
               This phone’s display is {skinScreen.width}×{skinScreen.height}; the game renders {res.width}×{res.height}. It is shown whole, with margins, never stretched.
-              {!running && <> <button className="btn sm" style={{ marginTop: 8 }} onClick={() => { setRes({ width: skinScreen.width, height: skinScreen.height }); setDevice(''); }}>Use {skinScreen.width}×{skinScreen.height} for the next start</button></>}
+              {!running && advanced && <> <button className="btn sm" style={{ marginTop: 8 }} onClick={() => { setRes({ width: skinScreen.width, height: skinScreen.height }); setDevice(''); }}>Use {skinScreen.width}×{skinScreen.height} for the next start</button></>}
             </div>
           )}
           <Switch checked={prefs.integer} onChange={(integer) => setPrefs({ integer })}>Whole-number scaling</Switch>
@@ -377,6 +443,9 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
         </Panel>
 
         <Panel icon="gamepad" title="Controls">
+          <button className="btn" onClick={()=>{input.releaseAll();setPadMenu(v=>!v);}}>Gamepad settings / UI navigation</button>
+          {padMenu && <GamepadSettings gameId={gameId} poller={gamepad.current} state={padState} />}
+          {!!padState.pressed.length && <div className="note">Held: {padState.pressed.join(', ')}</div>}
           <Switch checked={showKeypad} onChange={setShowKeypad}>On-screen keypad</Switch>
           <div className="btn-row"><button className="btn sm" onClick={() => setKeymap(true)}>Remap keyboard</button></div>
           <p className="hint">Arrows · Enter = OK · Q/W = soft keys · 0–9 · X = * · Z = #. {prefs.view === 'full' ? 'Click or touch the phone’s keys; several at once work.' : 'In the Screen view the keys are below the picture.'}{pad ? ` Gamepad: ${pad.slice(0, 28)}.` : ''}</p>
@@ -418,7 +487,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
                 <tbody>{analysis.analysis.apis.map((a) => <tr key={a.id}><td>{a.label}</td><td>{a.classes}</td><td>{a.missing.length || '—'}</td></tr>)}</tbody></table></div>
             )}
             {analysis.analysis.findings.map((f) => <div key={f.code + f.message} className={`note ${f.level === 'error' ? 'err' : f.level === 'warn' ? 'warn' : ''}`}>{f.message}</div>)}
-            {analysis.recommendedDevice && !running && device !== analysis.recommendedDevice && <button className="btn sm" onClick={() => applyDevice(analysis.recommendedDevice!)}>Use the recommended device preset</button>}
+            {analysis.recommendedDevice && advanced && !running && device !== analysis.recommendedDevice && <button className="btn sm" onClick={() => applyDevice(analysis.recommendedDevice!)}>Use the recommended device preset</button>}
           </Panel>
         )}
 

@@ -1,3 +1,4 @@
+export * from './phones.js';
 /**
  * Wire protocol shared by the API and the web client. It is provider-neutral:
  * nothing here knows about Docker, Cloudflare or KEmulator internals.
@@ -6,6 +7,8 @@
 // ---- REST types -------------------------------------------------------------------------
 
 export interface GameSettings {
+  skinId?: import('./phones.js').PhoneId;
+  profileMode?: 'auto' | 'advanced';
   /** Emulated screen size; the game sees exactly this canvas. */
   width: number;
   height: number;
@@ -216,6 +219,8 @@ export interface ResourceUsage {
 }
 
 export interface SessionStatus {
+  layout: LayoutId;
+  heapMb: number;
   id: string;
   gameId: string;
   state: SessionState;
