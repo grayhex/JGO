@@ -2,6 +2,9 @@ import { t as translateUI } from '../i18n';
 import { useDeveloperMode } from '../developer';
 import { isPhoneId, resolvePhone } from '@j2me-web/protocol';
 import { TextEditor } from './TextEditor';
+import { RecordingPanel } from './RecordingPanel';
+import { Recorder, Replayer } from '../recording';
+import { downloadBlob, fileSafe, framePng } from '../snapshot';
 import { GamepadPoller, loadPadProfile, type PadAction, type PadState } from '../gamepad';
 import { GamepadSettings } from './GamepadSettings';
 import { KEY_LAYOUTS, SCREEN_PRESETS, type DevicePreset, type GameMeta, type HealthStatus, type LayoutId, type ServerEvent, type SessionState, type SessionStatus } from '@j2me-web/protocol';
@@ -59,6 +62,9 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   const [client, setClient] = useState({ fps: 0, rtt: null as number | null, decode: 0, kbps: 0 });
   const [fpsHist, setFpsHist] = useState<number[]>([]);
   const [cpuHist, setCpuHist] = useState<number[]>([]);
+  const recorder = useRef(new Recorder()).current;
+  const replayer = useRef(new Replayer()).current;
+  const [link, setLink] = useState<string | null>(null);
   const [pauseInfo, setPauseInfo] = useState<{ on: boolean; reason: 'manual' | 'hidden' } | null>(null);
   const [textArea, setTextArea] = useState<Extract<ServerEvent, { t: 'text' }>['area']>(null);
   const [menu, setMenu] = useState<Extract<ServerEvent, { t: 'menu' }> | null>(null);
@@ -153,7 +159,9 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameId]);
 
-  const send = useCallback((ev: Parameters<SessionStream['send']>[0]) => streamRef.current?.send(ev), []);
+  const sendRaw = useCallback((ev: Parameters<SessionStream['send']>[0]) => streamRef.current?.send(ev), []);
+  /** Everything the player does goes through here, so a recording sees it. */
+  const send = useCallback((ev: Parameters<SessionStream['send']>[0]) => { recorder.push(ev); sendRaw(ev); }, [recorder, sendRaw]);
   useEffect(() => { input.layout = session && (state === 'running' || state === 'starting') ? session.layout : layout; }, [input, layout, session?.layout, state]);
 
   const onEvent = useCallback((ev: ServerEvent) => {
@@ -162,7 +170,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
       case 'state':
         setState(ev.state);
         if (ev.state === 'exited' || ev.state === 'failed') {
-          input.releaseAll(); setTextArea(null); setPauseInfo(null);
+          input.releaseAll(); replayer.stop(); setTextArea(null); setPauseInfo(null);
           if (ev.state === 'failed') toast('error', translateUI('Emulator stopped: {detail}', {detail:ev.detail ?? translateUI('unknown error')}));
         }
         break;
@@ -177,7 +185,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
       case 'permission': setPerm(ev); break;
       case 'vibrate': if (ev.ms > 0) buzz(Math.min(ev.ms, 2000)); else navigator.vibrate?.(0); break;
       case 'displayable': break; // the Bridge draws every screen into the framebuffer (patch 0006): the kind needs no UI
-      case 'url': toast('info', translateUI('The game wants to open {url} (blocked)', {url:ev.url})); break;
+      case 'url': setLink(ev.url); break;
       default: break;
     }
   }, [input, toast]);
@@ -203,7 +211,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
       },
     });
     streamRef.current = st;
-    input.setSend((ev) => st.send(ev as never));
+    input.setSend((ev) => { recorder.push(ev as never); st.send(ev as never); });
     st.connect();
   }, [input, onEvent, audio]);
 
@@ -325,6 +333,19 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
     } finally { setBusy(false); }
   };
   const leave = async () => { if (sessionRef.current && (state === 'running' || state === 'starting' || state === 'stopping') && !await stop()) return; onExit(); };
+  const shot = async (how: 'save' | 'copy') => {
+    const c = canvasEl.current;
+    if (!c) return;
+    try {
+      const png = await framePng(c, rotation);
+      if (how === 'save') downloadBlob(png, `${fileSafe(game?.name ?? 'game')}-${c.width}x${c.height}.png`);
+      else {
+        if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') throw new Error('Copying pictures needs a secure (https) page; use Save instead.');
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
+        toast('info', 'Screenshot copied.');
+      }
+    } catch (e) { toast('error', (e as Error).message); }
+  };
   const fullscreen = () => { const promise = document.fullscreenElement ? document.exitFullscreen() : card.current?.requestFullscreen?.(); promise?.catch(() => toast('info','Fullscreen is unavailable; Lights Out still works in this window.')); };
 
   const pointer = (s: 'D' | 'M' | 'U') => (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -405,6 +426,8 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
             <Seg label={translateUI("View")} value={prefs.view} onChange={(view) => setPrefs({ view })} options={[{ value: 'full', label: <><Icon name="phone" /> {translateUI("Phone")}</>, title: 'Whole phone, body keys active' }, { value: 'screen', label: <><Icon name="zoom" /> {translateUI("Screen")}</>, title: 'Enlarged display; controls below' }]} />
             {prefs.view === 'screen' && <button className="btn ghost sm" onClick={()=>setLights(v=>!v)} aria-label={translateUI("Lights Out")} aria-pressed={lights} title={translateUI("Lights Out · Alt+L")}>{translateUI("☾ Lights Out")}</button>}
             <button className="btn ghost sm icon" onClick={() => setRotation(nextRotation(rotation))} aria-label={translateUI("Rotate the picture")} title={translateUI("Rotate the picture (for games made for landscape)")} data-testid="rotate"><Icon name="rotate" /></button>
+            <button className="btn ghost sm icon" onClick={() => void shot('save')} disabled={!lastFrame.current} aria-label={translateUI("Save a screenshot")} title={translateUI("Save a screenshot (PNG, the game's own size)")} data-testid="screenshot"><Icon name="camera" /></button>
+            <button className="btn ghost sm icon" onClick={() => void shot('copy')} disabled={!lastFrame.current} aria-label={translateUI("Copy a screenshot")} title={translateUI("Copy a screenshot to the clipboard")} data-testid="screenshot-copy"><Icon name="copy" /></button>
             <button className="btn ghost sm icon" onClick={fullscreen} aria-label={translateUI("Toggle fullscreen")} title={translateUI("Fullscreen")}><Icon name="fullscreen" /></button>
           </div>
         </div>
@@ -532,6 +555,10 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
           <p className="hint">{translateUI("Arrows · Enter = OK · Q/W = soft keys · 0–9 · X = * · Z = #.")} {translateUI(prefs.view === 'full' ? 'Click or touch the phone’s keys; several at once work.' : 'In the Screen view the keys are below the picture.')}{translateUI(pad ? ` Gamepad: ${pad.slice(0, 28)}.` : '')}</p>
         </Panel>
 
+        <Panel icon="log" title={translateUI("Input recording")} open={false}>
+          <RecordingPanel gameId={gameId} gameName={game?.name ?? gameId} frame={frameSize} live={live} recorder={recorder} replayer={replayer} sendRaw={sendRaw} toast={toast} />
+        </Panel>
+
         <Panel icon="volume" title={translateUI("Audio")} open={false}>
           <label className="field"><span className="label-caps">{translateUI("Volume")}</span><input type="range" min={0} max={100} value={vol} onChange={(e) => setVol(Number(e.target.value))} aria-label={translateUI("Volume")} /></label>
           <Switch checked={muted} onChange={setMuted}>{translateUI("Mute")}</Switch>
@@ -583,6 +610,17 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
           <ul className="menu-list">
             {menu.items.map((i) => <li key={i.id}><button className="btn block" onClick={() => { send({ t: 'cmd', id: i.id }); setMenu(null); }}>{translateUI(i.kind === 'radio-selected' ? '◉ ' : i.kind === 'radio' ? '○ ' : '')}{i.text}</button></li>)}
           </ul>
+        </Modal>
+      )}
+      {link && (
+        <Modal title={translateUI("The game wants to open a link")} onClose={() => setLink(null)}>
+          <p>{translateUI("Open this address only if you trust it:")}</p>
+          <p><code className="link-url" data-testid="game-link">{link}</code></p>
+          <div className="modal-actions">
+            <span className="spacer" />
+            <button className="btn" onClick={() => setLink(null)}>{translateUI("Cancel")}</button>
+            <a className="btn primary" href={link} target="_blank" rel="noopener noreferrer" onClick={() => setLink(null)}>{translateUI("Open")}</a>
+          </div>
         </Modal>
       )}
       {perm && (

@@ -23,7 +23,7 @@
     "lab": "node --import tsx apps/api/src/lab/cli.ts",
     "setup": "bash runtime/scripts/setup.sh",
     "test:integration": "node --import tsx --test --test-concurrency=1 tests/integration/*.test.ts",
-    "test:e2e": "node tests/e2e/browser.mjs && node tests/e2e/player-features.mjs && node tests/e2e/text-input.mjs && node tests/e2e/pause.mjs && node tests/e2e/soundfont.mjs && node --import tsx tests/e2e/orientation.mjs && node --import tsx tests/e2e/setup.mjs && node tests/e2e/recovery.mjs",
+    "test:e2e": "node tests/e2e/browser.mjs && node tests/e2e/player-features.mjs && node tests/e2e/text-input.mjs && node tests/e2e/pause.mjs && node tests/e2e/soundfont.mjs && node tests/e2e/player-tools.mjs && node --import tsx tests/e2e/orientation.mjs && node --import tsx tests/e2e/setup.mjs && node tests/e2e/recovery.mjs",
     "test:phones": "python3 tools/phones/validate_assets.py",
     "test:lab-report": "node tests/e2e/lab-report.mjs",
     "build:dev": "VITE_DEVELOPER_BUILD=true npm run build && npm run build:dev -w @j2me-web/api",

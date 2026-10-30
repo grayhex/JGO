@@ -408,5 +408,22 @@
   "Choose .sf2…": "Выбрать .sf2…",
   "SoundFont installed. It is used by games started from now on.": "SoundFont установлен. Его используют игры, запущенные с этого момента.",
   "Back to the built-in bank.": "Возвращён встроенный банк.",
-  "Replaces the emulator's built-in bank for MIDI music (SoundFont 2 only, up to 256 MB). Games that are already running keep the old one.": "Заменяет встроенный банк эмулятора для MIDI-музыки (только SoundFont 2, до 256 МБ). Уже запущенные игры продолжают играть со старым."
+  "Replaces the emulator's built-in bank for MIDI music (SoundFont 2 only, up to 256 MB). Games that are already running keep the old one.": "Заменяет встроенный банк эмулятора для MIDI-музыки (только SoundFont 2, до 256 МБ). Уже запущенные игры продолжают играть со старым.",
+  "Save a screenshot": "Сохранить снимок экрана",
+  "Save a screenshot (PNG, the game's own size)": "Сохранить снимок экрана (PNG в размере игры)",
+  "Copy a screenshot": "Копировать снимок экрана",
+  "Copy a screenshot to the clipboard": "Копировать снимок в буфер обмена",
+  "Input recording": "Запись ввода",
+  "■ Stop recording": "■ Остановить запись",
+  "● Record": "● Запись",
+  "■ Stop playback": "■ Остановить воспроизведение",
+  "▶ Play": "▶ Воспроизвести",
+  "Save…": "Сохранить…",
+  "Load…": "Загрузить…",
+  "events": "событий",
+  "Recording… every key, touch and command is kept.": "Идёт запись… сохраняются все нажатия, касания и команды.",
+  "No recording yet. Record, then play it back or save it to a file.": "Записи пока нет. Запишите ввод, затем воспроизведите или сохраните в файл.",
+  "The game wants to open a link": "Игра хочет открыть ссылку",
+  "Open this address only if you trust it:": "Открывайте этот адрес, только если доверяете ему:",
+  "Open": "Открыть"
 }
