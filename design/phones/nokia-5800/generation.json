@@ -1,0 +1,11 @@
+{
+  "tool": "image_gen",
+  "date": "2026-10-30",
+  "sourceGeneration": "exec-b1fee8f1-6153-49ea-a1be-bdc23fce186f.png",
+  "initialGeneration": "exec-09676b9e-36fc-4534-a4d0-5d71f4d6bdb9.png",
+  "phoneInstruction": "Original Nokia 5800 XpressMusic (2008) Black/Red, standard retail version, NOT Nokia 5230 or Navigation Edition. Upright portrait touchscreen bar, 111 x 51.7 mm overall proportions. Follow first reference for straight front geometry and second for RED side accent color only. Gloss black front and thin subtle deep red edge just visible along side perimeter, rounded corners, original thick black bezels. Correct top: small narrow speaker slot near center and front camera/sensors at upper right, NOKIA printed left over screen, XpressMusic and tiny media shortcut mark on right. Tall active touch LCD 360:640=9:16 EXACT rectangle, fully transparent hole. Real screen size relative to body (3.2 inch, approximately 40 x 71 mm in 51.7 x 111 mm body), not modern edge-to-edge. Three slim physical buttons at bottom in a single horizontal row: left green call bar, center white short menu bar, right red end bar, each on separate black rectangular inset key. NO D-pad, no joystick, no numeric keypad, no home icon on center. The screen is blank transparent, no phone UI or wallpaper. Clean black physical bezel surrounds active region.",
+  "method": "Original orthographic illustration conditioned on photographic references; not a crop or embedding of a source photo.",
+  "technicalEdits": "Measured silhouette alpha and LCD mask, transparent-margin crop, resize, lossless PNG/WebP and upper-shell zoom. See layout.json and tools/phones/export_measured.py.",
+  "referenceDossier": "apps/web/public/phones/nokia-5800/references.md",
+  "historicalAcceptance": "review-draft"
+}

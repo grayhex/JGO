@@ -21,7 +21,7 @@ English · [Русский](README.md)
 - **2D, sound, 3D.** MIDP 2.0 / CLDC 1.1, MMAPI, RMS saves, M3G (JSR-184) on software OpenGL.
 - **59 device profiles:** resolution, key layout, full-screen policy.
 - **Server-side sessions.** Reloading the page or losing the connection does not interrupt the game.
-- **Five handsets:** Nokia 6100, 6230i, N95-1, E71, Sony Ericsson K750i.
+- **Ten handsets:** Nokia 6100, 6230i, N95-1, E71, 5800 XpressMusic; Sony Ericsson K750i, W995, K790i; Motorola RAZR V3; Samsung S5230 Star. Every handset has full and screen close-up views.
 - **Controls:** handset keys, on-screen keypad, PC keyboard, gamepad, multi-touch.
 - **Text input** in `TextField`/`TextBox`, **pause**, game **speed**, screenshots, **input recording and playback**, **game files** (JSR-75), a custom MIDI **SoundFont**.
 - **Display:** picture rotation, landscape mode, full screen, light and dark themes, English and Russian UI.

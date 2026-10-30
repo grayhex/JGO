@@ -23,10 +23,12 @@ export interface SkinConfig {
   model: string;
   year: number;
   variant?: string;
-  /** `review-draft` for all five sets: validated geometry, not a certified historical likeness. */
+  /** `review-draft`: validated geometry, not a certified historical likeness. */
   status: string;
   /** Display resolution of the real handset; the emulated framebuffer is chosen separately. */
   screen: { width: number; height: number };
+  /** Physical controls of the skin, independent of the selected emulation profile. */
+  input?: { kind: 'keypad' | 'touchscreen'; pointer: boolean; externalKeypad: boolean };
   buttons: SkinButton[];
   /** Logical game binding per button id; null means the physical key has no J2ME binding (no code is ever sent). */
   keyMappings: Record<string, string | null>;

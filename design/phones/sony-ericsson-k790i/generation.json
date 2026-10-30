@@ -1,0 +1,11 @@
+{
+  "tool": "image_gen",
+  "date": "2026-10-30",
+  "sourceGeneration": "exec-e6772621-cc60-47ed-aeac-efbe232cad80.png",
+  "initialGeneration": "exec-822da6fa-4626-4c8b-85b4-c53925eb00fa.png",
+  "phoneInstruction": "Sony Ericsson K790i Cyber-shot (2006) Velvet Black retail candybar, NOT K800i and NOT K810i. Follow the actual K790i in references: rounded rectangular black shell, metallic narrow silver rim, silver perforated oval earpiece centered at top with small symmetric silver horizontal ovals left and right, NO FRONT VIDEO CAMERA. Sony Ericsson above display. Active LCD 240:320=3:4. Metallic dark gray panel around screen, engraved Cyber-shot plaque centered immediately below screen. Navigation area: a small real cylindrical joystick with circular silver surround and black center, separate thin left/right soft keys above it; Back curved-arrow key to left of joystick and C to right; outer narrow shortcut keys. Twelve separate low black rounded rectangular digit keys, three columns and four compact horizontal rows with clear white ORIGINAL T9 labels 1,2 ABC,3 DEF /4 GHI,5 JKL,6 MNO /7 PQRS,8 TUV,9 WXYZ /*,0 +,#. No green/red call-end pair (this model uses soft keys). No camera/screen imagery. Observe short compact keypad and tall screen/upper speaker region of this exact model.",
+  "method": "Original orthographic illustration conditioned on photographic references; not a crop or embedding of a source photo.",
+  "technicalEdits": "Measured silhouette alpha and LCD mask, transparent-margin crop, resize, lossless PNG/WebP and upper-shell zoom. See layout.json and tools/phones/export_measured.py.",
+  "referenceDossier": "apps/web/public/phones/sony-ericsson-k790i/references.md",
+  "historicalAcceptance": "review-draft"
+}

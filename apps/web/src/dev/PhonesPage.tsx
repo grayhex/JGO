@@ -137,7 +137,7 @@ export function PhonesPage() {
       <div className="page-head">
         <div>
           <h1>Phone lab</h1>
-          <p>All five handsets, both views, with their display windows and hitboxes. Use it to check alignment on light and dark backgrounds.</p>
+          <p>All handsets, both views, with their display windows and hitboxes. Use it to check alignment on light and dark backgrounds.</p>
         </div>
       </div>
 
@@ -148,7 +148,7 @@ export function PhonesPage() {
       <div className="card phones-toolbar">
         <div className="group"><span className="label-caps">Model</span>
           <select className="select compact" aria-label="Model filter" value={only} onChange={(e) => setOnly(e.target.value)}>
-            <option value="all">All five</option>
+            <option value="all">All models</option>
             {(skins ?? []).map((s) => <option key={s.config.id} value={s.config.id}>{s.config.manufacturer} {s.config.model}</option>)}
           </select>
         </div>
@@ -174,7 +174,7 @@ export function PhonesPage() {
       </div>
 
       {error && <div className="note err">Could not load the skins: {error}</div>}
-      {skins === null && !error && <p className="muted">Loading the five phones…</p>}
+      {skins === null && !error && <p className="muted">Loading phones…</p>}
       <div className="phones-grid">
         {shown.map((s) => <PhoneCard key={s.config.id} skin={s} bg={bg} dbg={dbg} pattern={pattern} input={input} layout={layout} onKey={(e, model) => say(`${model} · ${e.phase === 'down' ? 'press  ' : 'release'} ${e.label}${e.action ? ` → ${e.action}` : ' → (no J2ME binding, nothing sent)'}`)} />)}
       </div>
