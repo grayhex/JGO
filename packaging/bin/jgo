@@ -1,0 +1,640 @@
+#!/usr/bin/env bash
+# jgo - manage a native JGO installation (Proxmox VE LXC, Debian 13, systemd).
+#
+#   jgo status | update | backup | restore | logs | doctor | token | network | rollback | version
+#
+# Layout:  /opt/jgo (release, root-owned)   /var/lib/jgo (games, SQLite, RMS)   /etc/jgo (configuration)
+# Every path and the release source can be overridden through the environment; the tests use that.
+set -Eeuo pipefail
+
+JGO_HOME="${JGO_HOME:-/opt/jgo}"
+JGO_DATA="${JGO_DATA:-/var/lib/jgo}"
+JGO_CONF="${JGO_CONF:-/etc/jgo}"
+JGO_ENV="${JGO_ENV:-$JGO_CONF/jgo.env}"
+JGO_BACKUPS="${JGO_BACKUPS:-/var/backups/jgo}"
+JGO_CACHE="${JGO_CACHE:-/var/cache/jgo}"
+JGO_REPO="${JGO_REPO:-grayhex/JGO}"
+JGO_API="${JGO_API:-https://api.github.com}"
+JGO_UNITS="${JGO_UNITS:-/etc/systemd/system}"
+JGO_STAMP="${JGO_STAMP:-/root/.jgo}"
+JGO_USER="${JGO_USER:-jgo}"
+JGO_HEALTH_WAIT="${JGO_HEALTH_WAIT:-60}"
+JGO_BACKUP_KEEP="${JGO_BACKUP_KEEP:-7}"
+LOCK=/run/jgo-admin.lock
+
+if [[ -t 1 ]]; then
+  R=$'\e[31m' G=$'\e[32m' Y=$'\e[33m' B=$'\e[1m' N=$'\e[0m'
+else
+  R='' G='' Y='' B='' N=''
+fi
+info() { printf '%s\n' "$*"; }
+ok() { printf '%s✔%s %s\n' "$G" "$N" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$N" "$*" >&2; }
+die() {
+  printf '%s✘%s %s\n' "$R" "$N" "$*" >&2
+  exit 1
+}
+
+need_root() { [[ $EUID -eq 0 ]] || die "run as root (inside the container: pct enter <CTID>)"; }
+have() { command -v "$1" >/dev/null 2>&1; }
+
+version() { tr -d '[:space:]' <"$JGO_HOME/VERSION" 2>/dev/null || echo unknown; }
+strip_v() { printf '%s' "${1#v}"; }
+
+env_get() { [[ -f $JGO_ENV ]] && sed -n "s/^$1=//p" "$JGO_ENV" | head -n1 || true; }
+env_set() { # keeps owner and mode of the file (rewrites in place)
+  local key=$1 val=$2 tmp
+  tmp=$(mktemp)
+  if grep -q "^$key=" "$JGO_ENV" 2>/dev/null; then
+    awk -v k="$key" -v v="$val" 'BEGIN{FS=OFS="="} $1==k{print k"="v; next} {print}' "$JGO_ENV" >"$tmp"
+  else
+    cat "$JGO_ENV" >"$tmp"
+    printf '%s=%s\n' "$key" "$val" >>"$tmp"
+  fi
+  cat "$tmp" >"$JGO_ENV"
+  rm -f "$tmp"
+}
+
+port() { echo "${JGO_PORT:-$(env_get PORT)}" | sed 's/^$/8080/'; }
+health_json() { curl -fsS --max-time 3 "http://127.0.0.1:$(port)/api/health" 2>/dev/null; }
+ip_addr() { hostname -I 2>/dev/null | awk '{print $1}'; }
+
+svc_stop() { systemctl stop jgo jgo-xvfb 2>/dev/null || true; }
+svc_start() { systemctl start jgo; }
+svc_active() { systemctl is-active --quiet "$1"; }
+
+wait_healthy() { # wait_healthy <expected version>
+  local want=$1 i json
+  for ((i = 0; i < JGO_HEALTH_WAIT; i++)); do
+    if svc_active jgo && json=$(health_json) && [[ $(jq -r '.ok' <<<"$json") == true ]] &&
+      [[ -z $want || $(jq -r '.version' <<<"$json") == "$want" ]]; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+lock() {
+  exec 9>"$LOCK"
+  flock -n 9 || die "another jgo update/backup/restore is running"
+}
+
+# --------------------------------------------------------------------------------------- status
+cmd_status() {
+  local json='' as_json=0
+  [[ ${1:-} == --json ]] && as_json=1
+  json=$(health_json || true)
+  if ((as_json)); then
+    jq -n --arg v "$(version)" --arg ip "$(ip_addr)" --argjson port "$(port)" \
+      --arg jgo "$(systemctl is-active jgo 2>/dev/null || true)" --arg xvfb "$(systemctl is-active jgo-xvfb 2>/dev/null || true)" \
+      --argjson health "${json:-null}" '{version:$v, ip:$ip, port:$port, services:{jgo:$jgo, xvfb:$xvfb}, health:$health}'
+    return 0
+  fi
+  local j=${json:-'{}'}
+  info "${B}JGO $(version)${N}  (KEmulator $(jq -r '.kemulator.commit // "?"' <<<"$j" | cut -c1-9))"
+  printf '  services : jgo %s, jgo-xvfb %s\n' "$(systemctl is-active jgo 2>/dev/null || true)" "$(systemctl is-active jgo-xvfb 2>/dev/null || true)"
+  printf '  url      : http://%s:%s\n' "$(ip_addr)" "$(port)"
+  if [[ -n $json ]]; then
+    printf '  health   : %s, sessions %s/%s, auth %s, java %s\n' "$(jq -r 'if .ok then "ok" else "NOT OK" end' <<<"$json")" \
+      "$(jq -r '.activeSessions' <<<"$json")" "$(jq -r '.maxSessions' <<<"$json")" "$(jq -r '.auth' <<<"$json")" "$(jq -r '.java.version // "?"' <<<"$json")"
+  else
+    printf '  health   : %sunreachable%s (see: jgo logs, jgo doctor)\n' "$R" "$N"
+  fi
+  printf '  data     : %s, %s games\n' "$(du -sh "$JGO_DATA" 2>/dev/null | cut -f1)" "$(find "$JGO_DATA/games" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)"
+  local last
+  last=$(find "$JGO_BACKUPS" -maxdepth 1 -name 'jgo-*.tar.gz' -printf '%T@ %f\n' 2>/dev/null | sort -rn | head -n1 | cut -d' ' -f2-)
+  printf '  backup   : %s\n' "${last:-none yet (jgo backup)}"
+}
+
+# --------------------------------------------------------------------------------------- logs
+cmd_logs() {
+  case "${1:-}" in
+  -h | --help) info "usage: jgo logs [-f] [-n LINES] [--since 1h]   (journalctl for jgo and jgo-xvfb)" ;;
+  *) exec journalctl -u jgo -u jgo-xvfb --no-pager "$@" ;;
+  esac
+}
+
+# --------------------------------------------------------------------------------------- token
+cmd_token() {
+  need_root
+  if [[ ${1:-} == --rotate ]]; then
+    local t
+    t=$(head -c 256 /dev/urandom | LC_ALL=C tr -dc 'A-Za-z0-9' | head -c 32)
+    env_set AUTH_TOKEN "$t"
+    systemctl restart jgo
+    ok "new access token (sessions of the old one are logged out):"
+  fi
+  env_get AUTH_TOKEN
+}
+
+# --------------------------------------------------------------------------------------- network
+cmd_network() {
+  need_root
+  local wrapper='unshare --user --map-current-user --net --'
+  case "${1:-status}" in
+  deny) env_set KEM_LAUNCH_WRAPPER "$wrapper" ;;
+  allow) env_set KEM_LAUNCH_WRAPPER "" ;;
+  status) ;;
+  *) die "usage: jgo network [deny|allow|status]" ;;
+  esac
+  if [[ ${1:-status} != status ]]; then systemctl restart jgo; fi
+  if [[ -n $(env_get KEM_LAUNCH_WRAPPER) ]]; then
+    ok "games run without network access (own network namespace)"
+  else
+    warn "games can reach the network the container can reach (LAN included); use the Proxmox firewall for the container, see docs/PROXMOX.md"
+  fi
+}
+
+# --------------------------------------------------------------------------------------- backup
+backup_name() { printf 'jgo-%s-%s-%s%s.tar.gz' "$(hostname -s)" "$(version)" "$(date -u +%Y%m%dT%H%M%SZ)" "${1:+-$1}"; }
+
+# jgo backup [--out DIR_OR_FILE] [--label L] [--no-games] [--stop]
+cmd_backup() {
+  need_root
+  local out="$JGO_BACKUPS" label='' games=1 stop=0
+  while (($#)); do
+    case $1 in
+    --out) out=$2; shift ;;
+    --label) label=$2; shift ;;
+    --no-games) games=0 ;;
+    --stop) stop=1 ;;
+    -h | --help) info "usage: jgo backup [--out DIR|FILE] [--label NAME] [--no-games] [--stop]"; return 0 ;;
+    *) die "unknown option: $1" ;;
+    esac
+    shift
+  done
+  lock
+  do_backup "$out" "$label" "$games" "$stop"
+}
+
+do_backup() { # do_backup <out> <label> <games 0|1> <stop 0|1>; prints the archive path last
+  local out=$1 label=$2 games=$3 stop=$4 file stage was_active=0
+  if [[ $out == *.tar.gz ]]; then
+    file=$out
+    mkdir -p "$(dirname "$file")"
+  else
+    mkdir -p "$out"
+    file="$out/$(backup_name "$label")"
+  fi
+  [[ -d $JGO_DATA ]] || die "no data directory at $JGO_DATA"
+  local need have_kb
+  need=$(du -sk "$JGO_DATA" | cut -f1)
+  have_kb=$(df -Pk "$(dirname "$file")" | awk 'NR==2{print $4}')
+  ((have_kb > need + 20480)) || die "not enough free space in $(dirname "$file") for the backup (need ~$((need / 1024 + 20)) MB)"
+
+  if ((stop)) && svc_active jgo; then
+    was_active=1
+    svc_stop
+  fi
+  stage=$(mktemp -d "$(dirname "$file")/.stage.XXXXXX")
+  # shellcheck disable=SC2064
+  trap "rm -rf '$stage'" RETURN
+  mkdir -p "$stage/data" "$stage/etc"
+  chmod 711 "$stage"
+  chown "$JGO_USER" "$stage/data"
+  if [[ -f $JGO_DATA/library.sqlite ]]; then
+    # a consistent snapshot even while the server is writing; run as the service user so that no root-owned -wal/-shm files appear
+    runuser -u "$JGO_USER" -- node -e '
+      const { DatabaseSync } = require("node:sqlite");
+      const db = new DatabaseSync(process.argv[1]);
+      db.exec("VACUUM INTO \x27" + process.argv[2].replace(/\x27/g, "\x27\x27") + "\x27");
+      db.close();' "$JGO_DATA/library.sqlite" "$stage/data/library.sqlite" 2>/dev/null ||
+      { warn "online snapshot of the library failed, copying the files"; cp -a "$JGO_DATA"/library.sqlite* "$stage/data/"; }
+  fi
+  [[ -d $JGO_DATA/saves ]] && cp -a "$JGO_DATA/saves" "$stage/data/saves"
+  if ((games)) && [[ -d $JGO_DATA/games ]]; then cp -a "$JGO_DATA/games" "$stage/data/games"; fi
+  [[ -f $JGO_ENV ]] && cp -a "$JGO_ENV" "$stage/etc/jgo.env"
+  ((was_active)) && svc_start
+
+  jq -n --arg v "$(version)" --arg h "$(hostname -s)" --arg d "$(date -u +%FT%TZ)" --argjson g "$games" \
+    --arg kem "$(cat "$JGO_HOME/kemulator/KEM_COMMIT" 2>/dev/null || true)" --arg label "$label" \
+    '{format:1, jgo:$v, kemulator:$kem, host:$h, created:$d, games:($g==1), label:$label}' >"$stage/meta.json"
+  (cd "$stage" && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum >SHA256SUMS)
+  tar -C "$stage" -czf "$file.part" . && chmod 600 "$file.part" && mv "$file.part" "$file"
+  ok "backup: $file ($(du -h "$file" | cut -f1))"
+  if [[ $file == "$JGO_BACKUPS"/* && $JGO_BACKUP_KEEP -gt 0 ]]; then # keep the newest N
+    find "$JGO_BACKUPS" -maxdepth 1 -name 'jgo-*.tar.gz' -printf '%T@ %p\n' | sort -rn | tail -n +$((JGO_BACKUP_KEEP + 1)) | cut -d' ' -f2- | xargs -r rm -f
+  fi
+  BACKUP_FILE=$file
+}
+
+# --------------------------------------------------------------------------------------- restore
+# jgo restore FILE [--yes] [--only db,saves,games,config] [--with-config] [--no-safety]
+cmd_restore() {
+  need_root
+  local file='' yes=0 only='db,saves,games' safety=1
+  while (($#)); do
+    case $1 in
+    --yes | -y) yes=1 ;;
+    --only) only=$2; shift ;;
+    --with-config) only="$only,config" ;;
+    --no-safety) safety=0 ;;
+    -h | --help)
+      info "usage: jgo restore FILE.tar.gz [--yes] [--with-config] [--only db,saves,games,config] [--no-safety]"
+      return 0
+      ;;
+    -*) die "unknown option: $1" ;;
+    *) file=$1 ;;
+    esac
+    shift
+  done
+  [[ -f $file ]] || die "backup file not found: ${file:-<none>}"
+  lock
+  do_restore "$file" "$yes" "$only" "$safety"
+}
+
+do_restore() { # do_restore <file> <yes> <only> <safety>
+  local file=$1 yes=$2 only=$3 safety=$4 stage meta
+  stage=$(mktemp -d "$JGO_CACHE.restore.XXXXXX")
+  # shellcheck disable=SC2064
+  trap "rm -rf '$stage'" RETURN
+  tar -tzf "$file" | awk '$0 ~ /(^|\/)\.\.(\/|$)/ || $0 ~ /^\//{bad=1} END{exit bad}' || die "unsafe paths in the archive"
+  tar --no-same-owner --no-same-permissions -xzf "$file" -C "$stage"
+  (cd "$stage" && sha256sum -c --quiet SHA256SUMS) || die "checksum mismatch: the backup is damaged"
+  meta=$(cat "$stage/meta.json")
+  info "backup of JGO $(jq -r .jgo <<<"$meta") from $(jq -r .host <<<"$meta") ($(jq -r .created <<<"$meta")), games included: $(jq -r .games <<<"$meta")"
+  if [[ $(jq -r .format <<<"$meta") != 1 ]]; then die "unsupported backup format"; fi
+  if ((!yes)); then
+    [[ -t 0 ]] || die "refusing to overwrite data without --yes"
+    read -r -p "Replace the data in $JGO_DATA (${only}) with this backup? [y/N] " a
+    [[ $a == y || $a == Y ]] || die "cancelled"
+  fi
+  local safe=''
+  if ((safety)) && [[ -d $JGO_DATA ]]; then
+    do_backup "$JGO_BACKUPS" pre-restore 1 1 >/dev/null
+    safe=$BACKUP_FILE
+    info "safety copy of the current data: $safe"
+  fi
+  svc_stop
+  local part
+  for part in ${only//,/ }; do
+    case $part in
+    db)
+      if [[ -f $stage/data/library.sqlite ]]; then
+        rm -f "$JGO_DATA"/library.sqlite*
+        install -o "$JGO_USER" -g "$JGO_USER" -m 600 "$stage/data/library.sqlite" "$JGO_DATA/library.sqlite"
+      fi
+      ;;
+    saves) [[ -d $stage/data/saves ]] && { rm -rf "$JGO_DATA/saves"; cp -a "$stage/data/saves" "$JGO_DATA/saves"; } ;;
+    games) [[ -d $stage/data/games ]] && { rm -rf "$JGO_DATA/games"; cp -a "$stage/data/games" "$JGO_DATA/games"; } ;;
+    config) [[ -f $stage/etc/jgo.env ]] && { cp -a "$JGO_ENV" "$JGO_ENV.before-restore" 2>/dev/null || true; cat "$stage/etc/jgo.env" >"$JGO_ENV"; } ;;
+    *) die "unknown part: $part" ;;
+    esac
+  done
+  chown -R "$JGO_USER:$JGO_USER" "$JGO_DATA"
+  chmod 700 "$JGO_DATA"
+  svc_start
+  if wait_healthy ''; then
+    ok "restored ($only); JGO is healthy"
+  else
+    if [[ -n $safe ]]; then
+      warn "JGO did not become healthy after the restore; putting the previous data back"
+      do_restore "$safe" 1 'db,saves,games,config' 0
+    fi
+    die "restore failed (see: jgo logs)"
+  fi
+}
+
+# --------------------------------------------------------------------------------------- update
+gh() {
+  curl -fsSL --retry 3 --connect-timeout 10 -H 'Accept: application/vnd.github+json' \
+    ${GITHUB_TOKEN:+-H "Authorization: Bearer $GITHUB_TOKEN"} "$@"
+}
+
+# resolve the release: sets REL_TAG REL_VERSION REL_URL REL_SUMS_URL
+resolve_release() {
+  local want=${1:-latest} json url
+  if [[ $want == latest ]]; then url="$JGO_API/repos/$JGO_REPO/releases/latest"; else url="$JGO_API/repos/$JGO_REPO/releases/tags/$want"; fi
+  json=$(gh "$url") || die "cannot read the release ($url)"
+  REL_TAG=$(jq -er .tag_name <<<"$json") || die "malformed release data"
+  REL_VERSION=$(strip_v "$REL_TAG")
+  [[ $REL_VERSION =~ ^[0-9A-Za-z._+-]+$ ]] || die "refusing the odd version string: $REL_VERSION"
+  REL_URL=$(jq -r '.assets[] | select(.name | test("^jgo-.*-linux-amd64\\.tar\\.gz$")) | .browser_download_url' <<<"$json" | head -n1)
+  REL_SUMS_URL=$(jq -r '.assets[] | select(.name == "SHA256SUMS") | .browser_download_url' <<<"$json" | head -n1)
+  [[ -n $REL_URL && -n $REL_SUMS_URL ]] || die "release $REL_TAG has no jgo-*-linux-amd64.tar.gz + SHA256SUMS"
+}
+
+version_gt() { [[ $1 != "$2" && $(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -n1) == "$1" ]]; }
+
+# every symlink must stay inside the tree, every file must be a regular file, dir or link
+verify_tree() {
+  local root=$1 l t
+  while IFS= read -r l; do
+    t=$(realpath -m -- "$l")
+    [[ $t == "$root"/* ]] || die "release contains a link that points outside of it: ${l#"$root"/}"
+  done < <(find "$root" -type l)
+  [[ -z $(find "$root" ! -type f ! -type d ! -type l -print -quit) ]] || die "release contains special files"
+  for f in VERSION bin/jgo bin/kem-adapter kemulator/KEmulator.jar app/apps/api/dist/server.js app/apps/web/dist/index.html share/systemd/jgo.service share/jgo.env.example; do
+    [[ -e $root/$f ]] || die "release is incomplete: $f is missing"
+  done
+}
+
+archive_version() { # VERSION at the top of the tarball (flat, or inside one top-level directory)
+  local member
+  member=$(tar -tzf "$1" | grep -xE '(\./)?([^/]+/)?VERSION' | head -n1)
+  [[ -n $member ]] && tar -xzOf "$1" "$member" | tr -d '[:space:]'
+}
+
+# jgo update [--check] [--to TAG] [--yes] [--from-file ARCHIVE --sums FILE]
+cmd_update() {
+  need_root
+  local check=0 to=latest yes=0 force=0 archive='' sums=''
+  while (($#)); do
+    case $1 in
+    --check) check=1 ;;
+    --to) to=$2; shift ;;
+    --yes | -y) yes=1 ;;
+    --force) force=1 ;;
+    --from-file) archive=$2; shift ;; # offline update (and tests): a downloaded release tarball
+    --sums) sums=$2; shift ;;
+    -h | --help)
+      info "usage: jgo update [--check] [--to vX.Y.Z] [--yes] [--force] [--from-file TARBALL --sums SHA256SUMS]"
+      return 0
+      ;;
+    *) die "unknown option: $1" ;;
+    esac
+    shift
+  done
+  local cur
+  cur=$(version)
+  if [[ -z $archive ]]; then
+    resolve_release "$to"
+    info "installed: $cur   release: $REL_VERSION"
+    if ((check)); then
+      if version_gt "$REL_VERSION" "$cur"; then
+        info "update available: $REL_VERSION"
+        return 10
+      fi
+      ok "up to date"
+      return 0
+    fi
+    if [[ $REL_VERSION == "$cur" && $force == 0 ]]; then
+      ok "already on $cur"
+      return 0
+    fi
+    if [[ $to == latest ]] && ! version_gt "$REL_VERSION" "$cur" && ((!force)); then
+      ok "the newest release ($REL_VERSION) is not newer than $cur; use --to to pick a version"
+      return 0
+    fi
+  else
+    [[ -f $archive && -f $sums ]] || die "--from-file needs --sums"
+    REL_VERSION=$(archive_version "$archive")
+    [[ -n $REL_VERSION ]] || die "cannot read VERSION from $archive"
+  fi
+  if ((!yes)) && [[ -t 0 ]]; then
+    read -r -p "Update JGO $cur -> $REL_VERSION? A backup is made first. [Y/n] " a
+    [[ ${a:-y} == y || ${a:-y} == Y ]] || die "cancelled"
+  fi
+  lock
+
+  # 1. download + verify -------------------------------------------------------------------
+  local work="$JGO_CACHE/$REL_VERSION" tarball
+  rm -rf "$work"
+  mkdir -p "$work"
+  chmod 700 "$JGO_CACHE" "$work"
+  if [[ -z $archive ]]; then
+    info "downloading $REL_TAG"
+    curl -fSL --retry 3 --connect-timeout 10 -o "$work/${REL_URL##*/}" "$REL_URL"
+    curl -fsSL --retry 3 --connect-timeout 10 -o "$work/SHA256SUMS" "$REL_SUMS_URL"
+    tarball="$work/${REL_URL##*/}"
+  else
+    cp -- "$archive" "$work/${archive##*/}"
+    cp -- "$sums" "$work/SHA256SUMS"
+    tarball="$work/${archive##*/}"
+  fi
+  (cd "$work" && grep -F -- " ${tarball##*/}" SHA256SUMS | sha256sum -c --quiet -) || die "SHA-256 of the download does not match SHA256SUMS; nothing was changed"
+  tar -tzf "$tarball" | awk '$0 ~ /(^|\/)\.\.(\/|$)/ || $0 ~ /^\//{bad=1} END{exit bad}' || die "unsafe paths in the release archive; nothing was changed"
+  local free_kb
+  free_kb=$(df -Pk "$(dirname "$JGO_HOME")" | awk 'NR==2{print $4}')
+  ((free_kb > 1024 * 1024)) || die "less than 1 GB free next to $JGO_HOME; nothing was changed"
+
+  # 2. stage the new tree beside the old one -------------------------------------------------
+  local new="$JGO_HOME.new" prev="$JGO_HOME.prev"
+  rm -rf "$new"
+  mkdir -p "$new"
+  tar --no-same-owner -xzf "$tarball" -C "$new"
+  if [[ $(find "$new" -mindepth 1 -maxdepth 1 | wc -l) -eq 1 && -d $(find "$new" -mindepth 1 -maxdepth 1) ]]; then
+    local inner
+    inner=$(find "$new" -mindepth 1 -maxdepth 1)
+    mv "$inner"/* "$new"/ && rmdir "$inner"
+  fi
+  verify_tree "$new"
+  [[ $(tr -d '[:space:]' <"$new/VERSION") == "$REL_VERSION" ]] || die "VERSION inside the archive does not match $REL_VERSION"
+  chown -R root:root "$new"
+  chmod -R go-w "$new"
+  [[ -x $new/bin/kem-adapter && -x $new/bin/jgo ]] || die "release binaries are not executable"
+
+  # 3. backup, then swap -------------------------------------------------------------------
+  info "backing up before the update"
+  do_backup "$JGO_BACKUPS" "pre-update-$cur" 1 1 >/dev/null
+  local snap=$BACKUP_FILE
+  ok "snapshot: $snap"
+  svc_stop
+  rm -rf "$prev"
+  mv "$JGO_HOME" "$prev"
+  mv "$new" "$JGO_HOME"
+  cp -a "$JGO_ENV" "$JGO_ENV.prev" 2>/dev/null || true
+  install_units "$JGO_HOME/share/systemd"
+  merge_env "$JGO_HOME/share/jgo.env.example"
+  systemctl daemon-reload
+  systemctl enable jgo jgo-xvfb >/dev/null 2>&1 || true
+
+  # 4. start + health check, roll back if it fails ------------------------------------------
+  svc_start || true
+  if wait_healthy "$REL_VERSION"; then
+    echo "$REL_VERSION" >"$JGO_STAMP"
+    ok "updated $cur -> $REL_VERSION (previous release kept in $prev, snapshot in $snap)"
+    rm -rf "${JGO_CACHE:?}/$REL_VERSION"
+    return 0
+  fi
+  warn "JGO $REL_VERSION did not become healthy within ${JGO_HEALTH_WAIT}s: rolling back to $cur"
+  journalctl -u jgo -n 15 --no-pager 2>/dev/null | sed 's/^/    /' >&2 || true
+  rollback_to_prev "$cur" "$snap"
+  die "update to $REL_VERSION failed; $cur is running again (data restored from $snap)"
+}
+
+install_units() { # copy the release's unit files; drop-ins in jgo.service.d/ are left alone
+  local src=$1 u
+  for u in jgo.service jgo-xvfb.service; do
+    install -m 644 "$src/$u" "$JGO_UNITS/$u"
+  done
+}
+
+merge_env() { # add keys that a new release introduced, never touch existing values
+  local example=$1 key line
+  while IFS= read -r line; do
+    [[ $line =~ ^([A-Z_][A-Z0-9_]*)=(.*)$ ]] || continue
+    key=${BASH_REMATCH[1]}
+    grep -q "^$key=" "$JGO_ENV" || printf '%s\n' "$line" >>"$JGO_ENV"
+  done <"$example"
+}
+
+rollback_to_prev() { # rollback_to_prev <version> <snapshot>
+  local cur=$1 snap=${2:-} prev="$JGO_HOME.prev"
+  [[ -d $prev ]] || die "no previous release at $prev"
+  svc_stop
+  rm -rf "$JGO_HOME.failed"
+  mv "$JGO_HOME" "$JGO_HOME.failed"
+  mv "$prev" "$JGO_HOME"
+  [[ -f $JGO_ENV.prev ]] && cat "$JGO_ENV.prev" >"$JGO_ENV"
+  install_units "$JGO_HOME/share/systemd"
+  systemctl daemon-reload
+  if [[ -n $snap && -f $snap ]]; then
+    # the failed release may have migrated the database: put back the state from before the update
+    (do_restore "$snap" 1 'db,saves' 0) || true
+  else
+    svc_start || true
+  fi
+  if wait_healthy "$cur"; then
+    echo "$cur" >"$JGO_STAMP"
+    ok "rolled back to $cur"
+    rm -rf "$JGO_HOME.failed"
+  else
+    warn "the previous release did not come up either; the failed tree is kept in $JGO_HOME.failed"
+  fi
+}
+
+cmd_rollback() {
+  need_root
+  lock
+  [[ -d $JGO_HOME.prev ]] || die "nothing to roll back to ($JGO_HOME.prev does not exist)"
+  local from to
+  from=$(version)
+  to=$(tr -d '[:space:]' <"$JGO_HOME.prev/VERSION")
+  info "rolling back $from -> $to"
+  rollback_to_prev "$to" ""
+}
+
+# --------------------------------------------------------------------------------------- doctor
+FAILS=0 WARNS=0
+pass() { printf '  %s✔%s %s\n' "$G" "$N" "$*"; }
+bad() { printf '  %s✘%s %s\n' "$R" "$N" "$*"; FAILS=$((FAILS + 1)); }
+meh() { printf '  %s!%s %s\n' "$Y" "$N" "$*"; WARNS=$((WARNS + 1)); }
+
+cmd_doctor() {
+  local online=0
+  [[ ${1:-} == --online ]] && online=1
+  info "${B}JGO doctor${N} ($(version))"
+  info "system"
+  . /etc/os-release 2>/dev/null || true
+  [[ ${VERSION_ID:-} == 13 && ${ID:-} == debian ]] && pass "Debian 13" || meh "Debian 13 is the tested platform (found: ${PRETTY_NAME:-unknown})"
+  [[ $(uname -m) == x86_64 ]] && pass "x86_64" || bad "the release is built for x86_64 only"
+  local nv
+  nv=$(node -v 2>/dev/null | tr -d v)
+  [[ -n $nv && ${nv%%.*} -ge 22 ]] && pass "Node.js $nv" || bad "Node.js >= 22 is required (found: ${nv:-none})"
+  java -version 2>&1 | grep -q 'version "21' && pass "OpenJDK 21" || bad "OpenJDK 21 is required"
+  have Xvfb && pass "Xvfb" || bad "Xvfb is missing"
+  compgen -G '/usr/lib/x86_64-linux-gnu/dri/swrast_dri.so' >/dev/null && pass "Mesa software renderer (llvmpipe) for M3G" || bad "Mesa swrast driver is missing (libgl1-mesa-dri)"
+  have jq && have curl && pass "curl, jq" || bad "curl and jq are required"
+  local free_pct
+  free_pct=$(df -P "$JGO_DATA" 2>/dev/null | awk 'NR==2{gsub("%","",$5); print 100-$5}')
+  [[ -z $free_pct || $free_pct -ge 10 ]] && pass "disk: ${free_pct:-?}% free" || meh "disk is nearly full (${free_pct}% free)"
+
+  info "installation"
+  id "$JGO_USER" >/dev/null 2>&1 && pass "user $JGO_USER exists" || bad "user $JGO_USER is missing"
+  [[ $(getent passwd "$JGO_USER" | cut -d: -f7) == */nologin || $(getent passwd "$JGO_USER" | cut -d: -f7) == */false ]] && pass "$JGO_USER has no login shell" || meh "$JGO_USER has a login shell"
+  [[ -f $JGO_HOME/VERSION ]] && pass "release $(version) in $JGO_HOME" || bad "$JGO_HOME/VERSION is missing"
+  if su -s /bin/sh "$JGO_USER" -c "test -w '$JGO_HOME'" 2>/dev/null; then bad "$JGO_USER can write to $JGO_HOME (the application must be read-only for it)"; else pass "$JGO_HOME is read-only for $JGO_USER"; fi
+  [[ $(stat -c %U:%a "$JGO_DATA" 2>/dev/null) == "$JGO_USER:700" ]] && pass "$JGO_DATA is $JGO_USER:700" || bad "$JGO_DATA should be $JGO_USER:700 (is $(stat -c %U:%a "$JGO_DATA" 2>/dev/null))"
+  [[ $(stat -c %U:%G:%a "$JGO_ENV" 2>/dev/null) =~ ^root:($JGO_USER|root):(640|600)$ ]] && pass "$JGO_ENV is not world-readable" || bad "$JGO_ENV must be root:$JGO_USER 640 (token inside); is $(stat -c %U:%G:%a "$JGO_ENV" 2>/dev/null)"
+
+  info "services"
+  local s
+  for s in jgo-xvfb jgo; do
+    svc_active $s && pass "$s is active" || bad "$s is not active (jgo logs)"
+    systemctl is-enabled --quiet $s && pass "$s starts at boot" || bad "$s is not enabled"
+  done
+  local show
+  show=$(systemctl show jgo -p User -p NoNewPrivileges -p ProtectSystem -p PrivateTmp -p MemoryMax -p TasksMax -p CPUQuotaPerSecUSec 2>/dev/null | tr '\n' ' ')
+  [[ $show == *"User=$JGO_USER"* && $show == *NoNewPrivileges=yes* && $show == *ProtectSystem=strict* && $show == *PrivateTmp=yes* ]] && pass "sandbox active: $show" || bad "systemd sandbox is not applied: $show"
+  [[ $show != *MemoryMax=infinity* && $show != *TasksMax=infinity* ]] && pass "cgroup limits set (memory, tasks, cpu)" || bad "cgroup limits are missing"
+  local up
+  up=$(ps -o user= -C java 2>/dev/null | sort -u | tr '\n' ' ')
+  [[ -z $up || $up == "$JGO_USER " ]] && pass "emulator processes run as $JGO_USER" || bad "java runs as: $up"
+
+  info "access"
+  local json code token
+  if json=$(health_json); then
+    [[ $(jq -r .ok <<<"$json") == true ]] && pass "API health ok (JGO $(jq -r .version <<<"$json"), KEmulator $(jq -r '.kemulator.commit' <<<"$json" | cut -c1-9))" || bad "API reports a problem: $json"
+    [[ $(jq -r .version <<<"$json") == "$(version)" ]] && pass "running version matches the installed release" || meh "running version $(jq -r .version <<<"$json") differs from $(version): restart pending?"
+  else
+    bad "API does not answer on 127.0.0.1:$(port)"
+  fi
+  token=$(env_get AUTH_TOKEN)
+  if [[ ${#token} -ge 16 ]]; then
+    pass "access token is set (${#token} characters)"
+    code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://127.0.0.1:$(port)/api/games" || true)
+    [[ $code == 401 ]] && pass "API rejects requests without the token (401)" || bad "API answered $code without a token"
+  else
+    bad "AUTH_TOKEN is missing or shorter than 16 characters"
+  fi
+  [[ $(env_get HOST) == 127.0.0.1 ]] && pass "listens on loopback only" || meh "listens on $(env_get HOST):$(port): keep it on a private network, never forward the port to the internet (docs/PROXMOX.md)"
+  [[ -n $(env_get KEM_LAUNCH_WRAPPER) ]] && pass "games run without network (own netns)" || meh "games can use the network (jgo network deny)"
+  if [[ -n $(env_get KEM_LAUNCH_WRAPPER) ]]; then
+    su -s /bin/sh "$JGO_USER" -c 'unshare --user --map-current-user --net true' 2>/dev/null && pass "unprivileged user namespaces work (needed for the network isolation)" ||
+      bad "network isolation is configured but unshare fails: enable nesting for the container (Options > Features > Nesting) or run: jgo network allow"
+  fi
+  [[ -e /sys/fs/cgroup/cgroup.controllers ]] && pass "cgroup v2" || meh "cgroup v2 not detected"
+
+  info "backups"
+  local newest age
+  newest=$(find "$JGO_BACKUPS" -maxdepth 1 -name 'jgo-*.tar.gz' -printf '%T@\n' 2>/dev/null | sort -rn | head -n1)
+  if [[ -n $newest ]]; then
+    age=$((($(date +%s) - ${newest%.*}) / 86400))
+    ((age <= 14)) && pass "last backup is $age day(s) old" || meh "last backup is $age days old (jgo backup, or schedule a Proxmox/PBS backup of the container)"
+  else
+    meh "no backup yet (jgo backup)"
+  fi
+  if ((online)); then
+    info "updates"
+    if resolve_release latest 2>/dev/null; then
+      version_gt "$REL_VERSION" "$(version)" && meh "update available: $REL_VERSION (jgo update)" || pass "up to date ($REL_VERSION)"
+    else
+      meh "cannot reach the release server"
+    fi
+  fi
+  printf '\n%d problem(s), %d warning(s)\n' "$FAILS" "$WARNS"
+  ((FAILS == 0))
+}
+
+usage() {
+  cat <<E
+jgo $(version) - manage this JGO installation
+
+  jgo status [--json]            versions, services, health, URL, data size
+  jgo update [--check] [--to vX] [--yes]
+                                 verified update from a JGO release; backup first, health check, automatic rollback
+  jgo backup [--out PATH] [--no-games] [--stop]
+                                 archive of the SQLite library, RMS saves, games and configuration
+  jgo restore FILE [--yes] [--with-config] [--only db,saves,games,config]
+  jgo rollback                   switch back to the previous release (kept after every update)
+  jgo logs [-f] [-n N]           journal of jgo and jgo-xvfb
+  jgo doctor [--online]          check the installation, sandbox, limits and access
+  jgo token [--rotate]           show or replace the access token
+  jgo network [deny|allow]       network access of games (default: none)
+E
+}
+
+main() {
+  local c=${1:-help}
+  shift || true
+  case $c in
+  status) cmd_status "$@" ;;
+  update) cmd_update "$@" ;;
+  backup) cmd_backup "$@" ;;
+  restore) cmd_restore "$@" ;;
+  rollback) cmd_rollback "$@" ;;
+  logs) cmd_logs "$@" ;;
+  doctor) cmd_doctor "$@" ;;
+  token) cmd_token "$@" ;;
+  network) cmd_network "$@" ;;
+  version | --version) version ;;
+  help | -h | --help) usage ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
+  esac
+}
+main "$@"

@@ -1,0 +1,14 @@
+# Where JGO's scripts differ from the DevScripts rules, and why
+
+`packaging/devscripts/lint.sh` checks everything that can be checked mechanically. These are the points where the
+scripts deliberately do something other than what `AGENTS.md` shows. Each is stated in the pull request text too.
+
+| Rule | What JGO does | Why |
+|---|---|---|
+| "Run as root, no `useradd`" (anti-patterns 9, 12, 31) | The application runs as the system user `jgo` (no login shell, no capabilities, systemd sandbox). `useradd` is the only user the script creates. | The program's whole job is to run **untrusted Java bytecode** that strangers upload. An LXC is the outer boundary, but a game that escapes the emulator must not land in a root process of that container. This is not "upstream's docs assume a shared server"; it is the threat model of the application. |
+| `setup_java` | `openjdk-21-jre-headless` from the Debian repository in the dependency list. | JGO needs only a headless JRE (no compiler). The Debian package gets security updates through `apt`, with no extra third-party repository. |
+| "Update with `create_backup` / `CLEAN_INSTALL` / `restore_backup`" (anti-pattern 19) | `update_script()` keeps `check_for_gh_release` and hands the work to `jgo update`, which ships in the release. | The helpers do not verify a checksum, cannot health-check the new version and cannot roll back. `jgo update` verifies SHA-256, snapshots the SQLite library and the RMS saves, swaps the tree atomically, checks `/api/health` for the new version and switches back by itself on failure. The same code path is used by the `jgo update` command and is exercised by `tests/lxc/run.sh` (success, tampered download, release that crashes on start). |
+| One systemd unit | Two units (`jgo-xvfb`, `jgo`). | M3G and Mascot Capsule need an OpenGL context, which in a container means Xvfb plus Mesa's software renderer. The units share a private `/tmp` (`JoinsNamespaceOf`). |
+| Only `$STD apt install` for deps | Mesa/X11 libraries are listed individually. | Same list as the Docker image that was tested for the M3G path (`runtime/Dockerfile`). |
+| `var_arm64` | `no`. | The release contains an x86_64 supervisor binary and KEmulator's x86_64 LWJGL natives. |
+| Build from upstream source in the install script | The install script deploys a **prebuilt release** built by this repository's CI from the pinned KEmulator commit + patches. | Building KEmulator needs a JDK, git and about a minute of compiling in every container. The release carries `share/source/` with the patches, the build script and the upstream commit; the release workflow also publishes the upstream tree as `jgo-kemulator-source-<commit>.tar.gz`. |

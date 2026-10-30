@@ -1,0 +1,67 @@
+name: Release
+
+# Builds the artifacts that `jgo update` and install/jgo-install.sh deploy:
+#   jgo-<version>-linux-amd64.tar.gz, SHA256SUMS, jgo-kemulator-source-<commit>.tar.gz
+# A pushed tag v<version> publishes a GitHub release (tags with a "-" are marked pre-release and are
+# ignored by the Community Scripts update check). Run by hand (workflow_dispatch) it only builds and uploads
+# the artifacts, which is how to look at a release before tagging.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (default: 0.0.0-dev)'
+        default: '0.0.0-dev'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish the release tarball
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Version
+        id: v
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = tag ]; then v="${GITHUB_REF_NAME#v}"; else v="${{ inputs.version }}"; fi
+          [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.]+)?$ ]] || { echo "bad version: $v"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - name: Lint the Community Scripts files
+        run: sudo apt-get install -y --no-install-recommends shellcheck >/dev/null && shellcheck -S warning packaging/bin/jgo packaging/build-release.sh packaging/devscripts/*.sh && packaging/devscripts/lint.sh
+      - name: Build (KEmulator from the pinned commit + patches, Bridge supervisor, API, web)
+        run: |
+          npm ci
+          bash runtime/scripts/build-kemulator.sh
+          cargo build --release --locked --manifest-path bridge/kemulator-adapter/Cargo.toml
+          npm run build
+      - name: Assemble the release
+        run: |
+          packaging/build-release.sh "${{ steps.v.outputs.version }}" dist-release
+          commit="$(cat runtime/build/kemulator/KEM_COMMIT)"
+          git init -q kem-src && git -C kem-src remote add origin https://github.com/shinovon/KEmulator
+          git -C kem-src fetch -q --depth 1 origin "$commit" && git -C kem-src checkout -q FETCH_HEAD
+          git -C kem-src archive --prefix="kemulator-$commit/" -o "dist-release/jgo-kemulator-source-$commit.tar.gz" HEAD
+          (cd dist-release && sha256sum jgo-kemulator-source-*.tar.gz >> SHA256SUMS && cat SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jgo-${{ steps.v.outputs.version }}
+          path: dist-release/*
+      - name: Publish the GitHub release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pre=""; case "${{ steps.v.outputs.version }}" in *-*) pre="--prerelease";; esac
+          gh release create "$GITHUB_REF_NAME" dist-release/* $pre --verify-tag --title "JGO ${{ steps.v.outputs.version }}" \
+            --notes "Install on Proxmox VE: see docs/PROXMOX.md. Update inside the container: \`jgo update\` (or the Community Scripts \`update\`).
+
+          KEmulator (GPL/Apache/EPL) is built from the pinned upstream commit plus the patches in share/source/; the matching upstream tree is the asset jgo-kemulator-source-*.tar.gz."
