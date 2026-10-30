@@ -73,6 +73,14 @@ wait_health() { # wait_health <seconds> [container exec fn]
   done
   return 1
 }
+wait_ct() { # wait until the container has an address and the API answers (after a snapshot or a restart)
+  local i
+  for ((i = 0; i < 120; i++)); do
+    [[ -n $(ct_ip "$1") ]] && sh_ "curl -fsS http://127.0.0.1:$PORT/api/health >/dev/null" 2>/dev/null && return 0
+    sleep 1
+  done
+  return 1
+}
 launches() { smoke launches | sed -n 's/^LAUNCHES=//p'; }
 
 cleanup() {
@@ -165,6 +173,7 @@ t_install() {
   check "jgo doctor finds no problems" sh_ "jgo doctor"
   check "jgo status runs" sh_ "jgo status"
   be_snapshot "$CT" >"$WORK/snap" && ok "snapshot of the fresh install kept (for the migration test)"
+  wait_ct "$CT"
 }
 expect_fail_in_ct() { ! sh_ "$1"; }
 
