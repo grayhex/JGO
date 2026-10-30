@@ -1,4 +1,4 @@
-import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { DevicePreset, KeyCodes } from '@j2me-web/protocol';
 
@@ -46,4 +46,24 @@ export function writeMidletsIni(userPath: string, i: AppSettingsInput): string {
   const file = path.join(userPath, 'midlets.ini');
   writeFileSync(file, renderMidletsIni(i), { mode: 0o600 });
   return file;
+}
+
+/**
+ * KEmulator's global settings live in `property.txt` (java.util.Properties) inside the user path. JGO sets exactly
+ * one key there, `SoundfontPath`: the MIDI SoundFont to use instead of the built-in bank. Other lines are kept;
+ * without a SoundFont the key is removed, so removing the bank in the UI really returns to the default.
+ */
+export function writeSoundfontProperty(userPath: string, soundfont: string | null): void {
+  const file = path.join(userPath, 'property.txt');
+  const old = existsSync(file) ? readFileSync(file, 'utf8') : '';
+  const kept = old.split(/\r?\n/).filter((l) => l.trim() !== '' && !/^\s*SoundfontPath\s*[=:]/.test(l));
+  if (soundfont) kept.push(`SoundfontPath=${soundfont.replace(/\\/g, '\\\\')}`);
+  if (!kept.length) {
+    if (old) rmSync(file, { force: true });
+    return;
+  }
+  const next = kept.join('\n') + '\n';
+  if (next === old) return;
+  mkdirSync(userPath, { recursive: true });
+  writeFileSync(file, next, { mode: 0o600 });
 }

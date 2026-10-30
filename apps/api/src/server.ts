@@ -20,6 +20,7 @@ import { MetadataService } from './metadata.js';
 import { DEFAULT_API_BASE, MobyClient } from './mobygames.js';
 import { gameDefaults, ScanManager } from './scanner.js';
 import { SettingsStore } from './settingsStore.js';
+import { SoundfontStore } from './soundfont.js';
 import { SessionError, SessionManager, type StreamClient } from './sessions.js';
 
 /** The release being run: JGO_VERSION (set by the systemd unit), else the VERSION file of the release tree, else the dev default. */
@@ -69,7 +70,8 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
   settings.markLegacyIfPopulated(library.count());
   // stale bridge dirs from a crashed run
   if (existsSync(cfg.runDir)) for (const d of readdirSync(cfg.runDir)) rmSync(path.join(cfg.runDir, d), { recursive: true, force: true });
-  const sessions = new SessionManager(cfg, library);
+  const soundfont = new SoundfontStore(cfg.dataDir);
+  const sessions = new SessionManager(cfg, library, () => soundfont.path());
   const java = await javaVersion(cfg.javaBin);
   const moby = new MobyClient(() => settings.mobygamesKey(), { base: process.env.MOBYGAMES_API_BASE || DEFAULT_API_BASE, ...(process.env.MOBYGAMES_MIN_INTERVAL_MS ? { minIntervalMs: Number(process.env.MOBYGAMES_MIN_INTERVAL_MS) } : {}), onWait: (until) => metadata.setWaiting(until) });
   const metadata = new MetadataService(library, cfg.dataDir, () => moby, () => moby.hasKey());
@@ -315,7 +317,7 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
     socket.on('error', gone);
   });
 
-  registerAdminRoutes(app, { cfg, library, store: settings, scan, metadata, moby, version: VERSION, java });
+  registerAdminRoutes(app, { cfg, library, store: settings, soundfont, scan, metadata, moby, version: VERSION, java });
 
   // --- static web UI (production) ---
   if (cfg.webDir) {

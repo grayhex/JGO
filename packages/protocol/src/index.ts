@@ -110,8 +110,17 @@ export interface PublicSettings {
   server: { maxSessions: number; sessionMaxMinutes: number; sessionIdleMinutes: number; libraryQuotaMb: number; frameEncoding: 'raw' | 'deflate' };
 }
 
+/** The MIDI SoundFont (SF2) the games' MIDI music is rendered with, instead of the emulator's built-in bank. */
+export interface SoundfontInfo {
+  name: string;
+  size: number;
+  updatedAt: string;
+}
+
 export interface SettingsResponse {
   settings: PublicSettings;
+  /** The installed custom SoundFont, or null for the built-in bank. */
+  soundfont: SoundfontInfo | null;
   /** Secrets are never returned: only whether they are set. */
   secrets: { mobygames: { configured: boolean; hint: string | null } };
   /** Values that come from /etc/jgo/jgo.env and cannot be changed from the web UI. */

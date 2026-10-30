@@ -9,12 +9,14 @@ import type { MetadataService, Scope } from './metadata.js';
 import { MobyClient, MobyError } from './mobygames.js';
 import type { ScanManager } from './scanner.js';
 import type { SettingsStore } from './settingsStore.js';
+import { SOUNDFONT_MAX_BYTES, type SoundfontStore } from './soundfont.js';
 import { systemStatus } from './systemStatus.js';
 
 export interface AdminContext {
   cfg: Config;
   library: Library;
   store: SettingsStore;
+  soundfont: SoundfontStore;
   scan: ScanManager;
   metadata: MetadataService;
   moby: MobyClient;
@@ -35,13 +37,14 @@ function str(v: unknown, name: string, max = 1024): string {
  * Secrets go in (PUT) but never come out.
  */
 export function registerAdminRoutes(app: FastifyInstance, c: AdminContext): void {
-  const { cfg, library, store, scan, metadata, moby } = c;
+  const { cfg, library, store, soundfont, scan, metadata, moby } = c;
 
   const settingsResponse = (): SettingsResponse => {
     const s = store.setup();
     const m = store.mobygamesInfo();
     return {
       settings: store.get(),
+      soundfont: soundfont.info(),
       secrets: { mobygames: { configured: m.configured, hint: m.hint } },
       readonly: { host: cfg.host, port: cfg.port, auth: cfg.authToken ? 'token' : 'none', dataDirName: 'data directory' },
       envDefaults: store.envDefaults,
@@ -80,6 +83,19 @@ export function registerAdminRoutes(app: FastifyInstance, c: AdminContext): void
   app.delete('/api/settings/mobygames-key', async () => {
     store.setMobygamesKey(null);
     return settingsResponse().secrets;
+  });
+
+  // --- MIDI SoundFont: one SF2 file, streamed to disk; sessions pick it up when they start ---
+  app.put('/api/settings/soundfont', async (req) => {
+    if (!req.isMultipart()) throw new UploadError('bad_request', 'Expected multipart/form-data with an .sf2 file');
+    const part = await req.file({ limits: { fileSize: SOUNDFONT_MAX_BYTES } });
+    if (!part) throw new UploadError('no_file', 'No file in the upload', 400);
+    await soundfont.save(part.file, part.filename ?? '');
+    return settingsResponse();
+  });
+  app.delete('/api/settings/soundfont', async () => {
+    soundfont.remove();
+    return settingsResponse();
   });
 
   app.post('/api/mobygames/test', async () => {

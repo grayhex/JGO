@@ -26,6 +26,7 @@ mk kemnet.jar KemNet KemNet "MIDlet-Permissions: javax.microedition.io.Connector
 
 mk kemtext.jar KemText KemText
 mk kemsms.jar KemSms KemSms "MIDlet-Permissions: javax.wireless.messaging.sms.send"
+mk kemmidi.jar KemMidi KemMidi
 mk kemshutdown.jar KemShutdown KemShutdown
 
 mk kemshutdown-hang.jar KemShutdownHang KemShutdown "KemShutdown-Hang: true"

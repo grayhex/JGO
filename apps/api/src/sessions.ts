@@ -15,7 +15,7 @@ import {
   WS_BIN_AUDIO,
 } from '@j2me-web/protocol';
 import { ResourceMeter } from './procstats.js';
-import { writeMidletsIni } from './appSettings.js';
+import { writeMidletsIni, writeSoundfontProperty } from './appSettings.js';
 import { findPreset, loadDevicePresets } from './devices.js';
 import { KEmulatorAdapter, type ExitInfo, type FrameMsg } from './kemulator/adapter.js';
 import { newId, type Library } from './library.js';
@@ -435,6 +435,7 @@ export class SessionManager {
   constructor(
     private cfg: Config,
     private lib: Library,
+    private soundfontPath: () => string | null = () => null,
   ) {
     mkdirSync(cfg.runDir, { recursive: true, mode: 0o700 });
   }
@@ -474,6 +475,7 @@ export class SessionManager {
     const userPath = this.lib.savesDir(owner, game.id);
     this.lib.pruneLogs();
     // Per-app emulator settings (device preset, key codes of the chosen layout) go to midlets.ini
+    writeSoundfontProperty(userPath, this.soundfontPath());
     writeMidletsIni(userPath, { jarPath: paths.jar, width: overrides.width, height: overrides.height, keys: KEY_LAYOUTS[overrides.layout].keys, preset });
     const adapter = new KEmulatorAdapter({
       adapterBin: this.cfg.adapterBin,

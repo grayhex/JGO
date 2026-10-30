@@ -57,7 +57,7 @@
   "Game information": "Информация об игре",
   "Game settings": "Настройки игры",
   "Delete": "Удалить",
-  "Remove": "Убрать",
+  "Remove": "Удалить",
   "Cancel": "Отмена",
   "Close": "Закрыть",
   "Save": "Сохранить",
@@ -401,5 +401,12 @@
   " · paused": " · пауза",
   "▶ Resume": "▶ Продолжить",
   "⏸ Pause": "⏸ Пауза",
-  "Suspend the game: pauseApp is called, the picture stops": "Приостановить игру: вызывается pauseApp, картинка замирает"
+  "Suspend the game: pauseApp is called, the picture stops": "Приостановить игру: вызывается pauseApp, картинка замирает",
+  "MIDI SoundFont": "MIDI SoundFont",
+  "Built-in bank": "Встроенный банк",
+  "Replace…": "Заменить…",
+  "Choose .sf2…": "Выбрать .sf2…",
+  "SoundFont installed. It is used by games started from now on.": "SoundFont установлен. Его используют игры, запущенные с этого момента.",
+  "Back to the built-in bank.": "Возвращён встроенный банк.",
+  "Replaces the emulator's built-in bank for MIDI music (SoundFont 2 only, up to 256 MB). Games that are already running keep the old one.": "Заменяет встроенный банк эмулятора для MIDI-музыки (только SoundFont 2, до 256 МБ). Уже запущенные игры продолжают играть со старым."
 }

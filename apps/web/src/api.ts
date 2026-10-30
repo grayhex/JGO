@@ -70,6 +70,12 @@ export const api = {
   patchSettings: (patch: DeepPartial<PublicSettings>) => req<SettingsResponse>('/api/settings', jsonInit('PATCH', patch)),
   setMobyKey: (key: string) => req<SettingsResponse['secrets']>('/api/settings/mobygames-key', jsonInit('PUT', { key })),
   deleteMobyKey: () => req<SettingsResponse['secrets']>('/api/settings/mobygames-key', { method: 'DELETE' }),
+  uploadSoundfont: (file: File) => {
+    const fd = new FormData();
+    fd.append('file', file, file.name);
+    return req<SettingsResponse>('/api/settings/soundfont', { method: 'PUT', body: fd });
+  },
+  deleteSoundfont: () => req<SettingsResponse>('/api/settings/soundfont', { method: 'DELETE' }),
   testMoby: () => req<{ ok: true; platformId: number }>('/api/mobygames/test', { method: 'POST' }),
   systemStatus: () => req<SystemStatus>('/api/system/status'),
 
