@@ -43,6 +43,8 @@ jobs:
           bash runtime/scripts/build-kemulator.sh
           cargo build --release --locked --manifest-path bridge/kemulator-adapter/Cargo.toml
           npm run build
+      - name: Check production boundaries
+        run: node tests/scripts/production.mjs
       - name: Assemble the release
         run: |
           packaging/build-release.sh "${{ steps.v.outputs.version }}" dist-release

@@ -16,6 +16,8 @@ out="$(realpath -m "${2:-dist-release}")"
 need=(apps/api/dist/server.js apps/web/dist/index.html packages/protocol/dist/index.js
   runtime/build/kemulator/KEmulator.jar runtime/build/kemulator/KEM_COMMIT bridge/kemulator-adapter/target/release/kem-adapter)
 for f in "${need[@]}"; do [[ -e $f ]] || { echo "missing build output: $f (run: npm run setup)" >&2; exit 1; }; done
+# Reject developer builds instead of accidentally packaging their UI modules.
+node tests/scripts/production.mjs
 
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
@@ -32,6 +34,8 @@ cp apps/web/package.json "$root/app/apps/web/"
 cp -r apps/web/dist "$root/app/apps/web/dist"
 find "$root/app" \( -name '*.test.js' -o -name '*.map' \) -delete
 (cd "$root/app" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund >/dev/null)
+
+node tools/release/prune.mjs "$root/app"
 
 # KEmulator (built from the pinned upstream commit + runtime/patches) and the Bridge supervisor
 cp -r runtime/build/kemulator/. "$root/kemulator/"

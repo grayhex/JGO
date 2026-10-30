@@ -21,8 +21,9 @@ function pruneSkinPng(): Plugin {
   };
 }
 
-export default defineConfig({
+export default defineConfig(({command}) => ({
+  define: { 'import.meta.env.VITE_DEVELOPER_BUILD': JSON.stringify(process.env.VITE_DEVELOPER_BUILD ?? (command === 'serve' ? 'true' : 'false')) },
   plugins: [react(), pruneSkinPng()],
   server: { host: '127.0.0.1', port: 5173, proxy: { '/api': { target: api, ws: true, changeOrigin: false } } },
   build: { outDir: 'dist', sourcemap: false, target: 'es2022' },
-});
+}));

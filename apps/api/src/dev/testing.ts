@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { strToU8, zipSync } from 'fflate';
-import { loadConfig, type Config } from './config.js';
+import { loadConfig, type Config } from '../config.js';
 
 /** Helpers shared by the unit tests: a minimal valid J2ME JAR and a throw-away configuration. */
 export function makeJar(name: string, opts: { vendor?: string; version?: string; extra?: string } = {}): Uint8Array {

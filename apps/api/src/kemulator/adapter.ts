@@ -177,7 +177,7 @@ export class KEmulatorAdapter extends EventEmitter<AdapterEvents> {
       '--width', String(o.width),
       '--height', String(o.height),
       '--enc', o.frameEncoding,
-      '--grace-ms', String(o.graceMs ?? 3000),
+      '--grace-ms', String(o.graceMs ?? 8000),
       '--handshake-timeout-ms', String(o.handshakeTimeoutMs ?? 60_000),
       ...(o.cpuSeconds > 0 ? ['--max-cpu-seconds', String(o.cpuSeconds)] : []),
       '--max-file-bytes', String(256 * 1024 * 1024),
@@ -312,19 +312,21 @@ export class KEmulatorAdapter extends EventEmitter<AdapterEvents> {
     if (Number.isInteger(id)) this.input(`P ${id} ${allow ? 1 : 0}`);
   }
 
-  /** Graceful stop: close inputpipe, the supervisor SIGKILLs the process group after the grace period. */
+  /** Request MIDlet.destroyApp via the patched Bridge; supervisor force-closes after the grace period. */
   stop(): Promise<ExitInfo> {
     if (this._state === 'exited') return Promise.resolve(this.exitInfo!);
     return new Promise((resolve) => {
       this.once('exit', resolve);
       if (this._state === 'idle') return this.finish({ code: null, reason: 0, detail: 'never started' });
+      if(this.stopTimer) return;
+      this.releaseAll();
       this._state = this._state === 'starting' ? 'starting' : 'stopping';
       this.send('Q');
       // safety net in case the supervisor itself is wedged
       this.stopTimer = setTimeout(() => {
         this.send('K');
         this.proc?.kill('SIGKILL');
-      }, (this.opts.graceMs ?? 3000) + 2000);
+      }, (this.opts.graceMs ?? 8000) + 2000);
       this.stopTimer.unref();
     });
   }

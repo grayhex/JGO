@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "sourceMap": false,
+    "declaration": false
+  },
+  "exclude": [
+    "src/lab/**",
+    "src/**/*.test.ts",
+    "src/testing.ts",
+    "src/fakeMoby.ts",
+    "src/dev/**"
+  ]
+}

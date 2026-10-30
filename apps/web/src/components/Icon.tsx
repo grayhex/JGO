@@ -1,3 +1,4 @@
+import { t as translateUI } from '../i18n';
 import type { ReactNode } from 'react';
 
 const P: Record<string, ReactNode> = {
@@ -40,7 +41,7 @@ export type IconName = keyof typeof P;
 
 export function Icon({ name, className = '', title }: { name: IconName; className?: string; title?: string }) {
   return (
-    <svg className={`icon-svg ${className}`} viewBox="0 0 24 24" role={title ? 'img' : undefined} aria-label={title} aria-hidden={title ? undefined : true}>
+    <svg className={`icon-svg ${className}`} viewBox="0 0 24 24" role={title ? 'img' : undefined} aria-label={translateUI(title)} aria-hidden={title ? undefined : true}>
       {P[name]}
     </svg>
   );

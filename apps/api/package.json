@@ -5,10 +5,11 @@
   "type": "module",
   "main": "dist/server.js",
   "scripts": {
-    "build": "tsc -p .",
+    "build": "rm -rf dist && tsc -p tsconfig.production.json",
     "typecheck": "tsc -p . --noEmit",
     "dev": "tsx watch src/server.ts",
-    "test": "node --import tsx --test src/**/*.test.ts"
+    "test": "node --import tsx --test src/**/*.test.ts",
+    "build:dev": "tsc -p ."
   },
   "dependencies": {
     "@fastify/multipart": "^9.0.0",

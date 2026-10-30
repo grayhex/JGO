@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync, symlinkSync } from 'node:fs';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
-import { FakeMoby, PNG } from './fakeMoby.js';
+import { FakeMoby, PNG } from './dev/fakeMoby.js';
 import { buildApp, type App } from './server.js';
-import { makeJar, put, testConfig, tmpDir } from './testing.js';
+import { makeJar, put, testConfig, tmpDir } from './dev/testing.js';
 
 const TOKEN = 'test-token-0123456789';
 const KEY = 'moby_testkey_0001';

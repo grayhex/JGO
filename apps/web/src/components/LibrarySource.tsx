@@ -1,3 +1,4 @@
+import { t as translateUI } from '../i18n';
 import type { LibraryCheck, LibraryRoot, ScanReport } from '@j2me-web/protocol';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, type BrowseResult } from '../api';
@@ -43,45 +44,45 @@ export function LibrarySource({ toast, onSaved, saveLabel = 'Use this folder' }:
   const anyRoot = roots?.some((r) => r.exists) ?? false;
   return (
     <div className="stack">
-      {current && <p className="note info">Current folder: <code>{current}</code></p>}
+      {current && <p className="note info">{translateUI("Current folder:")} <code>{current}</code></p>}
       {roots && !anyRoot && (
         <div className="note warn">
-          <p><strong>No game folder is connected to this server yet.</strong> That is fine: you can keep uploading games from the browser. To import a whole collection, share a folder with the container:</p>
-          <p>On the Proxmox host (read-only, the games are never modified):</p>
-          <pre className="codeblock">pct set &lt;CTID&gt; -mp0 /path/on/host/games,mp=/mnt/jgo-library,ro=1{'\n'}pct reboot &lt;CTID&gt;</pre>
-          <p>or copy the files into <code>/var/lib/jgo/import</code> inside the container. Details: <code>docs/PROXMOX.md</code>, “Game library”.</p>
+          <p><strong>{translateUI("No game folder is connected to this server yet.")}</strong> {translateUI("That is fine: you can keep uploading games from the browser. To import a whole collection, share a folder with the container:")}</p>
+          <p>{translateUI("On the Proxmox host (read-only, the games are never modified):")}</p>
+          <pre className="codeblock">{translateUI("pct set <CTID> -mp0 /path/on/host/games,mp=/mnt/jgo-library,ro=1")}{'\n'}{translateUI("pct reboot <CTID>")}</pre>
+          <p>{translateUI("or copy the files into")} <code>{translateUI("/var/lib/jgo/import")}</code> {translateUI("inside the container. Details:")} <code>{translateUI("docs/PROXMOX.md")}</code>{translateUI(", “Game library”.")}</p>
         </div>
       )}
       <div className="root-list" role="list">
         {(roots ?? []).map((r) => (
-          <button key={r.path} type="button" role="listitem" className={`root ${path === r.path ? 'on' : ''}`} disabled={!r.exists} onClick={() => void open(r.path)} title={r.note ?? r.path}>
+          <button key={r.path} type="button" role="listitem" className={`root ${path === r.path ? 'on' : ''}`} disabled={!r.exists} onClick={() => void open(r.path)} title={translateUI(r.note ?? r.path)}>
             <Icon name="library" /> <code>{r.path}</code>
-            <span className={`badge ${!r.exists ? 'plain' : r.readable ? 'prod' : 'danger'}`}>{!r.exists ? 'not present' : r.readable ? (r.writable ? 'readable · writable' : 'read-only') : 'no access'}</span>
+            <span className={`badge ${!r.exists ? 'plain' : r.readable ? 'prod' : 'danger'}`}>{translateUI(!r.exists ? 'not present' : r.readable ? (r.writable ? 'readable · writable' : 'read-only') : 'no access')}</span>
           </button>
         ))}
       </div>
       <label className="field">
-        <span className="label-caps">Folder</span>
-        <input className="input mono" value={path} onChange={(e) => { setPath(e.target.value); setCheck(null); }} placeholder="/mnt/jgo-library" spellCheck={false} aria-label="Library folder" />
+        <span className="label-caps">{translateUI("Folder")}</span>
+        <input className="input mono" value={path} onChange={(e) => { setPath(e.target.value); setCheck(null); }} placeholder={translateUI("/mnt/jgo-library")} spellCheck={false} aria-label={translateUI("Library folder")} />
       </label>
       {browse && browse.path && (
-        <div className="folder-list" aria-label="Sub-folders">
+        <div className="folder-list" aria-label={translateUI("Sub-folders")}>
           {browse.parent && <button type="button" className="folder" onClick={() => void open(browse.parent)}>↑ ..</button>}
           {browse.dirs.map((d) => <button key={d.path} type="button" className="folder" onClick={() => void open(d.path)}>{d.name}/</button>)}
-          {browse.dirs.length === 0 && <span className="muted small">No sub-folders.</span>}
-          {browse.truncated && <span className="muted small">Only the first 500 are shown.</span>}
+          {browse.dirs.length === 0 && <span className="muted small">{translateUI("No sub-folders.")}</span>}
+          {browse.truncated && <span className="muted small">{translateUI("Only the first 500 are shown.")}</span>}
         </div>
       )}
       <div className="btn-row">
-        <button className="btn" type="button" disabled={busy || !path} onClick={() => void runCheck(path)}>Check access</button>
+        <button className="btn" type="button" disabled={busy || !path} onClick={() => void runCheck(path)}>{translateUI("Check access")}</button>
         <button className="btn primary" type="button" disabled={busy || !path || (check !== null && !check.ok)} onClick={() => void save(path)}>{saveLabel}</button>
-        {current && <button className="btn ghost" type="button" disabled={busy} onClick={() => void save(null)}>Stop using a folder</button>}
+        {current && <button className="btn ghost" type="button" disabled={busy} onClick={() => void save(null)}>{translateUI("Stop using a folder")}</button>}
       </div>
       {check && (
         <div className={`note ${check.ok ? 'info' : 'err'}`} role="status">
           {check.ok
-            ? <p><strong>Readable.</strong> {check.jarCount.toLocaleString()} JAR and {check.jadCount.toLocaleString()} JAD files found ({fmtBytes(check.totalBytes)}){check.truncated ? ', at least' : ''}.</p>
-            : <p><strong>Cannot use this folder.</strong></p>}
+            ? <p><strong>{translateUI("Readable.")}</strong> {check.jarCount.toLocaleString()} {translateUI("JAR and")} {check.jadCount.toLocaleString()} {translateUI("JAD files found (")}{fmtBytes(check.totalBytes)}){translateUI(check.truncated ? ', at least' : '')}.</p>
+            : <p><strong>{translateUI("Cannot use this folder.")}</strong></p>}
           {[...check.problems, ...check.warnings].map((t) => <p key={t}>{t}</p>)}
         </div>
       )}
@@ -119,46 +120,46 @@ export function ScanPanel({ toast, onDone, canScan }: { toast: Toaster; onDone?:
   return (
     <div className="stack">
       <div className="btn-row">
-        <Seg<'update' | 'full'> label="Scan mode" value={mode} onChange={setMode} options={[{ value: 'update', label: 'Changes only', title: 'Skips files whose size and date did not change' }, { value: 'full', label: 'Full re-check', title: 'Reads and hashes every file again' }]} />
+        <Seg<'update' | 'full'> label={translateUI("Scan mode")} value={mode} onChange={setMode} options={[{ value: 'update', label: 'Changes only', title: 'Skips files whose size and date did not change' }, { value: 'full', label: 'Full re-check', title: 'Reads and hashes every file again' }]} />
         <button className="btn primary" type="button" disabled={!canScan || state?.running} onClick={() => void start(mode)}>
-          <Icon name="restart" /> {state?.running ? 'Scanning…' : 'Scan library folder'}
+          <Icon name="restart" /> {translateUI(state?.running ? 'Scanning…' : 'Scan library folder')}
         </button>
-        {state?.running && <button className="btn" type="button" onClick={() => void api.scanCancel().then(poll)}>Stop</button>}
+        {state?.running && <button className="btn" type="button" onClick={() => void api.scanCancel().then(poll)}>{translateUI("Stop")}</button>}
       </div>
-      {!canScan && <p className="muted small">Choose a library folder first.</p>}
-      <p className="muted small">Scanning copies new games into JGO’s own library and never changes, moves or deletes anything in your folder. Your games, favourites, settings and saved data are never removed by a scan.</p>
+      {!canScan && <p className="muted small">{translateUI("Choose a library folder first.")}</p>}
+      <p className="muted small">{translateUI("Scanning copies new games into JGO’s own library and never changes, moves or deletes anything in your folder. Your games, favourites, settings and saved data are never removed by a scan.")}</p>
       {r && (
         <div className="scan" data-testid="scan-report">
           {r.state === 'running' && (
             <>
               <div className="meter" role="progressbar" aria-valuenow={pct(r)} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${pct(r)}%` }} /></div>
-              <p className="muted small mono">{r.current ?? 'Looking for files…'} · {r.filesSeen.toLocaleString()} files found</p>
+              <p className="muted small mono">{r.current ?? 'Looking for files…'} · {r.filesSeen.toLocaleString()} {translateUI("files found")}</p>
             </>
           )}
           <dl className="stats">
-            <dt>Status</dt><dd><span className={`badge ${r.state === 'done' ? 'prod' : r.state === 'running' ? 'dev' : 'mock'}`}>{r.state}</span> {r.finishedAt ? <span className="muted small">{new Date(r.finishedAt).toLocaleString()}</span> : null}</dd>
-            <dt>JAR files</dt><dd>{r.jars.toLocaleString()}</dd>
-            <dt>New games</dt><dd>{r.added}</dd>
-            <dt>Changed files</dt><dd>{r.updated}</dd>
-            <dt>Unchanged</dt><dd>{r.unchanged}</dd>
-            <dt>Duplicates</dt><dd>{r.duplicates} <span className="muted small">(same file in several places)</span></dd>
-            <dt>Other versions</dt><dd>{r.newVersions} <span className="muted small">(same game, different file)</span></dd>
-            <dt>Missing files</dt><dd>{r.missing} <span className="muted small">(kept in the library)</span></dd>
-            <dt>Skipped</dt><dd>{r.skipped}</dd>
+            <dt>{translateUI("Status")}</dt><dd><span className={`badge ${r.state === 'done' ? 'prod' : r.state === 'running' ? 'dev' : 'mock'}`}>{r.state}</span> {r.finishedAt ? <span className="muted small">{new Date(r.finishedAt).toLocaleString()}</span> : null}</dd>
+            <dt>{translateUI("JAR files")}</dt><dd>{r.jars.toLocaleString()}</dd>
+            <dt>{translateUI("New games")}</dt><dd>{r.added}</dd>
+            <dt>{translateUI("Changed files")}</dt><dd>{r.updated}</dd>
+            <dt>{translateUI("Unchanged")}</dt><dd>{r.unchanged}</dd>
+            <dt>{translateUI("Duplicates")}</dt><dd>{r.duplicates} <span className="muted small">{translateUI("(same file in several places)")}</span></dd>
+            <dt>{translateUI("Other versions")}</dt><dd>{r.newVersions} <span className="muted small">{translateUI("(same game, different file)")}</span></dd>
+            <dt>{translateUI("Missing files")}</dt><dd>{r.missing} <span className="muted small">{translateUI("(kept in the library)")}</span></dd>
+            <dt>{translateUI("Skipped")}</dt><dd>{r.skipped}</dd>
           </dl>
           {r.error && <p className="note warn">{r.error}</p>}
           {r.duplicateGroups.length > 0 && (
-            <details className="more"><summary>{r.duplicateGroups.length} duplicated game(s)</summary>
+            <details className="more"><summary>{r.duplicateGroups.length} {translateUI("duplicated game(s)")}</summary>
               <ul className="plain-list">{r.duplicateGroups.map((d) => <li key={d.gameId}><strong>{d.name}</strong><ul>{d.paths.map((p) => <li key={p} className="mono small">{p}</li>)}</ul></li>)}</ul>
             </details>
           )}
           {r.versionGroups.length > 0 && (
-            <details className="more"><summary>{r.versionGroups.length} game(s) with several versions</summary>
+            <details className="more"><summary>{r.versionGroups.length} {translateUI("game(s) with several versions")}</summary>
               <ul className="plain-list">{r.versionGroups.map((g) => <li key={g.groupKey}><strong>{g.name}</strong>: {g.versions.map((v) => v.version || '?').join(', ')}</li>)}</ul>
             </details>
           )}
           {r.errors.length > 0 && (
-            <details className="more"><summary>{r.errors.length} file(s) could not be imported</summary>
+            <details className="more"><summary>{r.errors.length} {translateUI("file(s) could not be imported")}</summary>
               <ul className="plain-list">{r.errors.map((e, i) => <li key={`${e.path}${i}`}><span className="mono small">{e.path}</span> — {e.message}</li>)}</ul>
             </details>
           )}

@@ -1,3 +1,4 @@
+import { t as translateUI } from '../i18n';
 import { useCallback, useEffect, useMemo, useRef, useState, type CanvasHTMLAttributes, type ReactNode, type Ref } from 'react';
 import type { InputController } from '../input';
 import { buzz } from '../serverSettings';
@@ -151,7 +152,7 @@ export function PhoneSkin({ skin, view, frame, canvasRef, canvasProps, integer =
           className={`skin-box view-${view} ${physical ? 'has-keys' : ''}`}
           style={{ width: dim.w, height: dim.h }}
           role="group"
-          aria-label={`${c.manufacturer} ${c.model}, ${view === 'full' ? 'full phone' : 'screen close-up'}`}
+          aria-label={translateUI(`${c.manufacturer} ${c.model}, ${view === 'full' ? 'full phone' : 'screen close-up'}`)}
           data-skin={c.id}
           data-view={view}
           onPointerDown={onDown}
@@ -169,7 +170,7 @@ export function PhoneSkin({ skin, view, frame, canvasRef, canvasProps, integer =
               height={frame.h}
               className={`skin-canvas ${crisp ? 'crisp' : 'smooth'}`}
               style={{ left: place.canvas.left - place.lcd.left, top: place.canvas.top - place.lcd.top, width: place.canvas.width, height: place.canvas.height }}
-              aria-label="Game screen"
+              aria-label={translateUI("Game screen")}
               data-scale={place.scale.toFixed(3)}
             />
             {lcdOverlay && <div className="skin-lcd-overlay">{lcdOverlay}</div>}
@@ -180,7 +181,7 @@ export function PhoneSkin({ skin, view, frame, canvasRef, canvasProps, integer =
             <svg className="skin-hit" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">
               {boxes.map((b) => (
                 <polygon key={b.id} points={polygonPath(b.points)} data-key={b.id} data-action={b.action ?? ''} className={`${pressed.has(b.id) ? 'pressed' : ''} ${b.action ? '' : 'unbound'} ${debug?.hitboxes ? 'debug' : ''}`}>
-                  <title>{b.action ? b.label : `${b.label} (no J2ME binding)`}</title>
+                  <title>{translateUI(b.action ? b.label : `${b.label} (no J2ME binding)`)}</title>
                 </polygon>
               ))}
             </svg>

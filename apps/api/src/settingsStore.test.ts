@@ -4,7 +4,7 @@ import { readdirSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { SettingsStore, SKIN_IDS, mergeSettings, defaultSettings, validateApiKey } from './settingsStore.js';
-import { testConfig } from './testing.js';
+import { testConfig } from './dev/testing.js';
 
 describe('settings store', () => {
   it('starts with defaults that match the old behaviour (240x320, Nokia keys, env limits)', () => {

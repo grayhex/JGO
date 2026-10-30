@@ -10,6 +10,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const base = process.env.BASE ?? 'http://127.0.0.1:8080';
 const token = process.env.TOKEN ?? '';
 const fixtures = {
+  kemshutdown: path.join(root,'tests/fixtures/labgames/build/kemshutdown.jar'),
   kemtest: path.join(root, 'tests/fixtures/testmidlet/build/kemtest.jar'),
   kemtest3d: path.join(root, 'tests/fixtures/testmidlet3d/build/kemtest3d.jar'),
 };
@@ -150,6 +151,12 @@ if (cmd === 'auth') {
   const put = await j('/api/settings/mobygames-key', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ key }) });
   const after = await j('/api/settings');
   ok('library: the MobyGames key is stored but never returned', put.status === 200 && after.json.secrets.mobygames.configured && !JSON.stringify(after.json).includes(key));
+} else if (cmd === 'shutdown-open' || cmd === 'shutdown-count') {
+  const g=await upload('kemshutdown');const s=await start(g);let n=null;
+  const until=Date.now()+30000;
+  while(n===null&&Date.now()<until){const log=(await(await api(`/api/sessions/${s.id}`)).json()).logTail.join('\n');const m=/SHUTDOWN_COUNT (\d+)/.exec(log);if(m)n=Number(m[1]);else await sleep(100);}
+  if(cmd==='shutdown-count')await stop(s);
+  console.log(`SHUTDOWN_COUNT=${n}`);if(n===null)failed++;
 } else if (cmd === 'launches') {
   const g = await upload('kemtest');
   const s = await start(g);

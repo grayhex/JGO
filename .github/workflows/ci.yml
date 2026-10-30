@@ -31,6 +31,7 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build
+      - run: node tests/scripts/production.mjs
       - name: Unit tests (JAR parser, device presets, analyzer, skin geometry and hitbox parsing)
         run: npm test
 
@@ -127,6 +128,8 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Browser e2e (upload, play, keys, audio, phone skins, first-run wizard, library import, MobyGames stand-in)
         run: npm run test:e2e
+      - name: Developer-only phone alignment tools
+        run: npm run test:e2e:dev
       - name: Compatibility lab on the free fixtures
         run: |
           npm run lab -- run tests/fixtures/testmidlet/build tests/fixtures/testmidlet3d/build tests/fixtures/labgames/build \

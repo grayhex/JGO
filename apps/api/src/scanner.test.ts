@@ -5,7 +5,7 @@ import { describe, it } from 'node:test';
 import { Library } from './library.js';
 import { ScanManager } from './scanner.js';
 import { SettingsStore } from './settingsStore.js';
-import { makeJar, put, testConfig, tmpDir } from './testing.js';
+import { makeJar, put, testConfig, tmpDir } from './dev/testing.js';
 
 function setup(extra: { quotaMb?: number } = {}) {
   const root = tmpDir('jgo-lib-');

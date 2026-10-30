@@ -1,3 +1,5 @@
+import { t as translateUI } from '../i18n';
+import { useDeveloperMode } from '../developer';
 import { isPhoneId, resolvePhone } from '@j2me-web/protocol';
 import { GamepadPoller, loadPadProfile, type PadAction, type PadState } from '../gamepad';
 import { GamepadSettings } from './GamepadSettings';
@@ -42,6 +44,7 @@ function SoftKeys({ input, left, right, live }: { input: InputController; left: 
 }
 
 export function Player({ gameId, toast, onExit, health }: { gameId: string; toast: (k: Toast['kind'], t: string) => void; onExit: () => void; health: HealthStatus | null }) {
+  const developer=useDeveloperMode();
   const [game, setGame] = useState<GameMeta | null>(null);
   const [session, setSession] = useState<SessionStatus | null>(null);
   const [state, setState] = useState<SessionState | 'idle'>('idle');
@@ -154,7 +157,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
         setState(ev.state);
         if (ev.state === 'exited' || ev.state === 'failed') {
           input.releaseAll();
-          if (ev.state === 'failed') toast('error', `Emulator stopped: ${ev.detail ?? 'unknown error'}`);
+          if (ev.state === 'failed') toast('error', translateUI('Emulator stopped: {detail}', {detail:ev.detail ?? translateUI('unknown error')}));
         }
         break;
       case 'softkeys': setSoftkeys({ left: ev.left, right: ev.right }); break;
@@ -165,8 +168,8 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
       case 'menu-close': setMenu(null); break;
       case 'permission': setPerm(ev); break;
       case 'vibrate': if (ev.ms > 0) buzz(Math.min(ev.ms, 2000)); else navigator.vibrate?.(0); break;
-      case 'displayable': if (ev.kind !== 'canvas') toast('error', `This game opened a ${ev.kind} screen, which the Bridge frontend cannot show yet.`); break;
-      case 'url': toast('info', `The game wants to open ${ev.url} (blocked)`); break;
+      case 'displayable': if (ev.kind !== 'canvas') toast('error', translateUI('This game opened a {kind} screen, which the Bridge frontend cannot show yet.', {kind:ev.kind})); break;
+      case 'url': toast('info', translateUI('The game wants to open {url} (blocked)', {url:ev.url})); break;
       default: break;
     }
   }, [input, toast]);
@@ -185,7 +188,11 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
         c.getContext('2d')!.putImageData(img, 0, 0);
       },
       onAudio: (pcm) => audio.push(pcm),
-      onConnection: (cs) => setConn(cs),
+      onConnection: (cs) => {
+        setConn(cs);
+        if(cs !== 'open') input.releaseAll();
+        if(cs === 'closed') api.session(s.id).then(actual=>setState(actual.state),()=>{setState('exited');toast('info','The previous session ended or the service restarted. Start the game again; only game-written RMS can be restored.');});
+      },
     });
     streamRef.current = st;
     input.setSend((ev) => st.send(ev as never));
@@ -223,7 +230,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   }, [state, session?.id]);
 
   // ---- input wiring: keyboard, focus loss, gamepad
-  useEffect(() => { input.enabled = live && !keymap && !menu && !perm && !padMenu; if (!input.enabled) input.releaseAll(); }, [input, live, keymap, menu, perm, padMenu]);
+  useEffect(() => { input.enabled = live && conn === 'open' && !keymap && !menu && !perm && !padMenu; if (!input.enabled) input.releaseAll(); }, [input, live, conn, keymap, menu, perm, padMenu]);
   useEffect(() => {
     window.addEventListener('keydown', input.onKeyDown);
     window.addEventListener('keyup', input.onKeyUp);
@@ -265,6 +272,12 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
 
   useEffect(() => () => { streamRef.current?.close(); }, []);
 
+  useEffect(()=>{
+    const release=()=>input.releaseAll();
+    const warn=(e:BeforeUnloadEvent)=>{if(sessionRef.current && (state==='running'||state==='starting')){release();e.preventDefault();e.returnValue='';}};
+    window.addEventListener('pagehide',release);window.addEventListener('beforeunload',warn);
+    return()=>{window.removeEventListener('pagehide',release);window.removeEventListener('beforeunload',warn);};
+  },[input,state]);
   const start = async () => {
     if (!game || busy || !loaded || (!advanced && !matched)) return;
     setBusy(true); setLog([]); setMenu(null); setPerm(null); setCpuHist([]); setFpsHist([]);
@@ -279,13 +292,23 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   };
 
   const stop = async () => {
-    const s = sessionRef.current; if (!s) return;
+    const s = sessionRef.current; if (!s || busy) return false;
     input.releaseAll();
-    try { await api.stopSession(s.id); } catch (e) { toast('error', (e as Error).message); }
-    streamRef.current?.close();
-    setState('exited'); setConn('idle');
+    setBusy(true);
+    try {
+      const stopped = await api.stopSession(s.id);
+      sessionRef.current = stopped;
+      setSession(stopped); setLog(stopped.logTail); setState(stopped.state);
+      streamRef.current?.close(); setConn('idle');
+      if (stopped.state === 'failed') toast('error', 'The game had to be forcibly closed. Progress not written by the game to RMS may be lost.');
+      return true;
+    } catch (e) {
+      // A failed request is not evidence that the process stopped. Keep the viewer attached.
+      toast('error', (e as Error).message);
+      return false;
+    } finally { setBusy(false); }
   };
-  const leave = async () => { if (sessionRef.current && (state === 'running' || state === 'starting')) await stop(); onExit(); };
+  const leave = async () => { if (sessionRef.current && (state === 'running' || state === 'starting' || state === 'stopping') && !await stop()) return; onExit(); };
   const fullscreen = () => { const promise = document.fullscreenElement ? document.exitFullscreen() : card.current?.requestFullscreen?.(); promise?.catch(() => toast('info','Fullscreen is unavailable; Lights Out still works in this window.')); };
 
   const pointer = (s: 'D' | 'M' | 'U') => (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -333,28 +356,28 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   const overlay = !running ? (
     <>
       {game && <h2>{game.name}</h2>}
-      {state === 'failed' && <p className="error">The emulator stopped unexpectedly. See the log.</p>}
-      {game && game.classVersion >= 49 ? <p className="error">Java 5+ class files are not supported.</p> : (
-        <button className="btn primary" disabled={!canStart} onClick={start}><Icon name="play" /> {busy ? 'Starting…' : state === 'idle' ? 'Start' : 'Start again'}</button>
+      {state === 'failed' && <p className="error">{translateUI("The emulator stopped unexpectedly. See the log.")}</p>}
+      {game && game.classVersion >= 49 ? <p className="error">{translateUI("Java 5+ class files are not supported.")}</p> : (
+        <button className="btn primary" disabled={!canStart} onClick={start}><Icon name="play" /> {translateUI(busy ? 'Starting…' : state === 'idle' ? 'Start' : 'Start again')}</button>
       )}
-      {health?.ok === false && <p className="error">Emulator runtime is not ready.</p>}
+      {health?.ok === false && <p className="error">{translateUI("Emulator runtime is not ready.")}</p>}
     </>
   ) : undefined;
 
   return (
     <div className={`player-grid ${lightsActive ? 'lights-out' : ''} ${awake ? 'hud-awake' : ''} ${touchControls ? 'touch-controls' : ''}`} onPointerMove={wake} onPointerDown={wake}>
-      <section className={`card stage-card ${prefs.view === 'screen' ? 'is-screen' : ''}`} ref={card} aria-label="Phone">
-        {lightsActive && <div className="lights-hud"><button className="btn" onClick={()=>setLights(false)} aria-label="Exit Lights Out">☀ Exit · Esc</button><button className="btn transient" onClick={fullscreen}>Fullscreen</button><button className="btn transient" onClick={()=>setTouchControls(v=>!v)}>Touch controls</button></div>}
+      <section className={`card stage-card ${prefs.view === 'screen' ? 'is-screen' : ''}`} ref={card} aria-label={translateUI("Phone")}>
+        {lightsActive && <div className="lights-hud"><button className="btn" onClick={()=>setLights(false)} aria-label={translateUI("Exit Lights Out")}>{translateUI("☀ Exit · Esc")}</button><button className="btn transient" onClick={fullscreen}>{translateUI("Fullscreen")}</button><button className="btn transient" onClick={()=>setTouchControls(v=>!v)}>{translateUI("Touch controls")}</button></div>}
         <div className="stage-bar">
-          <button className="btn ghost sm" onClick={leave}><Icon name="back" /> Library</button>
+          <button className="btn ghost sm" onClick={leave}><Icon name="back" /> {translateUI("Library")}</button>
           <div className="title">
             <strong>{game?.name ?? '…'}</strong>
             <span>{title || game?.vendor}</span>
           </div>
-          <span className={`badge ${STATE_BADGE[state] ?? ''} ${live ? 'live' : ''}`} data-testid="state-badge"><span className="dot" />{state === 'idle' ? 'stopped' : state}{conn === 'reconnecting' ? ' · reconnecting…' : ''}</span>
-          <Seg label="View" value={prefs.view} onChange={(view) => setPrefs({ view })} options={[{ value: 'full', label: <><Icon name="phone" /> Phone</>, title: 'Whole phone, body keys active' }, { value: 'screen', label: <><Icon name="zoom" /> Screen</>, title: 'Enlarged display; controls below' }]} />
-          {prefs.view === 'screen' && <button className="btn ghost sm" onClick={()=>setLights(v=>!v)} aria-label="Lights Out" aria-pressed={lights} title="Lights Out · Alt+L">☾ Lights Out</button>}
-          <button className="btn ghost sm icon" onClick={fullscreen} aria-label="Toggle fullscreen" title="Fullscreen"><Icon name="fullscreen" /></button>
+          <span className={`badge ${STATE_BADGE[state] ?? ''} ${live ? 'live' : ''}`} data-testid="state-badge"><span className="dot" />{translateUI(state === 'idle' ? 'stopped' : state)}{translateUI(conn === 'reconnecting' ? ' · reconnecting…' : '')}</span>
+          <Seg label={translateUI("View")} value={prefs.view} onChange={(view) => setPrefs({ view })} options={[{ value: 'full', label: <><Icon name="phone" /> {translateUI("Phone")}</>, title: 'Whole phone, body keys active' }, { value: 'screen', label: <><Icon name="zoom" /> {translateUI("Screen")}</>, title: 'Enlarged display; controls below' }]} />
+          {prefs.view === 'screen' && <button className="btn ghost sm" onClick={()=>setLights(v=>!v)} aria-label={translateUI("Lights Out")} aria-pressed={lights} title={translateUI("Lights Out · Alt+L")}>{translateUI("☾ Lights Out")}</button>}
+          <button className="btn ghost sm icon" onClick={fullscreen} aria-label={translateUI("Toggle fullscreen")} title={translateUI("Fullscreen")}><Icon name="fullscreen" /></button>
         </div>
 
         <div className={`stage ${prefs.view === 'screen' ? 'stage-screen' : ''}`}>
@@ -371,7 +394,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
               interactive={live}
               lcdOverlay={overlay}
             />
-          ) : <p className="muted center">Loading the phone…</p>}
+          ) : <p className="muted center">{translateUI("Loading the phone…")}</p>}
         </div>
 
         <SkinPicker skins={skins} value={prefs.skinId} onChange={(id) => isSkinId(id) && setPrefs({ skinId: id })} />
@@ -384,133 +407,132 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
         )}
       </section>
 
-      <aside className="ctrl-col" aria-label="Emulator controls">
-        <Panel icon="play" title="Session" right={<span className={`badge ${STATE_BADGE[state] ?? ''}`}>{state === 'idle' ? 'stopped' : state}</span>}>
+      <aside className="ctrl-col" aria-label={translateUI("Emulator controls")}>
+        <Panel icon="play" title={translateUI("Session")} right={<span className={`badge ${STATE_BADGE[state] ?? ''}`}>{translateUI(state === 'idle' ? 'stopped' : state)}</span>}>
           <div className="btn-row">
             {!running
-              ? <button className="btn primary grow" disabled={!canStart} onClick={start}><Icon name="play" /> Start</button>
-              : <button className="btn danger grow" onClick={stop} disabled={state === 'stopping'}><Icon name="stop" /> Stop</button>}
-            {running && <button className="btn" onClick={async () => { await stop(); setTimeout(start, 400); }}><Icon name="restart" /> Restart</button>}
+              ? <button className="btn primary grow" disabled={!canStart} onClick={start}><Icon name="play" /> {translateUI("Start")}</button>
+              : <button className="btn danger grow" onClick={stop} disabled={busy || state === 'stopping'}><Icon name="stop" /> {translateUI("Stop")}</button>}
+            {running && <button className="btn" disabled={busy || state === 'stopping'} onClick={async () => { if (await stop()) setTimeout(start, 400); }}><Icon name="restart" /> {translateUI("Restart")}</button>}
           </div>
-          {state === 'failed' && <div className="note err">The emulator stopped unexpectedly. The log below has the details.</div>}
-          {health?.ok === false && <div className="note warn">The emulator runtime is not ready on this server.</div>}
+          {running && <div className="note">{translateUI("Stop requests a safe MIDlet shutdown. An unresponsive game may be forcibly closed after 8 seconds; unsaved in-game progress can be lost. Save inside the game first.")}</div>}
+          {state === 'failed' && <div className="note err">{translateUI("The emulator stopped unexpectedly. The log below has the details.")}</div>}
+          {health?.ok === false && <div className="note warn">{translateUI("The emulator runtime is not ready on this server.")}</div>}
         </Panel>
 
-        <Panel icon="device" title="Emulation profile">
-          <Switch checked={advanced} onChange={setAdvanced}>Advanced: choose skin and profile independently</Switch>
-          {matched && <div className={`note ${matched.exact ? 'info':'warn'}`} data-testid="phone-profile-match">{matched.exact?'Exact preset':'Generic fallback'}: {matched.preset.name}. {matched.reason}</div>}
+        <Panel icon="device" title={translateUI("Emulation profile")}>
+          <Switch checked={advanced} onChange={setAdvanced}>{translateUI("Advanced: choose skin and profile independently")}</Switch>
+          {matched && <div className={`note ${matched.exact ? 'info':'warn'}`} data-testid="phone-profile-match">{translateUI(matched.exact?'Exact preset':'Generic fallback')}: {matched.preset.name}. {translateUI(matched.reason)}</div>}
           <fieldset disabled={!advanced} style={{border:0,padding:0,margin:0}}>
-          <label className="field"><span className="label-caps">Device preset</span>
-            <select className="select" value={device} onChange={(e) => applyDevice(e.target.value)} aria-label="Device preset">
-              <option value="">None — resolution and layout only</option>
-              {analysis?.recommendedDevice && <option value={analysis.recommendedDevice}>★ Recommended: {devices.find((d) => d.id === analysis.recommendedDevice)?.name ?? analysis.recommendedDevice}</option>}
-              {devices.map((d) => <option key={d.id} value={d.id}>{d.vendor === 'common' ? '' : `${d.vendor} · `}{d.name}{d.model ? ` (${d.model})` : ''} · {d.width}×{d.height}</option>)}
+          <label className="field"><span className="label-caps">{translateUI("Device preset")}</span>
+            <select className="select" value={device} onChange={(e) => applyDevice(e.target.value)} aria-label={translateUI("Device preset")}>
+              <option value="">{translateUI("None — resolution and layout only")}</option>
+              {analysis?.recommendedDevice && <option value={analysis.recommendedDevice}>{translateUI("★ Recommended:")} {devices.find((d) => d.id === analysis.recommendedDevice)?.name ?? analysis.recommendedDevice}</option>}
+              {devices.map((d) => <option key={d.id} value={d.id}>{translateUI(d.vendor === 'common' ? '' : `${d.vendor} · `)}{d.name}{translateUI(d.model ? ` (${d.model})` : '')} · {d.width}×{d.height}</option>)}
             </select>
           </label>
-          {dev && <dl className="kv"><dt>Resolution</dt><dd>{dev.width}×{dev.height}</dd><dt>Keys</dt><dd>{dev.layoutName}</dd><dt>Platform</dt><dd>{dev.platform ?? 'emulator default'}</dd></dl>}
+          {dev && <dl className="kv"><dt>{translateUI("Resolution")}</dt><dd>{dev.width}×{dev.height}</dd><dt>{translateUI("Keys")}</dt><dd>{dev.layoutName}</dd><dt>{translateUI("Platform")}</dt><dd>{dev.platform ?? 'emulator default'}</dd></dl>}
           {dev?.notes.map((n) => <p className="hint" key={n}>{n}</p>)}
-          <label className="field"><span className="label-caps">Resolution</span>
-            <select className="select" aria-label="Resolution" value={SCREEN_PRESETS.some((p) => `${p.width}x${p.height}` === resKey) ? resKey : 'custom'} onChange={(e) => { const [w, h] = e.target.value.split('x').map(Number); if (w && h) { setRes({ width: w, height: h }); setDevice(''); } }}>
-              {SCREEN_PRESETS.map((p) => <option key={p.label} value={`${p.width}x${p.height}`}>{p.label}</option>)}
+          <label className="field"><span className="label-caps">{translateUI("Resolution")}</span>
+            <select className="select" aria-label={translateUI("Resolution")} value={SCREEN_PRESETS.some((p) => `${p.width}x${p.height}` === resKey) ? resKey : 'custom'} onChange={(e) => { const [w, h] = e.target.value.split('x').map(Number); if (w && h) { setRes({ width: w, height: h }); setDevice(''); } }}>
+              {SCREEN_PRESETS.map((p) => <option key={p.label} value={`${p.width}x${p.height}`}>{translateUI(p.label)}</option>)}
               {res && !SCREEN_PRESETS.some((p) => `${p.width}x${p.height}` === resKey) && <option value="custom">{res.width}×{res.height}</option>}
             </select>
           </label>
 
-          <label className="field"><span className="label-caps">Key layout</span>
-            <select className="select" aria-label="Key layout" value={layout} onChange={(e) => { input.releaseAll(); setLayout(e.target.value as LayoutId); }}>
-              {Object.entries(KEY_LAYOUTS).map(([id, l]) => <option key={id} value={id}>{l.label}</option>)}
+          <label className="field"><span className="label-caps">{translateUI("Key layout")}</span>
+            <select className="select" aria-label={translateUI("Key layout")} value={layout} onChange={(e) => { input.releaseAll(); setLayout(e.target.value as LayoutId); }}>
+              {Object.entries(KEY_LAYOUTS).map(([id, l]) => <option key={id} value={id}>{translateUI(l.label)}</option>)}
             </select>
           </label>
-          <label className="field"><span className="label-caps">Heap (MB)</span><input className="input" type="number" min={64} max={1024} step={32} value={heapMb} onChange={(e) => setHeapMb(Number(e.target.value))} aria-label="Heap in MB" /></label>
+          <label className="field"><span className="label-caps">{translateUI("Heap (MB)")}</span><input className="input" type="number" min={64} max={1024} step={32} value={heapMb} onChange={(e) => setHeapMb(Number(e.target.value))} aria-label={translateUI("Heap in MB")} /></label>
           </fieldset>
-          {needRestart && <div className="note warn" role="status">The running game keeps its current profile. Restart to apply the selected phone/profile. <button className="btn sm" onClick={async()=>{await stop();await start();}}>Restart with selected profile</button></div>}
-          <button className="btn sm" onClick={saveDefaults} disabled={!game || !res}>Save as game defaults</button>
+          {needRestart && <div className="note warn" role="status">{translateUI("The running game keeps its current profile. Restart to apply the selected phone/profile.")} <button className="btn sm" disabled={busy || state === 'stopping'} onClick={async()=>{if(await stop())await start();}}>{translateUI("Restart with selected profile")}</button></div>}
+          <button className="btn sm" onClick={saveDefaults} disabled={!game || !res}>{translateUI("Save as game defaults")}</button>
         </Panel>
 
-        <Panel icon="layers" title="Display">
-          <div className="statline"><span className="label-caps">Phone model</span><span className="small mono">{skin ? `${skin.config.manufacturer} ${skin.config.model}` : '…'}</span></div>
-          {skin && <div className="statline"><SkinStatus status={skin.config.status} /><span className="hint">display {skin.config.screen.width}×{skin.config.screen.height}</span></div>}
-          <div className="statline"><span className="label-caps">Emulated picture</span><span className="small mono" data-testid="frame-size">{frameSize.w}×{frameSize.h}</span></div>
+        <Panel icon="layers" title={translateUI("Display")}>
+          <div className="statline"><span className="label-caps">{translateUI("Phone model")}</span><span className="small mono">{translateUI(skin ? `${skin.config.manufacturer} ${skin.config.model}` : '…')}</span></div>
+          {skin && <div className="statline"><SkinStatus status={skin.config.status} /><span className="hint">{translateUI("display")} {skin.config.screen.width}×{skin.config.screen.height}</span></div>}
+          <div className="statline"><span className="label-caps">{translateUI("Emulated picture")}</span><span className="small mono" data-testid="frame-size">{frameSize.w}×{frameSize.h}</span></div>
           {skinScreen && res && (res.width !== skinScreen.width || res.height !== skinScreen.height) && (
-            <div className="note info">
-              This phone’s display is {skinScreen.width}×{skinScreen.height}; the game renders {res.width}×{res.height}. It is shown whole, with margins, never stretched.
-              {!running && advanced && <> <button className="btn sm" style={{ marginTop: 8 }} onClick={() => { setRes({ width: skinScreen.width, height: skinScreen.height }); setDevice(''); }}>Use {skinScreen.width}×{skinScreen.height} for the next start</button></>}
+            <div className="note info"> {translateUI("This phone’s display is")} {skinScreen.width}×{skinScreen.height}{translateUI("; the game renders")} {res.width}×{res.height}{translateUI(". It is shown whole, with margins, never stretched.")} {!running && advanced && <> <button className="btn sm" style={{ marginTop: 8 }} onClick={() => { setRes({ width: skinScreen.width, height: skinScreen.height }); setDevice(''); }}>{translateUI("Use")} {skinScreen.width}×{skinScreen.height} {translateUI("for the next start")}</button></>}
             </div>
           )}
-          <Switch checked={prefs.integer} onChange={(integer) => setPrefs({ integer })}>Whole-number scaling</Switch>
-          <Switch checked={smooth} onChange={setSmooth}>Smooth scaling</Switch>
-          <p className="hint">The Screen view only enlarges the picture; the game keeps its resolution and keeps running.</p>
+          <Switch checked={prefs.integer} onChange={(integer) => setPrefs({ integer })}>{translateUI("Whole-number scaling")}</Switch>
+          <Switch checked={smooth} onChange={setSmooth}>{translateUI("Smooth scaling")}</Switch>
+          <p className="hint">{translateUI("The Screen view only enlarges the picture; the game keeps its resolution and keeps running.")}</p>
         </Panel>
 
-        <Panel icon="gamepad" title="Controls">
-          <button className="btn" onClick={()=>{input.releaseAll();setPadMenu(v=>!v);}}>Gamepad settings / UI navigation</button>
+        <Panel icon="gamepad" title={translateUI("Controls")}>
+          <button className="btn" onClick={()=>{input.releaseAll();setPadMenu(v=>!v);}}>{translateUI("Gamepad settings / UI navigation")}</button>
           {padMenu && <GamepadSettings gameId={gameId} poller={gamepad.current} state={padState} />}
-          {!!padState.pressed.length && <div className="note">Held: {padState.pressed.join(', ')}</div>}
-          <Switch checked={showKeypad} onChange={setShowKeypad}>On-screen keypad</Switch>
-          <div className="btn-row"><button className="btn sm" onClick={() => setKeymap(true)}>Remap keyboard</button></div>
-          <p className="hint">Arrows · Enter = OK · Q/W = soft keys · 0–9 · X = * · Z = #. {prefs.view === 'full' ? 'Click or touch the phone’s keys; several at once work.' : 'In the Screen view the keys are below the picture.'}{pad ? ` Gamepad: ${pad.slice(0, 28)}.` : ''}</p>
+          {!!padState.pressed.length && <div className="note">{translateUI("Held:")} {padState.pressed.join(', ')}</div>}
+          <Switch checked={showKeypad} onChange={setShowKeypad}>{translateUI("On-screen keypad")}</Switch>
+          <div className="btn-row"><button className="btn sm" onClick={() => setKeymap(true)}>{translateUI("Remap keyboard")}</button></div>
+          <p className="hint">{translateUI("Arrows · Enter = OK · Q/W = soft keys · 0–9 · X = * · Z = #.")} {translateUI(prefs.view === 'full' ? 'Click or touch the phone’s keys; several at once work.' : 'In the Screen view the keys are below the picture.')}{translateUI(pad ? ` Gamepad: ${pad.slice(0, 28)}.` : '')}</p>
         </Panel>
 
-        <Panel icon="volume" title="Audio" open={false}>
-          <label className="field"><span className="label-caps">Volume</span><input type="range" min={0} max={100} value={vol} onChange={(e) => setVol(Number(e.target.value))} aria-label="Volume" /></label>
-          <Switch checked={muted} onChange={setMuted}>Mute</Switch>
-          {audioInfo.state !== 'running' && running && <div className="note">Sound is waiting for a click or key press (browser autoplay policy).</div>}
+        <Panel icon="volume" title={translateUI("Audio")} open={false}>
+          <label className="field"><span className="label-caps">{translateUI("Volume")}</span><input type="range" min={0} max={100} value={vol} onChange={(e) => setVol(Number(e.target.value))} aria-label={translateUI("Volume")} /></label>
+          <Switch checked={muted} onChange={setMuted}>{translateUI("Mute")}</Switch>
+          {audioInfo.state !== 'running' && running && <div className="note">{translateUI("Sound is waiting for a click or key press (browser autoplay policy).")}</div>}
           <p className="hint" data-testid="audio-status" data-audio-state={audioInfo.state} data-audio-rms={audioInfo.rms.toFixed(4)}>
-            {audioInfo.state === 'running' ? `output ${audioInfo.rms > 0.0005 ? 'active' : 'idle'} · level ${(audioInfo.rms * 100).toFixed(1)}% · buffer ${audioInfo.buffered} ms` : `audio ${audioInfo.state}`}
+            {translateUI(audioInfo.state === 'running' ? `output ${audioInfo.rms > 0.0005 ? 'active' : 'idle'} · level ${(audioInfo.rms * 100).toFixed(1)}% · buffer ${audioInfo.buffered} ms` : `audio ${audioInfo.state}`)}
           </p>
         </Panel>
 
-        <Panel icon="pulse" title="Telemetry">
-          <div className="metric"><div className="metric-head"><span className="label-caps">Display FPS</span><span className="metric-value">{client.fps.toFixed(1)}</span></div><Spark values={fpsHist} label="Display frames per second" /></div>
-          <div className="metric"><div className="metric-head"><span className="label-caps">Emulator CPU</span><span className="metric-value">{res_ ? `${res_.cpuPercentNow.toFixed(0)}%` : '—'}</span></div><Spark values={cpuHist} max={Math.max(100, ...cpuHist)} label="CPU use" /></div>
-          <div className="metric"><div className="metric-head"><span className="label-caps">Memory</span><span className="small mono">{res_ ? `${res_.rssMb.toFixed(0)} MB (peak ${res_.peakRssMb.toFixed(0)})` : '—'}</span></div><Meter value={res_?.rssMb ?? 0} max={Math.max(512, heapMb * 2)} label="Memory use" /></div>
+        {developer && <Panel icon="pulse" title={translateUI("Telemetry")}>
+          <div className="metric"><div className="metric-head"><span className="label-caps">{translateUI("Display FPS")}</span><span className="metric-value">{client.fps.toFixed(1)}</span></div><Spark values={fpsHist} label={translateUI("Display frames per second")} /></div>
+          <div className="metric"><div className="metric-head"><span className="label-caps">{translateUI("Emulator CPU")}</span><span className="metric-value">{translateUI(res_ ? `${res_.cpuPercentNow.toFixed(0)}%` : '—')}</span></div><Spark values={cpuHist} max={Math.max(100, ...cpuHist)} label={translateUI("CPU use")} /></div>
+          <div className="metric"><div className="metric-head"><span className="label-caps">{translateUI("Memory")}</span><span className="small mono">{translateUI(res_ ? `${res_.rssMb.toFixed(0)} MB (peak ${res_.peakRssMb.toFixed(0)})` : '—')}</span></div><Meter value={res_?.rssMb ?? 0} max={Math.max(512, heapMb * 2)} label={translateUI("Memory use")} /></div>
           <dl className="kv stats">
-            <dt>Display FPS</dt><dd>{client.fps.toFixed(1)}</dd>
-            <dt>Emulator FPS</dt><dd>{server.fps.toFixed(1)}</dd>
-            <dt>Round trip</dt><dd>{client.rtt ?? '—'} ms</dd>
-            <dt>Adapter→API</dt><dd>{server.latencyMs === null ? '—' : `${server.latencyMs.toFixed(0)} ms`}</dd>
-            <dt>Decode</dt><dd>{client.decode} ms</dd>
-            <dt>Bandwidth</dt><dd>{client.kbps} kbit/s</dd>
-            <dt>Dropped</dt><dd>{server.dropped}</dd>
-            <dt>First frame</dt><dd>{session?.firstFrameMs != null ? `${session.firstFrameMs} ms` : '—'}</dd>
-            <dt>Sound</dt><dd>{session ? (session.audioBytes > 0 ? `${(session.audioBytes / 1024).toFixed(0)} KB` : 'none yet') : '—'}</dd>
-            <dt>Frame</dt><dd>{frameSize.w}×{frameSize.h} · {session?.encoding ?? '—'}</dd>
+            <dt>{translateUI("Display FPS")}</dt><dd>{client.fps.toFixed(1)}</dd>
+            <dt>{translateUI("Emulator FPS")}</dt><dd>{server.fps.toFixed(1)}</dd>
+            <dt>{translateUI("Round trip")}</dt><dd>{client.rtt ?? '—'} {translateUI("ms")}</dd>
+            <dt>{translateUI("Adapter→API")}</dt><dd>{translateUI(server.latencyMs === null ? '—' : `${server.latencyMs.toFixed(0)} ms`)}</dd>
+            <dt>{translateUI("Decode")}</dt><dd>{client.decode} {translateUI("ms")}</dd>
+            <dt>{translateUI("Bandwidth")}</dt><dd>{client.kbps} {translateUI("kbit/s")}</dd>
+            <dt>{translateUI("Dropped")}</dt><dd>{server.dropped}</dd>
+            <dt>{translateUI("First frame")}</dt><dd>{translateUI(session?.firstFrameMs != null ? `${session.firstFrameMs} ms` : '—')}</dd>
+            <dt>{translateUI("Sound")}</dt><dd>{translateUI(session ? (session.audioBytes > 0 ? `${(session.audioBytes / 1024).toFixed(0)} KB` : 'none yet') : '—')}</dd>
+            <dt>{translateUI("Frame")}</dt><dd>{frameSize.w}×{frameSize.h} · {session?.encoding ?? '—'}</dd>
           </dl>
           {[...new Set([...diag, ...logDiag.map((l) => l.slice(2))])].map((d) => <div className="note warn" key={d}>{d}</div>)}
-        </Panel>
+        </Panel>}
 
-        {analysis && (
-          <Panel icon="shield" title="Compatibility" open={false} right={<span className={`badge ${analysis.analysis.risk === 'low' ? 'prod' : analysis.analysis.risk === 'medium' ? 'mock' : 'danger'}`}>{analysis.analysis.risk} risk</span>}>
-            <dl className="kv"><dt>Platform</dt><dd>{analysis.analysis.platform.family}</dd><dt>3D (M3G / Mascot)</dt><dd>{analysis.analysis.needs3d ? 'yes' : 'no'}</dd><dt>Classes</dt><dd>{analysis.analysis.classCount}</dd></dl>
+        {developer && analysis && (
+          <Panel icon="shield" title={translateUI("Compatibility")} open={false} right={<span className={`badge ${analysis.analysis.risk === 'low' ? 'prod' : analysis.analysis.risk === 'medium' ? 'mock' : 'danger'}`}>{analysis.analysis.risk} {translateUI("risk")}</span>}>
+            <dl className="kv"><dt>{translateUI("Platform")}</dt><dd>{analysis.analysis.platform.family}</dd><dt>{translateUI("3D (M3G / Mascot)")}</dt><dd>{translateUI(analysis.analysis.needs3d ? 'yes' : 'no')}</dd><dt>{translateUI("Classes")}</dt><dd>{analysis.analysis.classCount}</dd></dl>
             {analysis.analysis.apis.length > 0 && (
-              <div className="table-wrap"><table className="table compact"><thead><tr><th>API</th><th>Classes</th><th>Missing</th></tr></thead>
-                <tbody>{analysis.analysis.apis.map((a) => <tr key={a.id}><td>{a.label}</td><td>{a.classes}</td><td>{a.missing.length || '—'}</td></tr>)}</tbody></table></div>
+              <div className="table-wrap"><table className="table compact"><thead><tr><th>{translateUI("API")}</th><th>{translateUI("Classes")}</th><th>{translateUI("Missing")}</th></tr></thead>
+                <tbody>{analysis.analysis.apis.map((a) => <tr key={a.id}><td>{translateUI(a.label)}</td><td>{a.classes}</td><td>{a.missing.length || '—'}</td></tr>)}</tbody></table></div>
             )}
             {analysis.analysis.findings.map((f) => <div key={f.code + f.message} className={`note ${f.level === 'error' ? 'err' : f.level === 'warn' ? 'warn' : ''}`}>{f.message}</div>)}
-            {analysis.recommendedDevice && advanced && !running && device !== analysis.recommendedDevice && <button className="btn sm" onClick={() => applyDevice(analysis.recommendedDevice!)}>Use the recommended device preset</button>}
+            {analysis.recommendedDevice && advanced && !running && device !== analysis.recommendedDevice && <button className="btn sm" onClick={() => applyDevice(analysis.recommendedDevice!)}>{translateUI("Use the recommended device preset")}</button>}
           </Panel>
         )}
 
-        <Panel icon="log" title={`Emulator log (${log.length})`} open={false}>
+        {(developer || state === 'failed') && <Panel icon="log" title={translateUI(`Emulator log (${log.length})`)} open={false}>
           <pre className="log" tabIndex={0}>{log.slice(-120).join('\n') || '—'}</pre>
-        </Panel>
+        </Panel>}
       </aside>
 
       {keymap && <KeyMapDialog bindings={bindings} onClose={() => setKeymap(false)} onSave={(b) => { input.bindings = b; setBindings(b); }} />}
       {menu && (
-        <Modal title="Menu" onClose={() => { setMenu(null); }}>
+        <Modal title={translateUI("Menu")} onClose={() => { setMenu(null); }}>
           <ul className="menu-list">
-            {menu.items.map((i) => <li key={i.id}><button className="btn block" onClick={() => { send({ t: 'cmd', id: i.id }); setMenu(null); }}>{i.kind === 'radio-selected' ? '◉ ' : i.kind === 'radio' ? '○ ' : ''}{i.text}</button></li>)}
+            {menu.items.map((i) => <li key={i.id}><button className="btn block" onClick={() => { send({ t: 'cmd', id: i.id }); setMenu(null); }}>{translateUI(i.kind === 'radio-selected' ? '◉ ' : i.kind === 'radio' ? '○ ' : '')}{i.text}</button></li>)}
           </ul>
         </Modal>
       )}
       {perm && (
-        <Modal title="Permission request" onClose={() => { send({ t: 'perm', id: perm.id, allow: false }); setPerm(null); }}>
+        <Modal title={translateUI("Permission request")} onClose={() => { send({ t: 'perm', id: perm.id, allow: false }); setPerm(null); }}>
           <p>{perm.message}</p>
           <div className="modal-actions">
             <span className="spacer" />
-            <button className="btn" onClick={() => { send({ t: 'perm', id: perm.id, allow: false }); setPerm(null); }}>Deny</button>
-            <button className="btn primary" onClick={() => { send({ t: 'perm', id: perm.id, allow: true }); setPerm(null); }}>Allow</button>
+            <button className="btn" onClick={() => { send({ t: 'perm', id: perm.id, allow: false }); setPerm(null); }}>{translateUI("Deny")}</button>
+            <button className="btn primary" onClick={() => { send({ t: 'perm', id: perm.id, allow: true }); setPerm(null); }}>{translateUI("Allow")}</button>
           </div>
         </Modal>
       )}

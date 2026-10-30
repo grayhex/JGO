@@ -1,0 +1,83 @@
+diff --git a/src/main/emulator/ui/bridge/BridgeInput.java b/src/main/emulator/ui/bridge/BridgeInput.java
+index cf05a20..2cacbd8 100644
+--- a/src/main/emulator/ui/bridge/BridgeInput.java
++++ b/src/main/emulator/ui/bridge/BridgeInput.java
+@@ -44,7 +44,13 @@ class BridgeInput implements Runnable {
+ 
+ 	private void handleEvent(String[] data) {
+ 		switch (data[0]) {
+-			case "K": {
++			case "Q": {
++                // Explicit, bounded by the external supervisor; not a save state.
++                if (Emulator.getMIDlet() != null) Emulator.getMIDlet().invokeDestroyApp(true);
++                System.exit(0);
++                return;
++            }
++            case "K": {
+ 				int code = Integer.parseInt(data[2]);
+ 				switch (data[1]) {
+ 					case "D":
+diff --git a/src/midp/javax/microedition/rms/RecordStore.java b/src/midp/javax/microedition/rms/RecordStore.java
+index 208d5a9..7c32e36 100644
+--- a/src/midp/javax/microedition/rms/RecordStore.java
++++ b/src/midp/javax/microedition/rms/RecordStore.java
+@@ -9,6 +9,32 @@ import java.util.Base64;
+ import java.util.Vector;
+ 
+ public class RecordStore {
++    /** Commit an individual RMS record/index without truncating the previous file. */
++    private static final class DurableOutput extends FileOutputStream {
++        private final File target, temporary;
++        private boolean done;
++        DurableOutput(File target) throws IOException {
++            this(target, File.createTempFile("rms-", ".pending", target.getParentFile()));
++        }
++        private DurableOutput(File target, File temporary) throws IOException {
++            super(temporary); this.target = target; this.temporary = temporary;
++        }
++        public void close() throws IOException {
++            if (done) return;
++            done = true;
++            try {
++                try { flush(); getFD().sync(); } finally { super.close(); }
++                java.nio.file.Files.move(temporary.toPath(), target.toPath(),
++                    java.nio.file.StandardCopyOption.ATOMIC_MOVE,
++                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
++                // Linux directory fsync makes the rename durable as well.
++                try (java.nio.channels.FileChannel directory = java.nio.channels.FileChannel.open(target.getParentFile().toPath(), java.nio.file.StandardOpenOption.READ)) {
++                    directory.force(true);
++                } catch (UnsupportedOperationException ignored) { }
++            } finally { temporary.delete(); }
++        }
++    }
++
+ 	private static Vector openRecordStores = new Vector();
+ 	static String rmsRootDir = Emulator.getEmulator().getProperty().getRmsFolderPath();
+ 	static String homeRootPath;
+@@ -378,7 +404,7 @@ public class RecordStore {
+ 				}
+ 				file = new File(rootPath + count + ".rms");
+ 				if (!file.exists()) file.createNewFile();
+-				OutputStream fileOutputStream = new FileOutputStream(file);
++				OutputStream fileOutputStream = new DurableOutput(file);
+ 				try {
+ 					if (data != null) {
+ 						fileOutputStream.write(data, offset, length);
+@@ -415,7 +441,7 @@ public class RecordStore {
+ 				}
+ 				file = new File(rootPath + recordId + ".rms");
+ 				if (!file.exists()) file.createNewFile();
+-				FileOutputStream fileOutputStream = new FileOutputStream(file);
++				FileOutputStream fileOutputStream = new DurableOutput(file);
+ 				try {
+ 					if (data != null) {
+ 						fileOutputStream.write(data, offset, length);
+@@ -457,7 +483,7 @@ public class RecordStore {
+ 			}
+ 			file = new File(rootPath + "idx");
+ 			if (!file.exists()) file.createNewFile();
+-			DataOutputStream dataOutputStream = new DataOutputStream(new FileOutputStream(file));
++			DataOutputStream dataOutputStream = new DataOutputStream(new DurableOutput(file));
+ 			try {
+ 				dataOutputStream.writeInt(count);
+ 				dataOutputStream.writeInt(records.size());

@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
-import { FakeMoby, PNG } from './fakeMoby.js';
+import { FakeMoby, PNG } from './dev/fakeMoby.js';
 import { Library } from './library.js';
 import { MetadataService } from './metadata.js';
 import { cleanText, decideMatch, MobyClient, MobyError, normalizeGame, normalizeTitle, titleSimilarity } from './mobygames.js';
-import { makeJar, tmpDir } from './testing.js';
+import { makeJar, tmpDir } from './dev/testing.js';
 
 const noSleep = async () => undefined;
 
