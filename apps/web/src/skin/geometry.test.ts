@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { fitBox, hitTest, placeScreen, pointInPolygon, toNormalized } from './geometry';
+import { fitBox, hitTest, placeRotated, placeScreen, pointInPolygon, toNormalized, unrotatePoint } from './geometry';
 import { parseHitboxSvg } from './hitboxes';
 
 const sq: [number, number][] = [[0.2, 0.2], [0.4, 0.2], [0.4, 0.4], [0.2, 0.4]];
@@ -57,5 +57,33 @@ describe('hitboxes.svg', () => {
     assert.equal(p[0]!.label, 'Left soft key');
     assert.equal(p[1]!.points.length, 4);
     assert.equal(problems.length, 1);
+  });
+});
+
+describe('rotated picture', () => {
+  const view = { screenRect: { x: 0.1, y: 0.1, width: 0.8, height: 0.8 } };
+  it('a sideways picture is fitted by its turned size and keeps its proportions', () => {
+    const p = placeRotated(view, { w: 1000, h: 1000 }, { w: 240, h: 320 }, false, 90);
+    assert.ok(Math.abs(p.visual.width / p.visual.height - 320 / 240) < 1e-9);
+    assert.ok(Math.abs(p.canvas.width / p.canvas.height - 240 / 320) < 1e-9);
+    assert.ok(Math.abs(p.canvas.left + p.canvas.width / 2 - (p.visual.left + p.visual.width / 2)) < 1e-9);
+    assert.ok(Math.abs(p.canvas.top + p.canvas.height / 2 - (p.visual.top + p.visual.height / 2)) < 1e-9);
+    assert.ok(p.visual.width <= 800 + 1e-9 && p.visual.height <= 800 + 1e-9);
+  });
+  it('0 and 180 keep the size, 90 and 270 swap it', () => {
+    assert.equal(placeRotated(view, { w: 1000, h: 1000 }, { w: 240, h: 320 }, false, 180).canvas.width, placeRotated(view, { w: 1000, h: 1000 }, { w: 240, h: 320 }, false, 0).canvas.width);
+    assert.equal(placeRotated(view, { w: 1000, h: 1000 }, { w: 240, h: 320 }, false, 270).visual.width > placeRotated(view, { w: 1000, h: 1000 }, { w: 240, h: 320 }, false, 270).visual.height, true);
+  });
+  it('a tap on the turned picture lands on the right framebuffer pixel', () => {
+    // turning 90° clockwise moves the top-left corner of the framebuffer to the top-right corner of the screen
+    assert.deepEqual(unrotatePoint(1, 0, 90), [0, 0]);
+    assert.deepEqual(unrotatePoint(1, 1, 90), [1, 0]);
+    assert.deepEqual(unrotatePoint(0, 0, 270), [1, 0]);
+    assert.deepEqual(unrotatePoint(0.25, 0.75, 180), [0.75, 0.25]);
+    assert.deepEqual(unrotatePoint(0.3, 0.6, 0), [0.3, 0.6]);
+    // 90 then 270 are inverses of each other
+    const [a, b] = unrotatePoint(0.2, 0.7, 90);
+    const [u, v] = [1 - b, a]; // forward 90: (a,b) -> (1-b, a)
+    assert.ok(Math.abs(u - 0.2) < 1e-9 && Math.abs(v - 0.7) < 1e-9);
   });
 });

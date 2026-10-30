@@ -285,7 +285,7 @@ export class Session {
     const e = this.clients.get(id);
     if (!e) return;
     this.clients.delete(id);
-    for (const k of e.held) this.adapter.keyUp(k); // never leave keys stuck
+    for (const k of e.held) if (![...this.clients.values()].some(other=>other.held.has(k))) this.adapter.keyUp(k); // never leave keys stuck
     if (!this.clients.size) {
       this.adapter.releaseAll();
       for (const [id, t] of this.pendingPerms) { clearTimeout(t); this.adapter.answerPermission(id, false); }
@@ -305,14 +305,15 @@ export class Session {
           this.adapter.keyDown(ev.code);
         } else if (ev.s === 'U') {
           e.held.delete(ev.code);
-          this.adapter.keyUp(ev.code);
+          if (![...this.clients.values()].some(other=>other.held.has(ev.code))) this.adapter.keyUp(ev.code);
         }
         break;
       }
-      case 'release-all':
-        for (const k of e.held) this.adapter.keyUp(k);
-        e.held.clear();
+      case 'release-all': {
+        const held=[...e.held];e.held.clear();
+        for(const k of held) if(![...this.clients.values()].some(other=>other.held.has(k))) this.adapter.keyUp(k);
         break;
+      }
       case 'pointer': {
         const { width: w, height: h } = this.settings;
         if (ev.x < -w || ev.x > 2 * w || ev.y < -h || ev.y > 2 * h) return;
@@ -354,7 +355,8 @@ export class Session {
     this.clearIdle();
     if (this.state === 'starting' || this.state === 'running') {
       this.state = 'stopping';
-      this.pushLog(`[session] stopping: ${reason}`);
+      this.pushLog(`[session] stopping: ${reason}. Requesting MIDlet destroyApp; unresponsive processes will be forcibly closed after 8 seconds. Only RMS written by the game is preserved.`);
+      this.adapter.releaseAll();
       this.broadcastText({ t: 'state', state: 'stopping' });
     }
     return this.adapter.stop();

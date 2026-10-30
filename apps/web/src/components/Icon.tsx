@@ -1,3 +1,4 @@
+import { t as translateUI } from '../i18n';
 import type { ReactNode } from 'react';
 
 const P: Record<string, ReactNode> = {
@@ -19,6 +20,7 @@ const P: Record<string, ReactNode> = {
   volume: <><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z" /><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11" /></>,
   mute: <><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z" /><path d="M16 9.5l5 5M21 9.5l-5 5" /></>,
   gamepad: <><path d="M7 8h10a4 4 0 0 1 4 4.5l-.6 3.5a2.2 2.2 0 0 1-3.8 1.1L15 15.5H9l-1.6 1.6a2.2 2.2 0 0 1-3.8-1.1L3 12.5A4 4 0 0 1 7 8z" /><path d="M8 11v3M6.5 12.5h3" /></>,
+  rotate: <><path d="M20 12a8 8 0 1 1-2.6-5.9" /><path d="M20.5 4v5h-5" /></>,
   zoom: <><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5M8.5 11h5M11 8.5v5" /></>,
   chevron: <path d="M6 9l6 6 6-6" />,
   back: <path d="M15 6l-6 6 6 6" />,
@@ -40,7 +42,7 @@ export type IconName = keyof typeof P;
 
 export function Icon({ name, className = '', title }: { name: IconName; className?: string; title?: string }) {
   return (
-    <svg className={`icon-svg ${className}`} viewBox="0 0 24 24" role={title ? 'img' : undefined} aria-label={title} aria-hidden={title ? undefined : true}>
+    <svg className={`icon-svg ${className}`} viewBox="0 0 24 24" role={title ? 'img' : undefined} aria-label={translateUI(title)} aria-hidden={title ? undefined : true}>
       {P[name]}
     </svg>
   );

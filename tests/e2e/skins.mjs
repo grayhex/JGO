@@ -2,7 +2,7 @@
 // Covers: /phones for all five models and both views, hitboxes (hold, slide, several fingers, cancel, blur),
 // keys without a binding, the live canvas under the transparent window without stretching, zoom without a restart,
 // release on model/view change.
-// Usage: node tests/e2e/skins.mjs   (needs `npm run build`, the runtime and the fixtures built)
+// Usage: npm run test:e2e:dev   (needs the runtime and fixtures built)
 import { spawn } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -58,6 +58,7 @@ const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PAT
 try {
   // ---------------------------------------------------------------- /phones
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 }, hasTouch: true });
+  await ctx.addInitScript(()=>localStorage.setItem('jgo.developer-mode','true'));
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
@@ -260,6 +261,7 @@ try {
 
   // mobile: touch the body keys
   const m = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  await m.addInitScript(()=>localStorage.setItem('jgo.developer-mode','true'));
   const mp = await m.newPage();
   await mp.goto(base + '/phones');
   await mp.waitForSelector('[data-testid=phone-nokia-6100] .skin-box');

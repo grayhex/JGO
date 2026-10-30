@@ -25,6 +25,9 @@ export class SessionStream {
   private ws: WebSocket | null = null;
   private closedByUs = false;
   private retry = 0;
+  private reconnectTimer = 0;
+  private generation = 0;
+  private lastMessage = 0;
   private pending: { u8: Uint8Array } | null = null;
   private busy = false;
   private pingTimer = 0;
@@ -33,26 +36,46 @@ export class SessionStream {
   private bytesWindow: { t: number; n: number }[] = [];
   stats: StreamStats = { fps: 0, rttMs: null, decodeMs: 0, bytesPerSec: 0, shown: 0 };
 
+  private transportLost = () => {
+    if(this.closedByUs)return;
+    ++this.generation;this.pending=null;
+    clearInterval(this.pingTimer);clearInterval(this.statTimer);clearTimeout(this.reconnectTimer);
+    this.ws?.close(4000,'transport interrupted');this.ws=null;
+    this.h.onConnection('reconnecting');
+    const delay=Math.min(5000,400*2**this.retry++);
+    this.reconnectTimer=window.setTimeout(()=>{if(!this.closedByUs)this.connect();},delay);
+  };
+  private offline = () => this.transportLost();
+  private online = () => { if(!this.closedByUs && this.ws?.readyState !== WebSocket.OPEN) this.connect(); };
   constructor(private sessionId: string, private h: StreamHandlers) {}
 
   connect(): void {
     this.closedByUs = false;
+    window.addEventListener('offline',this.offline);window.addEventListener('online',this.online);
     this.h.onConnection(this.retry ? 'reconnecting' : 'connecting');
+    clearTimeout(this.reconnectTimer);
+    clearInterval(this.pingTimer);clearInterval(this.statTimer);this.pending=null;
+    const generation = ++this.generation;
+    this.ws?.close();
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
     const ws = new WebSocket(`${proto}://${location.host}/api/sessions/${this.sessionId}/stream`);
     ws.binaryType = 'arraybuffer';
     this.ws = ws;
     ws.onopen = () => {
+      if (generation !== this.generation || this.closedByUs) { ws.close(); return; }
       this.retry = 0;
+      this.lastMessage = performance.now();
       this.h.onConnection('open');
       this.send({ t: 'release-all' }); // a fresh connection starts with nothing pressed
       this.send({ t: 'audio', on: true });
-      this.pingTimer = window.setInterval(() => this.send({ t: 'ping', ts: performance.now() }), 2000);
+      this.pingTimer = window.setInterval(() => { if (performance.now()-this.lastMessage>12000) this.transportLost(); else this.send({ t:'ping',ts:performance.now() }); }, 2000);
       this.statTimer = window.setInterval(() => this.updateStats(), 500);
     };
     ws.onmessage = (m) => {
+      if(generation !== this.generation || this.closedByUs) return;
+      this.lastMessage = performance.now();
       if (typeof m.data === 'string') {
-        const ev = JSON.parse(m.data) as ServerEvent;
+        let ev: ServerEvent; try { ev=JSON.parse(m.data); } catch { return; }
         if (ev.t === 'pong') this.stats.rttMs = Math.round(performance.now() - ev.ts);
         this.h.onEvent(ev);
         return;
@@ -68,12 +91,15 @@ export class SessionStream {
       void this.pump();
     };
     ws.onclose = (e) => {
+      if(generation !== this.generation) return;
+      ++this.generation;this.pending=null;
+      clearTimeout(this.reconnectTimer);
       window.clearInterval(this.pingTimer);
       window.clearInterval(this.statTimer);
-      if (this.closedByUs || e.code === 4404 || e.code === 1000) { this.h.onConnection('closed'); return; }
+      if (this.closedByUs || e.code === 4404 || e.code === 4401) { this.closedByUs=true;window.removeEventListener('offline',this.offline);window.removeEventListener('online',this.online);this.h.onConnection('closed'); return; }
       const delay = Math.min(5000, 400 * 2 ** this.retry++);
       this.h.onConnection('reconnecting');
-      window.setTimeout(() => { if (!this.closedByUs) this.connect(); }, delay);
+      this.reconnectTimer = window.setTimeout(() => { if (!this.closedByUs) this.connect(); }, delay);
     };
   }
 
@@ -84,10 +110,12 @@ export class SessionStream {
       while (this.pending) {
         const { u8 } = this.pending;
         this.pending = null;
+        const generation = this.generation;
         const t0 = performance.now();
         const hd = decodeFrameHeader(u8);
         const body = u8.subarray(WS_FRAME_HEADER_BYTES);
         const px = hd.enc === FRAME_ENC_DEFLATE_RAW ? new Uint8ClampedArray(await inflateRaw(body)) : new Uint8ClampedArray(body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength));
+        if(this.closedByUs || generation !== this.generation) continue;
         if (px.length !== hd.w * hd.h * 4) continue;
         this.stats.decodeMs = Math.round((performance.now() - t0) * 10) / 10;
         this.shownWindow.push(performance.now());
@@ -113,6 +141,10 @@ export class SessionStream {
 
   close(): void {
     this.closedByUs = true;
+    window.removeEventListener('offline',this.offline);window.removeEventListener('online',this.online);
+    ++this.generation;
+    clearTimeout(this.reconnectTimer);
+    this.pending=null;
     window.clearInterval(this.pingTimer);
     window.clearInterval(this.statTimer);
     this.ws?.close(1000);

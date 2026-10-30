@@ -1,3 +1,4 @@
+import { t as translateUI } from '../i18n';
 import { useEffect, useRef, type ReactNode } from 'react';
 
 export function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
@@ -11,8 +12,8 @@ export function Modal({ title, onClose, children, wide }: { title: string; onClo
   }, [onClose]);
   return (
     <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className={`modal ${wide ? 'wide' : ''}`} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={ref}>
-        <h2>{title}</h2>
+      <div className={`modal ${wide ? 'wide' : ''}`} role="dialog" aria-modal="true" aria-label={translateUI(title)} tabIndex={-1} ref={ref}>
+        <h2>{translateUI(title)}</h2>
         {children}
       </div>
     </div>

@@ -1,3 +1,4 @@
+import { t as translateUI } from '../i18n';
 import type { GameMeta, HealthStatus, ScanReport } from '@j2me-web/protocol';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../api';
@@ -62,7 +63,7 @@ export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['ki
           const first = lastScan.current === undefined;
           lastScan.current = id;
           void reload();
-          if (!first && !s.running && s.report && s.report.state === 'done' && s.report.added + s.report.updated > 0) toast('info', `Import finished: ${s.report.added} new, ${s.report.updated} changed`);
+          if (!first && !s.running && s.report && s.report.state === 'done' && s.report.added + s.report.updated > 0) toast('info', translateUI('Import finished: {added} new, {updated} changed', {added:s.report.added,updated:s.report.updated}));
         }
       } catch { /* old server or offline */ }
     };
@@ -83,7 +84,7 @@ export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['ki
       const jad = jads.find((j) => j.name.replace(/\.jad$/i, '').toLowerCase() === base) ?? (jars.length === 1 ? jads[0] : undefined);
       try {
         const r = await api.upload(jar, jad);
-        toast('info', r.duplicate ? `“${r.game.name}” is already in the library` : `Added “${r.game.name}”`);
+        toast('info', translateUI(r.duplicate ? '“{name}” is already in the library' : 'Added “{name}”', {name:r.game.name}));
         r.game.warnings.forEach((w) => toast('error', w));
       } catch (e) {
         toast('error', `${jar.name}: ${(e as ApiError).message}`);
@@ -130,33 +131,33 @@ export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['ki
     <div className="library">
       <div className="page-head">
         <div>
-          <h1>Library</h1>
-          <p>{games === null ? 'Loading…' : (() => { const n = new Set((games ?? []).map((g) => g.groupKey)).size; return `${n} ${n === 1 ? 'game' : 'games'} · ${favCount} favorites · stored on this server only`; })()}</p>
+          <h1>{translateUI("Library")}</h1>
+          <p>{games === null ? translateUI('Loading…') : (() => { const n = new Set((games ?? []).map((g) => g.groupKey)).size; return translateUI('{games} · {fav} favorites · stored on this server only', { games: translateUI(n === 1 ? '{n} game' : '{n} games', { n }), fav: favCount }); })()}</p>
         </div>
         <span className="spacer" />
-        <Seg<Filter> label="Filter" value={filter} onChange={setFilter} options={[{ value: 'all', label: 'All' }, { value: 'favorites', label: 'Favorites' }, { value: 'recent', label: 'Recent' }]} />
-        {libraryPath && <button className="btn" disabled={scanning} onClick={() => void api.scanStart('update').then((r) => setScan(r.report), (e) => toast('error', (e as Error).message))} title="Look for new and changed files in the library folder"><Icon name="restart" /> {scanning ? 'Importing…' : 'Scan folder'}</button>}
-        <button className="btn primary" onClick={() => fileInput.current?.click()}><Icon name="upload" /> Add games</button>
+        <Seg<Filter> label={translateUI("Filter")} value={filter} onChange={setFilter} options={[{ value: 'all', label: 'All' }, { value: 'favorites', label: 'Favorites' }, { value: 'recent', label: 'Recent' }]} />
+        {libraryPath && <button className="btn" disabled={scanning} onClick={() => void api.scanStart('update').then((r) => setScan(r.report), (e) => toast('error', (e as Error).message))} title={translateUI("Look for new and changed files in the library folder")}><Icon name="restart" /> {translateUI(scanning ? 'Importing…' : 'Scan folder')}</button>}
+        <button className="btn primary" onClick={() => fileInput.current?.click()}><Icon name="upload" /> {translateUI("Add games")}</button>
         <input ref={fileInput} type="file" accept=".jar,.jad" multiple hidden onChange={(e) => { void upload([...(e.target.files ?? [])]); e.target.value = ''; }} />
       </div>
 
-      {scanning && scan && <div className="note info" role="status" data-testid="scan-banner">Importing from the library folder… {scan.added + scan.updated + scan.unchanged}/{scan.jars} files · {scan.added} new{scan.current ? ` · ${scan.current}` : ''}</div>}
-      {reviewGroups > 0 && <div className="note warn" role="status">{reviewGroups} game{reviewGroups === 1 ? '' : 's'} could be matched to several MobyGames entries. <a href="/settings#mobygames" onClick={(e) => { e.preventDefault(); navigate('/settings#mobygames'); }}>Choose the right ones</a>.</div>}
+      {scanning && scan && <div className="note info" role="status" data-testid="scan-banner">{translateUI("Importing from the library folder…")} {scan.added + scan.updated + scan.unchanged}/{scan.jars} {translateUI("files ·")} {scan.added} {translateUI("new")}{translateUI(scan.current ? ` · ${scan.current}` : '')}</div>}
+      {reviewGroups > 0 && <div className="note warn" role="status">{reviewGroups} {translateUI("game")}{translateUI(reviewGroups === 1 ? '' : 's')} {translateUI("could be matched to several MobyGames entries.")} <a href="/settings#mobygames" onClick={(e) => { e.preventDefault(); navigate('/settings#mobygames'); }}>{translateUI("Choose the right ones")}</a>.</div>}
 
       {games && games.length === 0 && (
         <div className="empty">
           <div className="empty-art" aria-hidden />
-          <h2>Your library is empty</h2>
-          <p>Drop your own <code>.jar</code> files here (a matching <code>.jad</code> is optional){libraryPath ? ', or import the folder you connected.' : ', or connect a folder with your collection.'} Games are stored on this server only; nothing is downloaded for you.</p>
+          <h2>{translateUI("Your library is empty")}</h2>
+          <p>{translateUI("Drop your own")} <code>{translateUI(".jar")}</code> {translateUI("files here (a matching")} <code>{translateUI(".jad")}</code> {translateUI("is optional)")}{translateUI(libraryPath ? ', or import the folder you connected.' : ', or connect a folder with your collection.')} {translateUI("Games are stored on this server only; nothing is downloaded for you.")}</p>
           <div className="btn-row">
-            <button className="btn primary" onClick={() => fileInput.current?.click()}><Icon name="upload" /> Choose files</button>
+            <button className="btn primary" onClick={() => fileInput.current?.click()}><Icon name="upload" /> {translateUI("Choose files")}</button>
             {libraryPath
-              ? <button className="btn" disabled={scanning} onClick={() => void api.scanStart('update').then((r) => setScan(r.report), (e) => toast('error', (e as Error).message))}><Icon name="restart" /> Scan folder</button>
-              : <a className="btn" href="/settings#library" onClick={(e) => { e.preventDefault(); navigate('/settings#library'); }}>Connect a game folder</a>}
+              ? <button className="btn" disabled={scanning} onClick={() => void api.scanStart('update').then((r) => setScan(r.report), (e) => toast('error', (e as Error).message))}><Icon name="restart" /> {translateUI("Scan folder")}</button>
+              : <a className="btn" href="/settings#library" onClick={(e) => { e.preventDefault(); navigate('/settings#library'); }}>{translateUI("Connect a game folder")}</a>}
           </div>
         </div>
       )}
-      {games === null && <p className="muted">Loading…</p>}
+      {games === null && <p className="muted">{translateUI("Loading…")}</p>}
 
       <div className="lib-grid">
         {groups.map((vs) => {
@@ -164,36 +165,36 @@ export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['ki
           const bad = sel.classVersion >= 49;
           return (
             <article className="card game-card" key={sel.groupKey}>
-              <button className="card-main" onClick={() => onPlay(sel.id)} disabled={bad || health?.ok === false} title={bad ? 'Java 5+ class files are not supported by KEmulator' : `Play ${sel.name}`}>
+              <button className="card-main" onClick={() => onPlay(sel.id)} disabled={bad || health?.ok === false} title={translateUI(bad ? 'Java 5+ class files are not supported by KEmulator' : `Play ${sel.name}`)}>
                 <Cover g={sel} />
                 <div className="meta">
                   <h3>{sel.name}</h3>
-                  <p className="muted">{sel.info?.year ? `${sel.vendor} · ${sel.info.year}` : sel.vendor}</p>
+                  <p className="muted">{translateUI(sel.info?.year ? `${sel.vendor} · ${sel.info.year}` : sel.vendor)}</p>
                 </div>
               </button>
               <div className="card-foot">
-                {vs.length > 1 ? (
-                  <select className="select compact" value={sel.id} onChange={(e) => setChosen((c) => ({ ...c, [sel.groupKey]: e.target.value }))} aria-label="Version">
-                    {vs.map((v) => <option key={v.id} value={v.id}>{v.version ? `v${v.version}` : v.id.slice(0, 6)} · {(v.sizeBytes / 1024).toFixed(0)} KB</option>)}
+                {translateUI(vs.length > 1 ? (
+                  <select className="select compact" value={sel.id} onChange={(e) => setChosen((c) => ({ ...c, [sel.groupKey]: e.target.value }))} aria-label={translateUI("Version")}>
+                    {vs.map((v) => <option key={v.id} value={v.id}>{translateUI(v.version ? `v${v.version}` : v.id.slice(0, 6))} · {(v.sizeBytes / 1024).toFixed(0)} {translateUI("KB")}</option>)}
                   </select>
                 ) : (
-                  <span className="badge plain">{sel.version ? `v${sel.version}` : 'no version'}</span>
-                )}
-                {sel.warnings.length > 0 && <span className="badge mock" title={sel.warnings.join('\n')}>!</span>}
-                {sel.sourceMissing && <span className="badge plain" title="The file is no longer in the library folder; the game stays here with its saves">file gone</span>}
-                {sel.info?.status === 'ambiguous' && <span className="badge mock" title="Several MobyGames matches: open the info to choose">review</span>}
+                  <span className="badge plain">{translateUI(sel.version ? `v${sel.version}` : 'no version')}</span>
+                ))}
+                {sel.warnings.length > 0 && <span className="badge mock" title={translateUI(sel.warnings.join('\n'))}>!</span>}
+                {sel.sourceMissing && <span className="badge plain" title={translateUI("The file is no longer in the library folder; the game stays here with its saves")}>{translateUI("file gone")}</span>}
+                {sel.info?.status === 'ambiguous' && <span className="badge mock" title={translateUI("Several MobyGames matches: open the info to choose")}>{translateUI("review")}</span>}
                 <span className="spacer" />
-                <button className={`icon-btn ${sel.favorite ? 'fav' : ''}`} onClick={() => toggleFav(sel)} aria-label={sel.favorite ? 'Remove from favorites' : 'Add to favorites'} aria-pressed={sel.favorite}><Icon name="star" /></button>
-                <button className="icon-btn" onClick={() => setInfoFor(sel)} aria-label="Game information"><Icon name="info" /></button>
-                <button className="icon-btn" onClick={() => setEditing(sel)} aria-label="Game settings"><Icon name="sliders" /></button>
+                <button className={`icon-btn ${sel.favorite ? 'fav' : ''}`} onClick={() => toggleFav(sel)} aria-label={translateUI(sel.favorite ? 'Remove from favorites' : 'Add to favorites')} aria-pressed={sel.favorite}><Icon name="star" /></button>
+                <button className="icon-btn" onClick={() => setInfoFor(sel)} aria-label={translateUI("Game information")}><Icon name="info" /></button>
+                <button className="icon-btn" onClick={() => setEditing(sel)} aria-label={translateUI("Game settings")}><Icon name="sliders" /></button>
               </div>
             </article>
           );
         })}
       </div>
-      {games && games.length > 0 && groups.length === 0 && <p className="muted center">No games match.</p>}
-      {uploading > 0 && <div className="uploading">Uploading {uploading}…</div>}
-      {dragging && <div className="dropzone"><div><strong>Drop to add</strong><br />.jar and .jad files</div></div>}
+      {games && games.length > 0 && groups.length === 0 && <p className="muted center">{translateUI("No games match.")}</p>}
+      {uploading > 0 && <div className="uploading">{translateUI("Uploading")} {uploading}…</div>}
+      {dragging && <div className="dropzone"><div><strong>{translateUI("Drop to add")}</strong><br />{translateUI(".jar and .jad files")}</div></div>}
       {infoFor && <GameInfoDialog game={infoFor} toast={toast} onClose={() => setInfoFor(null)} onChanged={() => void reload()} />}
       {editing && <GameSettingsDialog game={editing} toast={toast} onClose={() => setEditing(null)} onChanged={() => { setEditing(null); void reload(); }} />}
     </div>

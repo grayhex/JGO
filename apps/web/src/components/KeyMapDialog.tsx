@@ -1,3 +1,4 @@
+import { t as translateUI } from '../i18n';
 import { useEffect, useState } from 'react';
 import { ACTION_LABEL, ACTIONS, DEFAULT_BINDINGS, prettyKey, saveBindings, type Action, type Bindings } from '../input';
 import { Modal } from './Modal';
@@ -24,26 +25,26 @@ export function KeyMapDialog({ bindings, onSave, onClose }: { bindings: Bindings
   }, [capturing]);
 
   return (
-    <Modal title="Keyboard mapping" onClose={onClose} wide>
-      <p className="muted">Click “+” and press the key you want to use. Up to three keys per phone button. J2ME key codes depend on the selected layout (Nokia, Sony Ericsson, …).</p>
+    <Modal title={translateUI("Keyboard mapping")} onClose={onClose} wide>
+      <p className="muted">{translateUI("Click “+” and press the key you want to use. Up to three keys per phone button. J2ME key codes depend on the selected layout (Nokia, Sony Ericsson, …).")}</p>
       <div className="keymap">
         {ACTIONS.map((a) => (
           <div className="keymap-row" key={a}>
-            <span>{ACTION_LABEL[a]}</span>
+            <span>{translateUI(ACTION_LABEL[a])}</span>
             <span className="keymap-keys">
               {b[a].map((c) => (
-                <button key={c} className="chip on" title="Remove" onClick={() => setB({ ...b, [a]: b[a].filter((x) => x !== c) })}>{prettyKey(c)} ×</button>
+                <button key={c} className="chip on" title={translateUI("Remove")} onClick={() => setB({ ...b, [a]: b[a].filter((x) => x !== c) })}>{prettyKey(c)} ×</button>
               ))}
-              <button className={`chip ${capturing === a ? 'on' : ''}`} onClick={() => setCapturing(capturing === a ? null : a)}>{capturing === a ? 'press a key…' : '+'}</button>
+              <button className={`chip ${capturing === a ? 'on' : ''}`} onClick={() => setCapturing(capturing === a ? null : a)}>{translateUI(capturing === a ? 'press a key…' : '+')}</button>
             </span>
           </div>
         ))}
       </div>
       <div className="modal-actions">
-        <button className="btn" onClick={() => setB(structuredClone(DEFAULT_BINDINGS))}>Reset to defaults</button>
+        <button className="btn" onClick={() => setB(structuredClone(DEFAULT_BINDINGS))}>{translateUI("Reset to defaults")}</button>
         <span className="spacer" />
-        <button className="btn" onClick={onClose}>Cancel</button>
-        <button className="btn primary" onClick={() => { saveBindings(b); onSave(b); onClose(); }}>Save</button>
+        <button className="btn" onClick={onClose}>{translateUI("Cancel")}</button>
+        <button className="btn primary" onClick={() => { saveBindings(b); onSave(b); onClose(); }}>{translateUI("Save")}</button>
       </div>
     </Modal>
   );

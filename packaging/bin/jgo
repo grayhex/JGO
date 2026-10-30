@@ -59,7 +59,11 @@ port() { echo "${JGO_PORT:-$(env_get PORT)}" | sed 's/^$/8080/'; }
 health_json() { curl -fsS --max-time 3 "http://127.0.0.1:$(port)/api/health" 2>/dev/null; }
 ip_addr() { hostname -I 2>/dev/null | awk '{print $1}'; }
 
-svc_stop() { systemctl stop jgo jgo-xvfb 2>/dev/null || true; }
+svc_stop() {
+  info "Requesting safe game shutdown; unresponsive games may be forcibly closed. Only game-written RMS is preserved." >&2
+  systemctl stop jgo || die "JGO did not stop; refusing to modify the installation or take an inconsistent backup"
+  systemctl stop jgo-xvfb
+}
 svc_start() { systemctl start jgo; }
 svc_active() { systemctl is-active --quiet "$1"; }
 

@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {existsSync,readdirSync,readFileSync} from 'node:fs';
+import path from 'node:path';
+assert.ok(existsSync('apps/api/dist/analysis/analyze.js'));
+assert.ok(!existsSync('apps/api/dist/lab/cli.js'),'Lab is in the API output; run npm run build before assembling a release');
+assert.ok(!existsSync('apps/api/dist/testing.js'));assert.ok(!existsSync('apps/api/dist/dev'));
+const assets=readdirSync('apps/web/dist/assets');
+assert.ok(!assets.some(n=>n.includes('PhonesPage')),'developer page is not shipped');
+const code=assets.filter(n=>n.endsWith('.js')).map(n=>readFileSync(path.join('apps/web/dist/assets',n),'utf8')).join('\n');
+assert.ok(!code.includes('DOWN J2ME key code'),'diagnostic pattern renderer is not shipped');
+const css=assets.filter(n=>n.endsWith('.css')).map(n=>readFileSync(path.join('apps/web/dist/assets',n),'utf8')).join('\n');
+assert.ok(!css.includes('.phones-toolbar'),'diagnostic page styles are not shipped');
+console.log('PASS: production graph retains JAR analysis and excludes Lab, test helpers and diagnostic page.');

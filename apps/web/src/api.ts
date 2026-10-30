@@ -25,7 +25,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
-/** The part of the server's JAR analysis the UI shows (apps/api/src/lab/analyze.ts). */
+/** The part of the server's JAR analysis the UI shows (apps/api/src/analysis/analyze.ts). */
 export interface JarAnalysisView {
   classCount: number;
   apis: { id: string; label: string; group: string; classes: number; missing: string[]; needsGl: boolean; note?: string }[];

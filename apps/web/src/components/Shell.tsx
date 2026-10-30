@@ -1,3 +1,5 @@
+import { useLocale, setLocale } from '../i18n';
+import { t as translateUI } from '../i18n';
 import type { HealthStatus } from '@j2me-web/protocol';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { ThemeChoice } from '../theme';
@@ -27,6 +29,7 @@ export function Shell({ path, go, health, theme, setTheme, title, subtitle, sear
   path: string; go: (to: string) => void; health: HealthStatus | null; theme: ThemeChoice; setTheme: (t: ThemeChoice) => void;
   title: string; subtitle?: string; search?: { value: string; onChange: (v: string) => void }; children: ReactNode;
 }) {
+  const locale=useLocale();
   const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem(COLLAPSE) === '1'; } catch { return false; } });
   const [drawer, setDrawer] = useState(false);
   useEffect(() => { try { localStorage.setItem(COLLAPSE, collapsed ? '1' : '0'); } catch { /* private mode */ } }, [collapsed]);
@@ -39,9 +42,9 @@ export function Shell({ path, go, health, theme, setTheme, title, subtitle, sear
   }, [drawer]);
 
   const item = (to: string, icon: IconName, label: string, active: boolean) => (
-    <Link to={to} onNavigate={go} className={`nav-item ${active ? 'active' : ''}`} aria-current={active ? 'page' : undefined} title={label}>
+    <Link to={to} onNavigate={go} className={`nav-item ${active ? 'active' : ''}`} aria-current={active ? 'page' : undefined} title={translateUI(label)}>
       <Icon name={icon} />
-      <span className="nav-label">{label}</span>
+      <span className="nav-label">{translateUI(label)}</span>
     </Link>
   );
   const inPlayer = path.startsWith('/play/');
@@ -49,44 +52,45 @@ export function Shell({ path, go, health, theme, setTheme, title, subtitle, sear
 
   return (
     <div className={`app ${collapsed ? 'shell-collapsed' : ''} ${drawer ? 'shell-drawer' : ''}`}>
-      <aside className="sidebar glass" aria-label="Main navigation">
-        <Link to="/" onNavigate={go} className="brand" aria-label="J2ME Web home">
+      <aside className="sidebar glass" aria-label={translateUI("Main navigation")}>
+        <Link to="/" onNavigate={go} className="brand" aria-label={translateUI("J2ME Web home")}>
           <span className="brand-mark" aria-hidden><svg viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5" /><path d="M10 6.5h4v5h-4zM10.5 17h3" /></svg></span>
-          <span className="brand-text">J2ME&nbsp;Web</span>
+          <span className="brand-text">{translateUI("J2ME Web")}</span>
         </Link>
         <nav className="nav">
-          <div className="nav-title">Workspace</div>
+          <div className="nav-title">{translateUI("Workspace")}</div>
           {item('/', 'library', 'Library', path === '/' || inPlayer)}
-          {item('/phones', 'phone', 'Phone lab', path === '/phones')}
+          {item('/phones', 'phone', 'Phones', path === '/phones')}
           {item('/settings', 'sliders', 'Settings', path === '/settings')}
         </nav>
         <div className="sidebar-foot">
-          <div className="runtime" title={health ? `KEmulator ${health.kemulator.commit?.slice(0, 9) ?? '?'} · Java ${health.java.version ?? 'missing'}` : 'Checking the server'}>
+          <div className="runtime" title={translateUI(health ? `KEmulator ${health.kemulator.commit?.slice(0, 9) ?? '?'} · Java ${health.java.version ?? 'missing'}` : 'Checking the server')}>
             <span className={`dot ${ok ? '' : 'bad'}`} aria-hidden />
             <span className="runtime-text">
-              <b>{health ? (ok ? 'Emulator ready' : 'Runtime not ready') : 'Connecting…'}</b>
-              {health ? `${health.activeSessions}/${health.maxSessions} sessions · v${health.version}` : 'checking server'}
+              <b>{translateUI(health ? (ok ? 'Emulator ready' : 'Runtime not ready') : 'Connecting…')}</b>
+              {translateUI(health ? '{active}/{max} sessions · v{version}' : 'checking server', health ? { active: health.activeSessions, max: health.maxSessions, version: health.version } : undefined)}
             </span>
           </div>
-          <button className="nav-item hide-mobile" onClick={() => setCollapsed((c) => !c)} aria-pressed={collapsed} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
+          <button className="nav-item hide-mobile" onClick={() => setCollapsed((c) => !c)} aria-pressed={collapsed} title={translateUI(collapsed ? 'Expand sidebar' : 'Collapse sidebar')}>
             <Icon name="sidebar" />
-            <span className="nav-label">{collapsed ? 'Expand' : 'Collapse'}</span>
+            <span className="nav-label">{translateUI(collapsed ? 'Expand' : 'Collapse')}</span>
           </button>
         </div>
       </aside>
       <div className="scrim" onClick={() => setDrawer(false)} aria-hidden />
       <header className="header glass">
-        <button className="btn-shell show-mobile" onClick={() => setDrawer(true)} aria-label="Open menu"><Icon name="menu" /></button>
+        <button className="btn-shell show-mobile" onClick={() => setDrawer(true)} aria-label={translateUI("Open menu")}><Icon name="menu" /></button>
         <div style={{ minWidth: 0 }}>
-          <div className="header-title">{title}</div>
-          {subtitle && <div className="header-sub">{subtitle}</div>}
+          <div className="header-title">{translateUI(title)}</div>
+          {subtitle && <div className="header-sub">{translateUI(subtitle)}</div>}
         </div>
         <span className="spacer" />
-        {search && <input className="input-shell" type="search" placeholder="Search games or vendors" value={search.value} onChange={(e) => search.onChange(e.target.value)} aria-label="Search" />}
-        {health && !health.ok && <span className="badge mock hide-narrow" title="The emulator runtime is missing on this server">Runtime not ready</span>}
+        <Seg<'en' | 'ru'> className="on-shell" label="Language / Язык" value={locale} onChange={setLocale} options={[{ value: 'en', label: 'EN', title: 'English' }, { value: 'ru', label: 'RU', title: 'Русский' }]} />
+        {search && <input className="input-shell" type="search" placeholder={translateUI("Search games or vendors")} value={search.value} onChange={(e) => search.onChange(e.target.value)} aria-label={translateUI("Search")} />}
+        {health && !health.ok && <span className="badge mock hide-narrow" title={translateUI("The emulator runtime is missing on this server")}>{translateUI("Runtime not ready")}</span>}
         <Seg
           className="on-shell"
-          label="Theme"
+          label={translateUI("Theme")}
           value={theme}
           onChange={setTheme}
           options={[

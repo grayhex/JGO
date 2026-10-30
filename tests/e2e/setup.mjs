@@ -11,8 +11,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const { FakeMoby } = await import(pathToFileURL(path.join(root, 'apps/api/dist/fakeMoby.js')).href);
-const { makeJar } = await import(pathToFileURL(path.join(root, 'apps/api/dist/testing.js')).href);
+const { FakeMoby } = await import(pathToFileURL(path.join(root, 'apps/api/src/dev/fakeMoby.ts')).href);
+const { makeJar } = await import(pathToFileURL(path.join(root, 'apps/api/src/dev/testing.ts')).href);
 const outDir = path.join(root, 'test-results');
 mkdirSync(outDir, { recursive: true });
 
@@ -47,7 +47,7 @@ const server = spawn('node', [path.join(root, 'apps/api/dist/server.js')], {
 });
 for (let i = 0; i < 100; i++) { try { if ((await fetch(base + '/api/health')).ok) break; } catch { /* starting */ } await sleep(100); }
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({executablePath:process.env.CHROMIUM_PATH || undefined});
 try {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const page = await ctx.newPage();

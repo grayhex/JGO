@@ -1,3 +1,8 @@
+import { useLocale, setLocale } from './i18n';
+import { t as translateUI } from './i18n';
+import { lazy, Suspense } from 'react';
+import { useDeveloperMode } from './developer';
+const DevPhones = import.meta.env.VITE_DEVELOPER_BUILD === 'true' ? lazy(()=>import('./dev/PhonesPage').then(m=>({default:m.PhonesPage}))) : null;
 import type { HealthStatus } from '@j2me-web/protocol';
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from './api';
@@ -5,6 +10,7 @@ import { SetupWizard } from './components/SetupWizard';
 import { Library } from './components/Library';
 import { Player } from './components/Player';
 import { Shell } from './components/Shell';
+import { Seg } from './components/ui';
 import { PhonesPage } from './pages/PhonesPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { loadServerSettings } from './serverSettings';
@@ -14,14 +20,15 @@ import { useTheme } from './theme';
 export type Toast = { id: number; kind: 'info' | 'error'; text: string };
 
 function Login({ onDone }: { onDone: () => void }) {
+  const locale=useLocale();
   const [token, setToken] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   return (
     <div className="login">
-      <div className="login-hero">
-        <h1>J2ME&nbsp;Web</h1>
-        <p>Your Java ME games, played by the real KEmulator on this server and streamed to any browser.</p>
+      <div className="login-hero"><Seg<'en' | 'ru'> label="Language / Язык" value={locale} onChange={setLocale} options={[{ value: 'en', label: 'EN', title: 'English' }, { value: 'ru', label: 'RU', title: 'Русский' }]} />
+        <h1>{translateUI("J2ME Web")}</h1>
+        <p>{translateUI("Your Java ME games, played by the real KEmulator on this server and streamed to any browser.")}</p>
       </div>
       <div className="login-side">
         <form
@@ -32,10 +39,10 @@ function Login({ onDone }: { onDone: () => void }) {
             try { await api.login(token); onDone(); } catch (x) { setErr((x as Error).message); } finally { setBusy(false); }
           }}
         >
-          <h2>Sign in</h2>
-          <p className="muted">This server requires an access token. On a Proxmox install run <code>jgo token</code> in the container.</p>
-          <input className="input" type="password" autoFocus placeholder="Access token" value={token} onChange={(e) => setToken(e.target.value)} aria-label="Access token" />
-          <button className="btn primary" type="submit" disabled={busy || !token}>Sign in</button>
+          <h2>{translateUI("Sign in")}</h2>
+          <p className="muted">{translateUI("This server requires an access token. On a Proxmox install run")} <code>{translateUI("jgo token")}</code> {translateUI("in the container.")}</p>
+          <input className="input" type="password" autoFocus placeholder={translateUI("Access token")} value={token} onChange={(e) => setToken(e.target.value)} aria-label={translateUI("Access token")} />
+          <button className="btn primary" type="submit" disabled={busy || !token}>{translateUI("Sign in")}</button>
           {err && <p className="error">{err}</p>}
         </form>
       </div>
@@ -44,6 +51,8 @@ function Login({ onDone }: { onDone: () => void }) {
 }
 
 export function App() {
+  useLocale();
+  const developer=useDeveloperMode();
   const [theme, setTheme] = useTheme();
   const [path, go] = usePath();
   const [health, setHealth] = useState<HealthStatus | null>(null);
@@ -88,12 +97,12 @@ export function App() {
     : settings
       ? { title: 'Settings', subtitle: 'Library, MobyGames, phone, sound, server', node: <SettingsPage toast={toast} onRunWizard={() => setWizard(true)} onLibraryChanged={() => window.dispatchEvent(new Event('j2me:library-changed'))} /> }
     : phones
-      ? { title: 'Phone lab', subtitle: 'Skins, views and hitboxes', node: <PhonesPage /> }
+      ? { title: 'Phones', subtitle: 'Classic phones', node: DevPhones && developer ? <Suspense fallback={null}><DevPhones /></Suspense> : <PhonesPage /> }
       : { title: 'Library', subtitle: 'Your games on this server', node: <Library toast={toast} onPlay={(id) => go(`/play/${id}`)} health={health} query={query} /> };
 
   return (
     <>
-      <Shell path={path} go={go} health={health} theme={theme} setTheme={setTheme} title={page.title} subtitle={page.subtitle} search={!play && !phones && !settings ? { value: query, onChange: setQuery } : undefined}>
+      <Shell path={path} go={go} health={health} theme={theme} setTheme={setTheme} title={translateUI(page.title)} subtitle={translateUI(page.subtitle)} search={!play && !phones && !settings ? { value: query, onChange: setQuery } : undefined}>
         {page.node}
       </Shell>
       {wizard && (
@@ -108,7 +117,7 @@ export function App() {
         />
       )}
       <div className="toasts" role="status" aria-live="polite">
-        {toasts.map((t) => <div key={t.id} className={`toast ${t.kind}`}>{t.text}</div>)}
+        {toasts.map((t) => <div key={t.id} className={`toast ${t.kind}`}>{translateUI(t.text)}</div>)}
       </div>
     </>
   );

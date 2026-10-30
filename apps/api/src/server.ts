@@ -13,7 +13,7 @@ import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { type Config, loadConfig, readKemCommit } from './config.js';
 import { findPreset, loadDevicePresets, recommendPreset } from './devices.js';
 import { UploadError } from './jar.js';
-import { analyzeJar, emulatorClassSet, readAttributes } from './lab/analyze.js';
+import { analyzeJar, emulatorClassSet, readAttributes } from './analysis/analyze.js';
 import { registerAdminRoutes } from './adminRoutes.js';
 import { Library, newId, validateSettings } from './library.js';
 import { MetadataService } from './metadata.js';
@@ -247,6 +247,8 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
     return reply.code(204).send();
   });
 
+  let draining = false;
+  app.addHook('onRequest',async(req,reply)=>{ if(draining && req.method==='POST' && req.url.split('?')[0]==='/api/sessions') return reply.code(503).send({error:'draining',message:'Server is shutting down. Reconnect after restart.'}); });
   // --- sessions ---
   app.post<{ Body: { gameId?: string; settings?: unknown } }>('/api/sessions', async (req, reply) => {
     const game = typeof req.body?.gameId === 'string' ? library.get(req.body.gameId) : null;
@@ -281,6 +283,9 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
       return;
     }
     const id = newId(6);
+    let alive=true;
+    const heartbeat=setInterval(()=>{if(!alive){socket.terminate();return;}alive=false;socket.ping();},5000);
+    socket.on('pong',()=>{alive=true;});
     let budget = 400; // client messages per second
     const refill = setInterval(() => (budget = 400), 1000);
     const client: StreamClient = {
@@ -305,7 +310,7 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
       if (!ev || typeof ev !== 'object' || typeof (ev as { t?: unknown }).t !== 'string') return;
       s.handleClientEvent(id, ev);
     });
-    const gone = () => { clearInterval(refill); s.removeClient(id); };
+    const gone = () => { clearInterval(refill); clearInterval(heartbeat); s.removeClient(id); };
     socket.on('close', gone);
     socket.on('error', gone);
   });
@@ -328,15 +333,17 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
     });
   }
 
+  let closing: Promise<void> | null = null;
   return {
     fastify: app, cfg, library, sessions, settings, scan, metadata,
-    async close() {
-      scan.cancel();
-      metadata.cancel();
-      await Promise.allSettled([scan.idle(), metadata.idle()]);
-      await sessions.stopAll();
-      await app.close();
-      library.close();
+    close() {
+      draining=true;
+      return closing ??= (async()=>{
+        scan.cancel();metadata.cancel();
+        // Save MIDlet RMS promptly even if a cancelled metadata request is slow to finish.
+        await Promise.all([sessions.stopAll(),Promise.allSettled([scan.idle(),metadata.idle()])]);
+        await app.close();library.close();
+      })();
     },
   };
 }

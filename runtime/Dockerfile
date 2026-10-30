@@ -34,7 +34,8 @@ WORKDIR /app
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY packages packages
 COPY apps apps
-RUN npm ci && npm run build && npm prune --omit=dev && rm -rf apps/web/src
+COPY tools/release/prune.mjs /tmp/jgo-release-prune.mjs
+RUN npm ci && npm run build && npm prune --omit=dev && node /tmp/jgo-release-prune.mjs /app && rm /tmp/jgo-release-prune.mjs
 
 # ---- 4. Runtime --------------------------------------------------------------------------
 FROM ${BASE_REGISTRY}/ubuntu:24.04 AS runtime

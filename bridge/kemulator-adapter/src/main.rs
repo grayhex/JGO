@@ -449,9 +449,14 @@ fn main() {
             let stdin = io::stdin();
             let mut si = stdin.lock();
             let request_quit = |input: &Arc<Mutex<Option<File>>>| {
-                quitting.store(true, Ordering::SeqCst);
-                input.lock().unwrap().take(); // closing inputpipe is the documented shutdown
+                if quitting.swap(true, Ordering::SeqCst) {
+                    return; // Repeated Q / EOF must not extend the shutdown deadline.
+                }
                 *kd.lock().unwrap() = Some(Instant::now() + grace);
+                if let Some(f) = input.lock().unwrap().as_mut() {
+                    let _ = f.write_all(b"Q\n"); // Patched Bridge calls MIDlet.destroyApp(true).
+                }
+                // Keep the FIFO alive while the MIDlet completes its shutdown hook.
             };
             loop {
                 match read_msg(&mut si) {

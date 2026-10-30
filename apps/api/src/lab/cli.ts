@@ -17,7 +17,7 @@ import path from 'node:path';
 import { loadConfig, readKemCommit } from '../config.js';
 import { loadDevicePresets } from '../devices.js';
 import { buildApp } from '../server.js';
-import { analyzeJar, emulatorClassSet, readAttributes } from './analyze.js';
+import { analyzeJar, emulatorClassSet, readAttributes } from '../analysis/analyze.js';
 import { discoverGames } from './discover.js';
 import { applyRatings, renderReport, type Ratings, type ReportMeta } from './report.js';
 import { type GameLabConfig, type GameResult, runGame } from './runner.js';

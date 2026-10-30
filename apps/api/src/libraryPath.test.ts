@@ -3,7 +3,7 @@ import { chmodSync, mkdirSync, symlinkSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { browseLibrary, checkLibraryDir, listRoots, resolveInsideRoots, walkLibrary, type WalkStats } from './libraryPath.js';
-import { makeJar, put, testConfig, tmpDir } from './testing.js';
+import { makeJar, put, testConfig, tmpDir } from './dev/testing.js';
 
 describe('library path safety', () => {
   const root = tmpDir('jgo-root-');

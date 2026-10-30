@@ -349,7 +349,9 @@ export const SCREEN_PRESETS: { label: string; width: number; height: number }[] 
   { label: '240×320', width: 240, height: 320 },
   { label: '320×240', width: 320, height: 240 },
   { label: '240×400', width: 240, height: 400 },
+  { label: '320×480', width: 320, height: 480 },
   { label: '360×640', width: 360, height: 640 },
+  { label: '480×800', width: 480, height: 800 },
 ];
 
 export const DEFAULT_SETTINGS: GameSettings = { width: 240, height: 320, layout: 'nokia', heapMb: 256 };

@@ -104,6 +104,7 @@ prepare() {
   rm -rf "$WORK/releases" "$WORK/tls"
   mkdir -p "$WORK/releases" "$WORK/tls" "$WORK/build"
   # A = what the installer deploys, B = a newer release, BAD = a release whose server dies on start, SUM = tampered download
+  bash "$root/tests/fixtures/labgames/build.sh" "$root/runtime/build/kemulator/KEmulator.jar"
   for v in 0.2.0-test 0.2.1-test; do
     "$root/packaging/build-release.sh" "$v" "$WORK/build/$v" >/dev/null
     mkdir -p "$WORK/releases/v$v"
@@ -223,6 +224,12 @@ t_hardening() {
 
 t_rms_restart() {
   log "persistence: RMS survives session, service restart and a container reboot"
+  local checkpoint_before checkpoint_after
+  checkpoint_before=$(smoke shutdown-open | sed -n 's/^SHUTDOWN_COUNT=//p')
+  sh_ "systemctl restart jgo"
+  wait_health 40 || no "shutdown checkpoint: service did not restart"
+  checkpoint_after=$(smoke shutdown-count | sed -n 's/^SHUTDOWN_COUNT=//p')
+  check "systemd restart invokes destroyApp and preserves its RMS" eq "$checkpoint_after" "$((checkpoint_before + 1))"
   local a b c d tok0
   tok0=$(token)
   a=$(launches)
