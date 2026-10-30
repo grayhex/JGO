@@ -1,0 +1,84 @@
+# J2ME Web
+
+Self-hosted веб-плеер для Java ME (J2ME) игр. Игра исполняется **настоящим KEmulator nnmod** на сервере
+(через его Bridge-фронтенд), в браузер идут кадры, звук и события; клавиатура, gamepad и экранная
+клавиатура управляют игрой. Ничего не эмулируется на JavaScript.
+
+![player](docs/img/player.png)
+
+## Запуск одной командой (Docker)
+
+```bash
+docker compose up --build
+```
+
+Откройте <http://localhost:8080>, перетащите в окно свой `.jar` (опционально и `.jad`) и нажмите **Start**.
+
+* порт публикуется только на `127.0.0.1`; перед выставлением куда-либо ещё задайте `AUTH_TOKEN` (≥16 символов);
+* контейнер игры: не root, `read_only`, `cap_drop: ALL`, `no-new-privileges`, лимиты CPU/RAM/PIDs, **сеть без выхода наружу**
+  (игры не могут ходить в интернет; `docker compose -f compose.yaml -f compose.egress.yaml up` разрешает);
+* данные (библиотека, SQLite, RMS-сохранения, логи) лежат в томе `j2me-data`;
+* если Docker Hub отдаёт 429: `BASE_REGISTRY=mirror.gcr.io/library docker compose up --build`.
+
+Требования: Docker (на Windows — Docker Desktop + WSL2), Linux x86_64 образ собирается ~2–3 минуты.
+
+## Запуск без Docker (Linux / WSL2 Ubuntu)
+
+```bash
+sudo apt install openjdk-21-jdk-headless git nodejs xvfb libgl1-mesa-dri   # Node >= 22.13, Rust через rustup
+npm run setup      # собирает KEmulator (pinned commit + патчи), Rust-адаптер, веб-интерфейс, тестовые MIDlet
+npm start          # http://127.0.0.1:8080
+```
+
+3D (M3G / Mascot Capsule) требует X-дисплей с GLX: `Xvfb :99 -screen 0 640x480x24 +extension GLX &`,
+затем `KEM_DISPLAY=:99 LIBGL_ALWAYS_SOFTWARE=1 npm start`. Без `KEM_DISPLAY` 2D и звук работают как есть.
+
+## Что внутри
+
+```
+browser (React) ⇄ WS/REST ⇄ apps/api (Fastify) ⇄ stdio ⇄ kem-adapter (Rust) ⇄ FIFO + mmap ⇄ KEmulator nnmod (JVM)
+```
+
+| Путь | Назначение |
+|---|---|
+| `apps/web` | React + Vite: библиотека, плеер, ввод, экранная клавиатура, ремаппинг клавиш |
+| `apps/api` | Fastify: REST, WebSocket-поток, библиотека (SQLite), сессии, лимиты, авторизация |
+| `bridge/kemulator-adapter` | Rust: FIFO-рукопожатие Bridge, mmap фреймбуфера, процесс-супервизор |
+| `packages/protocol` | общие типы/константы WS-протокола |
+| `runtime/` | Dockerfile, сборка KEmulator, **патчи**, Java-микшер звука |
+| `tests/` | тестовые MIDlet (2D, M3G), интеграционные и e2e тесты |
+| `docs/` | архитектура, Bridge, совместимость, безопасность, Cloudflare |
+
+Версия эмулятора: **KEmulator nnmod v2.22, commit `9ec1005af5448bca63a420e1dfa884ef53842d0f`** — собирается из исходников
+с 4 небольшими патчами (`runtime/patches`, причины в [docs/BRIDGE.md](docs/BRIDGE.md)). Бинарники и исходники KEmulator в репозиторий не входят.
+
+## API
+
+`GET /api/health`, `GET|POST /api/games`, `PATCH|DELETE /api/games/:id`, `POST /api/sessions`,
+`GET|DELETE /api/sessions/:id`, `WS /api/sessions/:id/stream`. Подробнее — [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Тесты
+
+```bash
+npm test                    # юнит: парсер JAR (9) 
+cargo test --manifest-path bridge/kemulator-adapter/Cargo.toml
+npm run test:integration    # 20 тестов на НАСТОЯЩЕМ KEmulator: кадры, ввод, RMS, краш, 3D, звук, auth
+npm run test:e2e            # настоящий Chromium: загрузка, игра, клавиши, звук, перезагрузка страницы
+BASE=http://127.0.0.1:8080 node tests/e2e/container-smoke.mjs   # против запущенного docker compose
+```
+
+## Ограничения (кратко; детали в docs/COMPATIBILITY.md)
+
+* KEmulator принимает только class-файлы версии ≤ 48 (то есть настоящие J2ME-JAR); новее — понятная ошибка при загрузке.
+* **Коммерческие игры (Gameloft, Nokia, SE) в рамках разработки не тестировались** — их нет в репозитории и они не скачивались.
+  Проверено на собственных свободных MIDlet (2D, M3G, звук, RMS). Mascot Capsule не проверялся.
+* Экраны `TextBox` / `List` Bridge-фронтенд KEmulator пока не реализует (`Not implemented` в самом эмуляторе).
+* Одна активная сессия по умолчанию (`MAX_SESSIONS`); архитектура рассчитана на несколько.
+* Пользователи: пока один владелец (`default`); изоляция сохранений по играм/версиям есть, по пользователям — заготовка (`saves/<owner>/<game>`).
+
+## Лицензии
+
+Код этого репозитория — MIT. KEmulator nnmod не содержит файла лицензии в репозитории и включает код
+под GPLv3/Apache-2.0/EPL (см. README апстрима): поэтому он **не поставляется** вместе с проектом, а собирается
+из апстрима при сборке образа; перед публичным распространением собранных образов нужно уточнить условия у автора
+(shinovon) или распространять только скрипты сборки.

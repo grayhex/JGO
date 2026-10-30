@@ -1,0 +1,13 @@
+// SKETCH — not deployed, not validated. See docs/CLOUDFLARE.md.
+{
+  "name": "j2me-web",
+  "main": "worker.ts",
+  "compatibility_date": "2026-10-01",
+  "assets": { "directory": "../../apps/web/dist", "binding": "ASSETS", "not_found_handling": "single-page-application" },
+  "containers": [
+    { "class_name": "GameSession", "image": "../../runtime/Dockerfile", "instance_type": "standard-2", "max_instances": 5 }
+  ],
+  "durable_objects": { "bindings": [{ "name": "GAME_SESSION", "class_name": "GameSession" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GameSession"] }]
+  // TODO: R2 bucket (JARs + RMS), D1 database (library metadata), AUTH secret
+}
