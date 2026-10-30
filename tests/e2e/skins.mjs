@@ -52,7 +52,7 @@ async function point(page, id, view, key) {
 }
 const keyLog = (page) => page.locator('[data-testid=key-log]').innerText();
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 try {
   // ---------------------------------------------------------------- /phones
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 }, hasTouch: true });

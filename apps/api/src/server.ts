@@ -1,3 +1,4 @@
+import { resolvePhone } from '@j2me-web/protocol';
 import { execFile } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { createHmac, timingSafeEqual } from 'node:crypto';
@@ -67,8 +68,13 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
       throw new SessionError('devices_unavailable', `Cannot read KEmulator device presets: ${(e as Error).message}`, 503);
     }
   };
-  /** Applies a device preset to settings; explicit fields in `explicit` win over the preset. */
+  /** Auto mode follows the phone table. Advanced mode lets explicit fields override a preset. */
   const withDevice = (settings: GameSettings, explicit: Record<string, unknown>): GameSettings => {
+    if (settings.profileMode === 'auto') {
+      if (!settings.skinId) throw new SessionError('bad_settings', 'Automatic mode requires a skin', 400);
+      const { preset } = resolvePhone(settings.skinId, devicePresets().presets);
+      return { ...settings, device: preset.id, width: preset.width, height: preset.height, layout: preset.layout };
+    }
     if (!settings.device) return settings;
     const p = findPreset(devicePresets().presets, settings.device);
     if (!p) throw new SessionError('unknown_device', `Unknown device preset "${settings.device}"`, 400);
@@ -199,9 +205,12 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
 
   app.patch<{ Params: { id: string }; Body: { favorite?: boolean; settings?: unknown } }>('/api/games/:id', async (req) => {
     let patchSettings = req.body?.settings;
-    if (patchSettings && typeof patchSettings === 'object' && 'device' in patchSettings) {
+    if (patchSettings && typeof patchSettings === 'object') {
       const cur = library.get(req.params.id);
-      if (cur) patchSettings = withDevice(validateSettings(patchSettings, cur.settings), patchSettings as Record<string, unknown>);
+      if (cur) {
+        const valid = validateSettings(patchSettings, cur.settings);
+        patchSettings = valid.profileMode === 'auto' || 'device' in patchSettings ? withDevice(valid, patchSettings as Record<string, unknown>) : valid;
+      }
     }
     const g = library.update(req.params.id, { ...(typeof req.body?.favorite === 'boolean' ? { favorite: req.body.favorite } : {}), settings: patchSettings });
     if (!g) throw new UploadError('not_found', 'Game not found', 404);
@@ -223,7 +232,7 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
     const requested = (req.body?.settings ?? {}) as Record<string, unknown>;
     const merged = validateSettings(req.body?.settings, game.settings);
     // a preset only rewrites size/layout when it is (re)selected in this request; otherwise the saved values stand
-    const settings = 'device' in requested ? withDevice(merged, requested) : merged;
+    const settings = merged.profileMode === 'auto' || 'device' in requested ? withDevice(merged, requested) : merged;
     const s = await sessions.create(game, settings, owner);
     return reply.code(201).send(s.status());
   });

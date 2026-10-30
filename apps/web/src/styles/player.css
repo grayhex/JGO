@@ -49,3 +49,26 @@
   .stage-card { position: static; }
   .stage, .stage.stage-screen { --stage-h: clamp(360px, 62dvh, 760px); padding: 12px; }
 }
+.pad-binding { display:grid;grid-template-columns:1fr 1fr auto;gap:6px;margin:6px 0;align-items:center; }
+.pad-binding.held { background:var(--primary-tint); }
+.gamepad-settings { display:grid;gap:10px; }
+.gamepad-settings label { display:grid;gap:6px; }
+/* No ancestor opacity/filter: the framebuffer retains its original brightness. */
+.player-grid.lights-out { position:fixed;inset:0;z-index:1000;background:#010203;display:block;padding:0;overflow:hidden; }
+.lights-out .stage-card,.stage-card:fullscreen { position:static; }
+.lights-out .stage-card { height:100dvh;background:#010203;border:0;border-radius:0;box-shadow:none;display:flex;flex-direction:column; }
+.lights-out .ctrl-col,.lights-out .skin-picker { display:none; }
+.lights-out .stage-bar { position:absolute;top:0;z-index:20;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .25s; }
+.lights-out .stage { height:100%;flex:1;min-height:0;padding:12px;background:#010203; }
+.lights-out .skin-body,.lights-out .skin-glass { opacity:.035;transition:opacity .3s; }
+.lights-out .skin-lcd { background:#000;box-shadow:none; }
+.lights-out .stage-foot { display:none;background:#010203;border:0; }
+.lights-out.touch-controls .stage-foot { display:grid;position:absolute;bottom:0;left:0;right:0;z-index:10;opacity:.85;max-height:45dvh;overflow:auto; }
+.lights-hud { position:absolute;right:12px;top:max(12px,env(safe-area-inset-top));z-index:30;display:flex;gap:8px; }
+.lights-hud .btn { background:#101519;color:#d6e2e8; }
+.lights-out:not(.hud-awake) { cursor:none; }
+.lights-out:not(.hud-awake) .lights-hud .transient { opacity:0;pointer-events:none; }
+.lights-hud .btn { transition:opacity .3s; }
+@media(prefers-reduced-motion:reduce){.lights-out *{transition:none!important;}}
+
+.lights-out .skin-box { filter:none; }

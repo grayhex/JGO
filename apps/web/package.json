@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -p . --noEmit && vite build",
     "typecheck": "tsc -p . --noEmit",
-    "test": "node --import tsx --test src/skin/*.test.ts",
+    "test": "node --import tsx --test src/skin/*.test.ts src/*.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {

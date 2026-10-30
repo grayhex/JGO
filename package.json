@@ -23,7 +23,7 @@
     "lab": "node --import tsx apps/api/src/lab/cli.ts",
     "setup": "bash runtime/scripts/setup.sh",
     "test:integration": "node --import tsx --test --test-concurrency=1 tests/integration/*.test.ts",
-    "test:e2e": "node tests/e2e/browser.mjs && node tests/e2e/skins.mjs",
+    "test:e2e": "node tests/e2e/browser.mjs && node tests/e2e/skins.mjs && node tests/e2e/player-features.mjs",
     "test:phones": "python3 tools/phones/validate_assets.py",
     "test:lab-report": "node tests/e2e/lab-report.mjs"
   },

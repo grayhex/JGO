@@ -1,5 +1,7 @@
 import type { DevicePreset, GameMeta, GameSettings, HealthStatus, SessionStatus } from '@j2me-web/protocol';
 
+export type GameSettingsPatch = Partial<Omit<GameSettings, 'device'>> & { device?: string | null };
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -47,10 +49,10 @@ export const api = {
     if (jad) fd.append('jad', jad, jad.name);
     return req<{ game: GameMeta; duplicate: boolean }>('/api/games', { method: 'POST', body: fd });
   },
-  patchGame: (id: string, patch: { favorite?: boolean; settings?: Partial<GameSettings> }) => req<GameMeta>(`/api/games/${id}`, jsonInit('PATCH', patch)),
+  patchGame: (id: string, patch: { favorite?: boolean; settings?: GameSettingsPatch }) => req<GameMeta>(`/api/games/${id}`, jsonInit('PATCH', patch)),
   deleteGame: (id: string, saves: boolean) => req<void>(`/api/games/${id}${saves ? '?saves=1' : ''}`, { method: 'DELETE' }),
   iconUrl: (id: string) => `/api/games/${id}/icon`,
-  startSession: (gameId: string, settings?: Partial<GameSettings>) => req<SessionStatus>('/api/sessions', jsonInit('POST', { gameId, settings })),
+  startSession: (gameId: string, settings?: GameSettingsPatch) => req<SessionStatus>('/api/sessions', jsonInit('POST', { gameId, settings })),
   devices: () => req<{ presets: DevicePreset[]; defaultName: string | null }>('/api/devices'),
   analysis: (id: string) => req<{ analysis: JarAnalysisView; recommendedDevice: string | null }>(`/api/games/${id}/analysis`),
   sessions: () => req<SessionStatus[]>('/api/sessions'),

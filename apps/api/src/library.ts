@@ -1,3 +1,4 @@
+import { isPhoneId } from '@j2me-web/protocol';
 import { createHash, randomBytes } from 'node:crypto';
 import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
@@ -48,6 +49,14 @@ export function validateSettings(input: unknown, base: GameSettings = DEFAULT_SE
     if (o.device === null || o.device === '') delete out.device;
     else if (typeof o.device !== 'string' || !/^[a-z0-9][a-z0-9-]{0,120}$/.test(o.device)) throw new UploadError('bad_settings', 'invalid device id');
     else out.device = o.device;
+  }
+  if (o.skinId !== undefined) {
+    if (!isPhoneId(o.skinId)) throw new UploadError('bad_settings', 'unknown phone skin');
+    out.skinId = o.skinId;
+  }
+  if (o.profileMode !== undefined) {
+    if (o.profileMode !== 'auto' && o.profileMode !== 'advanced') throw new UploadError('bad_settings', 'invalid profile mode');
+    out.profileMode = o.profileMode;
   }
   void SCREEN_PRESETS;
   return out;
