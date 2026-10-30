@@ -42,6 +42,18 @@ export interface GameMeta {
 
 export type SessionState = 'starting' | 'running' | 'stopping' | 'exited' | 'failed';
 
+/** Resource usage of the emulator process tree (adapter + JVM), sampled by the API. */
+export interface ResourceUsage {
+  rssMb: number;
+  peakRssMb: number;
+  /** Cumulative CPU time of the tree, seconds. */
+  cpuSeconds: number;
+  /** Average CPU use since the session started, in % of one core. */
+  cpuPercentAvg: number;
+  /** CPU use over the last sampling interval, in % of one core. */
+  cpuPercentNow: number;
+}
+
 export interface SessionStatus {
   id: string;
   gameId: string;
@@ -60,6 +72,11 @@ export interface SessionStatus {
   logTail: string[];
   /** Human-readable findings extracted from the emulator log (unsupported APIs, load failures). */
   diagnostics: string[];
+  /** Milliseconds from session creation to the first frame (null until one arrives). */
+  firstFrameMs: number | null;
+  resources: ResourceUsage | null;
+  /** Effective device preset id, if any. */
+  device: string | null;
   /** PCM bytes the emulator has produced so far (0 = the game never made a sound). */
   audioBytes: number;
   /** Width/height of frames actually produced. */

@@ -1,0 +1,14 @@
+diff --git a/src/main/emulator/Emulator.java b/src/main/emulator/Emulator.java
+index 4902aad2..9c9d4420 100644
+--- a/src/main/emulator/Emulator.java
++++ b/src/main/emulator/Emulator.java
+@@ -632,7 +632,8 @@ public class Emulator implements Runnable {
+ 			if (platform.isX64()) Settings.g3d = 1;
+ 
+ 			platform.load3D();
+-			Controllers.refresh(true);
++			// j2me-web: no gamepads in the Bridge (headless) runtime; probing /dev/input only logged stack traces
++			if (!bridge) Controllers.refresh(true);
+ 			Emulator.emulatorimpl.getLogStream().stdout(getCmdVersionString() + " Running on "
+ 					+ System.getProperty("os.name") + ' ' + System.getProperty("os.arch")
+ 					+ " (" + System.getProperty("os.version") + "), Java: "

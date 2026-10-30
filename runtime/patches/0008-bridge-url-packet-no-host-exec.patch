@@ -1,0 +1,17 @@
+diff --git a/src/main/emulator/Emulator.java b/src/main/emulator/Emulator.java
+index 9c9d4420..b7bbe620 100644
+--- a/src/main/emulator/Emulator.java
++++ b/src/main/emulator/Emulator.java
+@@ -171,6 +171,12 @@ public class Emulator implements Runnable {
+ 	}
+ 
+ 	public static void openUrlExternally(final String url) throws ConnectionNotFoundException {
++		// j2me-web: never exec xdg-open / a desktop browser on the server for an untrusted MIDlet; the
++		// Bridge protocol has a dedicated "U" packet so the client can decide what to do with the URL.
++		if (emulatorimpl instanceof BridgeFrontend) {
++			((BridgeFrontend) emulatorimpl).sendToState('U', url.getBytes(java.nio.charset.StandardCharsets.UTF_8));
++			return;
++		}
+ 		if (Utils.linux) {
+ 			if (Files.isExecutable(Paths.get("/usr/bin/xdg-open"))) {
+ 				try {

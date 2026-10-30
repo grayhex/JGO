@@ -1,0 +1,163 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'claude/**', 'feat/**']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # Pinned in runtime/scripts/build-kemulator.sh; used only for the cache key
+  KEM_BUILD_INPUTS: runtime/patches runtime/audio runtime/scripts/build-kemulator.sh runtime/scripts/lib.sh
+
+jobs:
+  typescript:
+    name: TypeScript (typecheck, build, unit tests)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - name: Unit tests (JAR parser, device presets, analyzer)
+        run: npm test
+
+  rust:
+    name: Rust (fmt, clippy, tests)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: bridge/kemulator-adapter
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            bridge/kemulator-adapter/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('bridge/kemulator-adapter/Cargo.lock') }}
+      - run: cargo fmt --check
+      - run: cargo clippy --locked --all-targets -- -D warnings
+      - run: cargo test --locked
+
+  scripts:
+    name: Build scripts (shellcheck + compile errors must fail)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: shellcheck -S warning runtime/scripts/*.sh tests/fixtures/*/build.sh tests/scripts/*.sh
+      - run: bash tests/scripts/build-scripts.test.sh
+
+  integration:
+    name: Integration + e2e on the real KEmulator
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            bridge/kemulator-adapter/target
+          key: cargo-int-${{ runner.os }}-${{ hashFiles('bridge/kemulator-adapter/Cargo.lock', 'bridge/kemulator-adapter/src/**') }}
+          restore-keys: cargo-int-${{ runner.os }}-
+      - name: Cache the patched KEmulator build
+        id: kem
+        uses: actions/cache@v4
+        with:
+          path: runtime/build/kemulator
+          key: kemulator-${{ hashFiles('runtime/patches/*', 'runtime/audio/**', 'runtime/scripts/build-kemulator.sh', 'runtime/scripts/lib.sh') }}
+      - name: System packages (X server + Mesa software GL, fonts)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb libgl1 libglx-mesa0 libgl1-mesa-dri libegl1 fontconfig fonts-dejavu-core libharfbuzz0b
+      - name: Build everything (KEmulator from the pinned commit + patches, adapter, web, fixtures)
+        run: |
+          [ -f runtime/build/kemulator/KEmulator.jar ] && echo "KEmulator restored from cache" || true
+          npm ci
+          bash runtime/scripts/setup.sh
+      - name: Integration tests (real emulator, 2D + audio + devices + Bridge regressions + 3D)
+        run: |
+          xvfb-run -a -s "-screen 0 1024x768x24 +extension GLX" \
+            env KEM_DISPLAY="$DISPLAY" LIBGL_ALWAYS_SOFTWARE=1 npm run test:integration
+      - name: Install Chromium for the browser e2e test
+        run: npx playwright install --with-deps chromium
+      - name: Browser e2e (upload, play, keys, audio level, reload)
+        run: npm run test:e2e
+      - name: Compatibility lab on the free fixtures
+        run: |
+          npm run lab -- run tests/fixtures/testmidlet/build tests/fixtures/testmidlet3d/build tests/fixtures/labgames/build \
+            --out lab-out --measure 3 --title "CI lab run"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lab-report-and-screenshots
+          path: |
+            lab-out/report.html
+            lab-out/results.json
+            test-results/*.png
+          if-no-files-found: ignore
+
+  docker:
+    name: Docker image + container smoke test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Build and start the stack
+        run: docker compose up -d --build
+      - name: Wait for health
+        run: |
+          for i in $(seq 1 60); do curl -fsS localhost:8080/api/health | grep -q '"ok":true' && exit 0; sleep 2; done
+          docker compose logs app; exit 1
+      - name: Build fixtures against the emulator jar from the image
+        run: |
+          mkdir -p runtime/build/kemulator
+          docker compose cp app:/opt/kemulator/KEmulator.jar runtime/build/kemulator/KEmulator.jar
+          bash tests/fixtures/testmidlet/build.sh runtime/build/kemulator/KEmulator.jar
+          bash tests/fixtures/testmidlet3d/build.sh runtime/build/kemulator/KEmulator.jar
+      - name: Container smoke (2D + audio, M3G on llvmpipe)
+        run: node tests/e2e/container-smoke.mjs
+      - name: Hardening is in effect
+        run: |
+          docker compose exec -T app sh -c 'test "$(id -u)" = 10001 && ! touch /x 2>/dev/null && grep -q "CapEff:.0000000000000000" /proc/self/status'
+          ! docker compose exec -T app node -e "require('net').connect(80,'1.1.1.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"
+      - if: always()
+        run: docker compose down -v

@@ -52,6 +52,8 @@ describe('parsePresets', () => {
     assert.equal(recommendPreset(presets, { family: 'nokia', screens: [{ width: 208, height: 208 }] })?.id, '208x208-nokia-full-screen');
     assert.equal(recommendPreset(presets, { family: 'siemens', screens: [] })?.id, '132x176-siemens-full-screen');
     assert.equal(recommendPreset(presets, { family: 'generic', screens: [] }), null);
+    assert.equal(recommendPreset(presets, { family: 'nokia', screens: [] }), null, 'no evidence: keep the emulator default');
+    assert.equal(recommendPreset(presets, { family: 'nokia', screens: [{ width: 999, height: 999 }] }), null, 'unknown size: no guess');
   });
   it('slug is stable', () => assert.equal(slug('176x204 (Motorola V300)'), '176x204-motorola-v300'));
 });

@@ -11,11 +11,7 @@ mkdir -p "$work/classes" "$(dirname "$out")"
 javac_checked --release 8 -nowarn -cp "$api" -d "$work/classes" "$here"/src/kemtest/*.java
 # KEmulator refuses class files >= 49 (Java 5); real J2ME jars are 46..48. Downgrade the
 # major version of our Java-8 output (no lambdas/generics bridges are used by the MIDlet).
-python3 - "$work/classes" <<'PY'
-import sys, pathlib
-for f in pathlib.Path(sys.argv[1]).rglob("*.class"):
-    b = bytearray(f.read_bytes()); b[6:8] = (48).to_bytes(2, "big"); f.write_bytes(bytes(b))
-PY
+python3 "$here/../tools/j2me_downgrade.py" "$work/classes"
 cat > "$work/MANIFEST.MF" <<MF
 Manifest-Version: 1.0
 MIDlet-Name: ${MIDLET_NAME:-KemTest}

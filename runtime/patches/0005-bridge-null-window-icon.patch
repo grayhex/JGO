@@ -1,0 +1,14 @@
+diff --git a/src/main/emulator/ui/bridge/BridgeOutput.java b/src/main/emulator/ui/bridge/BridgeOutput.java
+index 7b71e4af..fbccc6e0 100644
+--- a/src/main/emulator/ui/bridge/BridgeOutput.java
++++ b/src/main/emulator/ui/bridge/BridgeOutput.java
+@@ -175,6 +175,9 @@ final class BridgeOutput implements IScreen {
+ 
+ 	@Override
+ 	public void setWindowIcon(InputStream inputStream) {
++		// j2me-web patch: Emulator.main passes null when the MIDlet declares no icon; the unguarded
++		// ImageAWT(null) threw an NPE (wrapped in IOException) and printed a stack trace on every launch.
++		if (inputStream == null) return;
+ 		try {
+ 			ImageAWT img = new ImageAWT(ResourceManager.getBytes(inputStream));
+ 			int[] rgba = img.getData();

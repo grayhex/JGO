@@ -81,6 +81,7 @@ export class KEmulatorAdapter extends EventEmitter<AdapterEvents> {
   private exitInfo: ExitInfo | null = null;
   private stopTimer: NodeJS.Timeout | null = null;
   frames = 0;
+  firstFrameAt: number | null = null;
   private fpsWindow: number[] = [];
   lastFrame: FrameMsg | null = null;
   private readyWaiters: { resolve: () => void; reject: (e: Error) => void }[] = [];
@@ -114,6 +115,7 @@ export class KEmulatorAdapter extends EventEmitter<AdapterEvents> {
       fps: this.fpsWindow.length / 2,
       exit: this.exitInfo,
       pid: this.proc?.pid ?? null,
+      firstFrameAt: this.firstFrameAt,
       heldKeys: [...this.held],
     };
   }
@@ -230,6 +232,7 @@ export class KEmulatorAdapter extends EventEmitter<AdapterEvents> {
       case 'F': {
         const f: FrameMsg = { seq: p.readUInt32BE(0), tsUs: Number(p.readBigUInt64BE(4)), enc: p[12]!, data: Buffer.from(p.subarray(13)) };
         this.frames++;
+        this.firstFrameAt ??= Date.now();
         this.fpsWindow.push(Date.now());
         this.lastFrame = f;
         this.emit('frame', f);

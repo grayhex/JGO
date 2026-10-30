@@ -27,6 +27,7 @@ if [ -z "$KEM_SRC" ]; then
   git -C "$KEM_SRC" checkout -q FETCH_HEAD
 else
   git -C "$KEM_SRC" checkout -q -f "$KEM_REF"
+  git -C "$KEM_SRC" clean -fdxq   # files left by previously applied patches
 fi
 actual="$(git -C "$KEM_SRC" rev-parse HEAD)"
 [ "$actual" = "$KEM_REF" ] || { echo "unexpected commit $actual (wanted $KEM_REF)" >&2; exit 1; }

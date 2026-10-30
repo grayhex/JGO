@@ -125,22 +125,31 @@ export interface PresetHints {
   screens: { width: number; height: number }[];
 }
 
-/** Picks the preset that best fits the analysis hints; null when there is nothing to go on. */
+/**
+ * Picks a preset from analysis hints, or null when there is no evidence worth overriding the
+ * emulator default for:
+ *  - a screen-size hint (JAD attribute / file name) selects the preset with that size, preferring the platform family's vendor;
+ *  - without a size hint, only families whose key codes differ from the Nokia/Sony Ericsson codes (Siemens, Motorola, DoJa, J-Phone)
+ *    get a preset, so their keys work; the one closest to a typical 176x208 screen is used.
+ */
 export function recommendPreset(presets: DevicePreset[], h: PresetHints): DevicePreset | null {
   const wantedVendors: Record<string, DevicePreset['vendor'][]> = {
     nokia: ['nokia', 'common'], sonyericsson: ['sonyericsson', 'common'], siemens: ['siemens'], motorola: ['motorola'],
     samsung: ['samsung', 'common'], lg: ['lg', 'common'], doja: ['sharp'], jphone: ['softbank', 'motorola'], generic: ['common', 'nokia'],
   };
   const vendors = wantedVendors[h.family] ?? ['common'];
-  const score = (p: DevicePreset): number => {
-    let s = 0;
-    const vi = vendors.indexOf(p.vendor);
-    if (vi >= 0) s += 10 - vi * 3;
-    const hit = h.screens.findIndex((sc) => sc.width === p.width && sc.height === p.height);
-    if (hit >= 0) s += 30 - hit;
-    return s;
-  };
-  const ranked = presets.map((p) => ({ p, s: score(p) })).filter((x) => x.s > 0).sort((a, b) => b.s - a.s);
-  if (!h.screens.length && h.family === 'generic') return null;
-  return ranked[0]?.p ?? null;
+  if (h.screens.length) {
+    const score = (p: DevicePreset): number => {
+      const hit = h.screens.findIndex((sc) => sc.width === p.width && sc.height === p.height);
+      if (hit < 0) return 0;
+      const vi = vendors.indexOf(p.vendor);
+      return 100 - hit * 5 + (vi >= 0 ? 10 - vi * 3 : 0);
+    };
+    const best = presets.map((p) => ({ p, s: score(p) })).filter((x) => x.s > 0).sort((a, b) => b.s - a.s)[0];
+    return best?.p ?? null;
+  }
+  if (!['siemens', 'motorola', 'doja', 'jphone'].includes(h.family)) return null;
+  const typical = 176 * 208;
+  const pool = presets.filter((p) => vendors.includes(p.vendor));
+  return pool.sort((a, b) => Math.abs(a.width * a.height - typical) - Math.abs(b.width * b.height - typical))[0] ?? null;
 }

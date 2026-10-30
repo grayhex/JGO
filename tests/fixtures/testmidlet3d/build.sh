@@ -8,11 +8,7 @@ out="${2:-$here/build/kemtest3d.jar}"
 work="$(mktemp -d)"; trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/classes" "$(dirname "$out")"
 javac_checked --release 8 -nowarn -cp "$api" -d "$work/classes" "$here"/src/kemtest3d/*.java
-python3 - "$work/classes" <<'PY'
-import sys, pathlib
-for f in pathlib.Path(sys.argv[1]).rglob("*.class"):
-    b = bytearray(f.read_bytes()); b[6:8] = (48).to_bytes(2, "big"); f.write_bytes(bytes(b))
-PY
+python3 "$here/../tools/j2me_downgrade.py" "$work/classes"
 cat > "$work/MANIFEST.MF" <<MF
 Manifest-Version: 1.0
 MIDlet-Name: Kem3D
