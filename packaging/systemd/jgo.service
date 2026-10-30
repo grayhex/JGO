@@ -47,7 +47,8 @@ RestrictSUIDSGID=yes
 LockPersonality=yes
 SystemCallArchitectures=native
 SystemCallFilter=@system-service
-SystemCallFilter=~@privileged @resources
+SystemCallFilter=~@privileged
+# @resources stays allowed: Mesa's llvmpipe (M3G, Mascot Capsule) sets thread affinity/priorities and dies without it
 UMask=0077
 # the JVM needs W+X pages for the JIT, so MemoryDenyWriteExecute stays off
 

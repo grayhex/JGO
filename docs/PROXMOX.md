@@ -55,7 +55,7 @@ JAR — недоверенный код. Слои защиты (проверяю
 * **Пользователь `jgo`**: системный, без оболочки, без capabilities, `NoNewPrivileges`. Приложение в `/opt/jgo` ему доступно только на чтение.
 * **Песочница systemd** (`jgo.service`): `ProtectSystem=strict` (записать можно только `/var/lib/jgo`), `ProtectHome`, `PrivateTmp`,
   `PrivateDevices`, `NoExecPaths=/var/lib/jgo` (загруженное не исполняется), `ProtectKernel*`, `ProtectControlGroups`, `RestrictNamespaces=user net`,
-  `RestrictAddressFamilies`, `SystemCallFilter=@system-service` без `@privileged @resources`, пустой `CapabilityBoundingSet`.
+  `RestrictAddressFamilies`, `SystemCallFilter=@system-service` без `@privileged` (`@resources` разрешён: без него падает программный OpenGL, найдено тестом M3G), пустой `CapabilityBoundingSet`.
   `MemoryDenyWriteExecute` выключен: JIT-компилятору JVM нужны страницы W+X.
 * **Лимиты cgroup** на всё, что запускает служба (API и JVM игр): `MemoryHigh=2560M`, `MemoryMax=3G`, `MemorySwapMax=0`, `TasksMax=1024`,
   `CPUQuota=300%`, `LimitNOFILE=8192`, `LimitCORE=0`, `OOMPolicy=stop`; у `jgo-xvfb` — `MemoryMax=256M`, `TasksMax=32`. Для JVM дополнительно

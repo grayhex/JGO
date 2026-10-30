@@ -1,0 +1,13 @@
+// vite.config.ts
+import react from "file:///home/user/JGO/node_modules/@vitejs/plugin-react/dist/index.js";
+import { defineConfig } from "file:///home/user/JGO/node_modules/vite/dist/node/index.js";
+var api = process.env.API_URL ?? "http://127.0.0.1:8080";
+var vite_config_default = defineConfig({
+  plugins: [react()],
+  server: { host: "127.0.0.1", port: 5173, proxy: { "/api": { target: api, ws: true, changeOrigin: false } } },
+  build: { outDir: "dist", sourcemap: false, target: "es2022" }
+});
+export {
+  vite_config_default as default
+};
+//# sourceMappingURL=data:application/json;base64,ewogICJ2ZXJzaW9uIjogMywKICAic291cmNlcyI6IFsidml0ZS5jb25maWcudHMiXSwKICAic291cmNlc0NvbnRlbnQiOiBbImNvbnN0IF9fdml0ZV9pbmplY3RlZF9vcmlnaW5hbF9kaXJuYW1lID0gXCIvaG9tZS91c2VyL0pHTy9hcHBzL3dlYlwiO2NvbnN0IF9fdml0ZV9pbmplY3RlZF9vcmlnaW5hbF9maWxlbmFtZSA9IFwiL2hvbWUvdXNlci9KR08vYXBwcy93ZWIvdml0ZS5jb25maWcudHNcIjtjb25zdCBfX3ZpdGVfaW5qZWN0ZWRfb3JpZ2luYWxfaW1wb3J0X21ldGFfdXJsID0gXCJmaWxlOi8vL2hvbWUvdXNlci9KR08vYXBwcy93ZWIvdml0ZS5jb25maWcudHNcIjtpbXBvcnQgcmVhY3QgZnJvbSAnQHZpdGVqcy9wbHVnaW4tcmVhY3QnO1xuaW1wb3J0IHsgZGVmaW5lQ29uZmlnIH0gZnJvbSAndml0ZSc7XG5cbmNvbnN0IGFwaSA9IHByb2Nlc3MuZW52LkFQSV9VUkwgPz8gJ2h0dHA6Ly8xMjcuMC4wLjE6ODA4MCc7XG5cbmV4cG9ydCBkZWZhdWx0IGRlZmluZUNvbmZpZyh7XG4gIHBsdWdpbnM6IFtyZWFjdCgpXSxcbiAgc2VydmVyOiB7IGhvc3Q6ICcxMjcuMC4wLjEnLCBwb3J0OiA1MTczLCBwcm94eTogeyAnL2FwaSc6IHsgdGFyZ2V0OiBhcGksIHdzOiB0cnVlLCBjaGFuZ2VPcmlnaW46IGZhbHNlIH0gfSB9LFxuICBidWlsZDogeyBvdXREaXI6ICdkaXN0Jywgc291cmNlbWFwOiBmYWxzZSwgdGFyZ2V0OiAnZXMyMDIyJyB9LFxufSk7XG4iXSwKICAibWFwcGluZ3MiOiAiO0FBQXVQLE9BQU8sV0FBVztBQUN6USxTQUFTLG9CQUFvQjtBQUU3QixJQUFNLE1BQU0sUUFBUSxJQUFJLFdBQVc7QUFFbkMsSUFBTyxzQkFBUSxhQUFhO0FBQUEsRUFDMUIsU0FBUyxDQUFDLE1BQU0sQ0FBQztBQUFBLEVBQ2pCLFFBQVEsRUFBRSxNQUFNLGFBQWEsTUFBTSxNQUFNLE9BQU8sRUFBRSxRQUFRLEVBQUUsUUFBUSxLQUFLLElBQUksTUFBTSxjQUFjLE1BQU0sRUFBRSxFQUFFO0FBQUEsRUFDM0csT0FBTyxFQUFFLFFBQVEsUUFBUSxXQUFXLE9BQU8sUUFBUSxTQUFTO0FBQzlELENBQUM7IiwKICAibmFtZXMiOiBbXQp9Cg==

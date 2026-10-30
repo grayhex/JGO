@@ -197,6 +197,7 @@ t_hardening() {
   check "java is in its own network namespace (no network for games)" ne "$(sh_ "readlink /proc/$jpid/ns/net")" "$(sh_ "readlink /proc/$npid/ns/net")"
   check "inside that namespace there is no interface but lo" eq "$(sh_ "nsenter -t $jpid -n -- ip -o link | awk -F': ' '{print \$2}' | tr -d '\\n'")" lo
   check "java sits in the jgo.service cgroup" sh_ "grep -q 'jgo.service' /proc/$jpid/cgroup"
+  check "the system-call filter is on (@system-service minus @privileged)" sh_ "grep -q '^Seccomp:.*2' /proc/$npid/status"
   check "memory, tasks and cpu limits are set on the unit" sh_ "systemctl show jgo -p MemoryMax -p TasksMax -p CPUQuotaPerSecUSec | grep -vq infinity"
   check "the JVM heap is capped (-Xmx768m)" sh_ "tr '\\0' ' ' </proc/$jpid/cmdline | grep -q -- '-Xmx768m'"
   # the service's own view of the file system, entered as root
