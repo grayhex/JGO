@@ -138,10 +138,10 @@ jgo status
 (процессы, capabilities, сетевое пространство имён, лимиты cgroup, файловая система службы), RMS через перезапуск службы и контейнера, бэкап и восстановление,
 перенос в новый контейнер, обновление через `ct/jgo.sh`, откат релиза, который не стартует, отказ от подменённого архива.
 GitHub подменяется локальным TLS-сервером (`tests/lxc/fake-github.mjs`): движок и `jgo update` ходят в него без изменений. В CI те же сценарии идут в
-непривилегированном LXC (`tests/lxc/lxd.sh`).
+непривилегированном LXC (`BACKEND=lxd tests/lxc/run.sh`, job `lxc-real`).
 
 ```bash
-tests/lxc/run.sh                       # нужен Docker и root, ~10 минут
+tests/lxc/run.sh                       # Docker + root; на хосте с egress-прокси: DOCKER_NET=host BASE_IMAGE=<зеркало debian:trixie>; ~15 минут
 ONLY="install functional" tests/lxc/run.sh
 ```
 
