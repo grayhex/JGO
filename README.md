@@ -6,7 +6,28 @@ Self-hosted веб-плеер для Java ME (J2ME) игр. Игра испол�
 
 ![player](docs/img/player.png)
 
-## Запуск одной командой (Docker)
+## Установка в Proxmox VE (основной способ)
+
+Одна команда в оболочке хоста Proxmox VE создаёт непривилегированный LXC на Debian 13 (4 CPU, 4 ГБ RAM, 20 ГБ диска), ставит Node.js 22,
+OpenJDK 21, Xvfb + Mesa, Rust-супервизор Bridge и KEmulator nnmod и запускает всё под systemd от пользователя `jgo` — без Docker:
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/grayhex/JGO/main/ct/jgo.sh)"
+```
+
+После установки откройте `http://IP_КОНТЕЙНЕРА:8080`; токен доступа сгенерирован при установке (`jgo token` внутри контейнера).
+Данные — `/var/lib/jgo`, конфигурация — `/etc/jgo`, приложение — `/opt/jgo`; управление — команда `jgo` (`status`, `update`, `backup`, `restore`, `logs`, `doctor`).
+Обновление с проверкой SHA-256, резервной копией, проверкой работоспособности и откатом — `update` / `jgo update`.
+**Не публикуйте порт 8080 в интернет** без VPN или TLS-прокси.
+
+* [docs/PROXMOX.md](docs/PROXMOX.md) — установка, безопасность, лимиты, обновление, CLI, диагностика;
+* [docs/BACKUP.md](docs/BACKUP.md) — Proxmox Backup Server, восстановление, перенос между контейнерами;
+* скрипты в формате [Community Scripts](https://community-scripts.org/): `ct/jgo.sh`, `install/jgo-install.sh`, `json/jgo.json`;
+  заготовка pull request в DevScripts — `packaging/devscripts/` (ничего не публикуется автоматически).
+
+Установка проверяется автотестом на настоящем системном контейнере (`tests/lxc/run.sh`): установка, 2D, звук, M3G, песочница, RMS, бэкап, перенос, обновление и откат.
+
+## Запасной вариант: Docker Compose
 
 ```bash
 docker compose up --build
@@ -21,8 +42,9 @@ docker compose up --build
 * если Docker Hub отдаёт 429: `BASE_REGISTRY=mirror.gcr.io/library docker compose up --build`.
 
 Требования: Docker (на Windows — Docker Desktop + WSL2), Linux x86_64 образ собирается ~2–3 минуты.
+Этот вариант остаётся поддерживаемым и проверяется в CI (job `docker`), но не имеет `jgo` CLI, `update` с откатом и интеграции с Proxmox.
 
-## Запуск без Docker (Linux / WSL2 Ubuntu)
+## Запуск из исходников (разработка; Linux / WSL2 Ubuntu)
 
 ```bash
 sudo apt install openjdk-21-jdk-headless git nodejs xvfb libgl1-mesa-dri   # Node >= 22.13, Rust через rustup
@@ -60,7 +82,7 @@ browser (React) ⇄ WS/REST ⇄ apps/api (Fastify) ⇄ stdio ⇄ kem-adapter (Ru
 | `packages/protocol` | общие типы/константы WS-протокола |
 | `runtime/` | Dockerfile, сборка KEmulator, **патчи**, Java-микшер звука |
 | `tests/` | тестовые MIDlet (2D, M3G), интеграционные и e2e тесты |
-| `docs/` | архитектура, Bridge, совместимость, безопасность, Cloudflare |
+| `docs/` | Proxmox/LXC, резервные копии, архитектура, Bridge, совместимость, безопасность, лаборатория (Cloudflare — архивная оценка) |
 
 Версия эмулятора: **KEmulator nnmod v2.22, commit `9ec1005af5448bca63a420e1dfa884ef53842d0f`** — собирается из исходников
 с 4 небольшими патчами (`runtime/patches`, причины в [docs/BRIDGE.md](docs/BRIDGE.md)). Бинарники и исходники KEmulator в репозиторий не входят.

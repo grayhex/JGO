@@ -16,7 +16,16 @@ import { analyzeJar, emulatorClassSet, readAttributes } from './lab/analyze.js';
 import { Library, newId, validateSettings } from './library.js';
 import { SessionError, SessionManager, type StreamClient } from './sessions.js';
 
-const VERSION = '0.1.0';
+/** The release being run: JGO_VERSION (set by the systemd unit), else the VERSION file of the release tree, else the dev default. */
+const VERSION = process.env.JGO_VERSION?.trim() || readReleaseVersion() || '0.1.0';
+
+function readReleaseVersion(): string | null {
+  try {
+    return readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../VERSION'), 'utf8').trim() || null;
+  } catch {
+    return null;
+  }
+}
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
 const COOKIE = 'j2me_auth';
 

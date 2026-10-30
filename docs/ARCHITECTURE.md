@@ -11,7 +11,7 @@
 ```
 
 * **Слои независимы от провайдера.** React ходит только на `/api/*` и `WS /api/sessions/:id/stream` с относительными URL;
-  локально это один порт, в Cloudflare — Worker перед контейнером, при Tunnel — тот же путь. Логика Docker/Cloudflare в клиенте отсутствует.
+  в LXC (основной вариант), Docker Compose или за обратным прокси это один порт и тот же путь. Логики развёртывания в клиенте нет.
 * **KEmulatorAdapter** (`apps/api/src/kemulator/adapter.ts`): `start`, `stop`, `keyDown`, `keyUp`, `pointerEvent`, `getStatus`,
   события `frame`, `audio`, `state`, `log`, `exit`. Держит набор нажатых клавиш, `releaseAll()`.
 * **Session** — на клиентов: WebSocket-подписчики, у каждого свои нажатые клавиши (отпускаются при разрыве), кэш последнего кадра

@@ -1,0 +1,43 @@
+[Unit]
+Description=JGO virtual display (Xvfb, needed by M3G and Mascot Capsule)
+Documentation=https://github.com/grayhex/JGO/blob/main/docs/PROXMOX.md
+After=network.target
+
+[Service]
+Type=simple
+User=jgo
+Group=jgo
+# the socket directory must exist and be owned by root (Xvfb as a normal user will not create it);
+# "!" raises privileges but keeps the private /tmp that jgo.service shares through JoinsNamespaceOf
+ExecStartPre=!/usr/bin/install -d -m 1777 -o root -g root /tmp/.X11-unix
+ExecStart=/usr/bin/Xvfb :99 -screen 0 640x480x24 -nolisten tcp -noreset +extension GLX
+Restart=on-failure
+RestartSec=2
+
+# The display only needs its own socket.
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateNetwork=no
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+UMask=0077
+MemoryMax=256M
+TasksMax=32
+
+[Install]
+WantedBy=multi-user.target

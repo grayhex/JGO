@@ -1,0 +1,55 @@
+{
+  "name": "JGO",
+  "slug": "jgo",
+  "categories": [
+    24
+  ],
+  "date_created": "2026-10-30",
+  "type": "ct",
+  "updateable": true,
+  "privileged": false,
+  "interface_port": 8080,
+  "documentation": "https://github.com/grayhex/JGO/blob/main/docs/PROXMOX.md",
+  "website": "https://github.com/grayhex/JGO",
+  "repository": "https://github.com/grayhex/JGO",
+  "architectures": [
+    "amd64"
+  ],
+  "platforms": [
+    "pve"
+  ],
+  "logo": "https://cdn.jsdelivr.net/gh/selfhst/icons@main/webp/jgo.webp",
+  "description": "Self-hosted web player for Java ME (J2ME) games. KEmulator nnmod runs the JAR on the server and streams the picture, sound and input to any browser. Native install, no Docker.",
+  "install_methods": [
+    {
+      "type": "default",
+      "script": "ct/jgo.sh",
+      "config_path": "/etc/jgo/jgo.env",
+      "resources": {
+        "cpu": 4,
+        "ram": 4096,
+        "hdd": 20,
+        "os": "Debian",
+        "version": "13"
+      }
+    }
+  ],
+  "default_credentials": {
+    "username": null,
+    "password": null
+  },
+  "notes": [
+    {
+      "text": "The access token is printed at the end of the install; show it again with `jgo token` inside the container.",
+      "type": "info"
+    },
+    {
+      "text": "Keep the container on a private network. Do not forward port 8080 to the internet without a TLS reverse proxy and extra access control.",
+      "type": "warning"
+    },
+    {
+      "text": "Games run as the unprivileged user jgo, without network access, with memory/CPU limits. Needs the container feature nesting (the default).",
+      "type": "info"
+    }
+  ]
+}

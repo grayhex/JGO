@@ -1,0 +1,67 @@
+[Unit]
+Description=JGO - web player for Java ME games (API, web UI and KEmulator sessions)
+Documentation=https://github.com/grayhex/JGO/blob/main/docs/PROXMOX.md
+After=network.target jgo-xvfb.service
+Requires=jgo-xvfb.service
+JoinsNamespaceOf=jgo-xvfb.service
+
+[Service]
+Type=simple
+User=jgo
+Group=jgo
+WorkingDirectory=/opt/jgo
+EnvironmentFile=/etc/jgo/jgo.env
+ExecStartPre=/usr/bin/timeout 15 /bin/sh -c 'until [ -S /tmp/.X11-unix/X99 ]; do sleep 0.2; done'
+ExecStart=/usr/bin/node /opt/jgo/app/apps/api/dist/server.js
+KillMode=mixed
+TimeoutStopSec=20
+Restart=on-failure
+RestartSec=3
+StateDirectory=jgo
+StateDirectoryMode=0700
+RuntimeDirectory=jgo
+RuntimeDirectoryMode=0700
+
+# --- sandbox: the JAR is untrusted code and so is the file parser that reads it ---
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/jgo
+NoExecPaths=/var/lib/jgo
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+RestrictNamespaces=user net
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged
+# @resources stays allowed: Mesa's llvmpipe (M3G, Mascot Capsule) sets thread affinity/priorities and dies without it
+UMask=0077
+# the JVM needs W+X pages for the JIT, so MemoryDenyWriteExecute stays off
+
+# --- cgroup limits: everything below is shared by the API and the JVMs it starts ---
+MemoryHigh=2560M
+MemoryMax=3G
+MemorySwapMax=0
+TasksMax=1024
+CPUQuota=300%
+LimitNOFILE=8192
+LimitCORE=0
+OOMPolicy=stop
+OOMScoreAdjust=200
+
+[Install]
+WantedBy=multi-user.target
