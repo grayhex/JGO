@@ -279,6 +279,39 @@ export const AUDIO_CHANNELS = 2;
 /** Binary frame layout: kind u8 | seq u32 | enc u8 | width u16 | height u16 | serverTs u32 (ms, wraps) | pixels. */
 export const WS_FRAME_HEADER_BYTES = 1 + 4 + 1 + 2 + 2 + 4;
 
+/**
+ * The text area the game currently lets the user edit (a focused `TextField` or a `TextBox`).
+ * `x/y/w/h` are in framebuffer pixels; `constraints` are the MIDP `TextField` constraint bits
+ * (see {@link TEXT_CONSTRAINT}).
+ */
+export interface TextArea {
+  kind: 'field' | 'box';
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  text: string;
+  maxSize: number;
+  constraints: number;
+}
+
+/** MIDP `TextField` constraint values. */
+export const TEXT_CONSTRAINT = {
+  ANY: 0,
+  EMAILADDR: 1,
+  NUMERIC: 2,
+  PHONENUMBER: 3,
+  URL: 4,
+  DECIMAL: 5,
+  MASK: 0xffff,
+  PASSWORD: 0x10000,
+  UNEDITABLE: 0x20000,
+  SENSITIVE: 0x40000,
+} as const;
+
+/** The longest text the server forwards to the game in one `text` event. */
+export const TEXT_INPUT_MAX = 4096;
+
 export type ServerEvent =
   | { t: 'hello'; sessionId: string; width: number; height: number; state: SessionState }
   | { t: 'state'; state: SessionState; exitCode?: number | null; detail?: string | null }
@@ -290,6 +323,8 @@ export type ServerEvent =
   | { t: 'permission'; id: number; message: string }
   | { t: 'vibrate'; ms: number }
   | { t: 'url'; url: string }
+  /** The editable text area of the current screen, or `null` when nothing is being edited. */
+  | { t: 'text'; area: TextArea | null }
   | { t: 'log'; line: string }
   | { t: 'stats'; fps: number; frames: number; dropped: number; latencyMs: number | null }
   | { t: 'pong'; ts: number };
@@ -301,6 +336,8 @@ export type ClientEvent =
   | { t: 'pointer'; id: number; s: 'D' | 'M' | 'U'; x: number; y: number }
   | { t: 'cmd'; id: number }
   | { t: 'perm'; id: number; allow: boolean }
+  /** The new full text of the focused text area (the game may shorten or filter it and answers with `text`). */
+  | { t: 'text'; text: string }
   /** Release every key the server believes is held (focus loss, reconnect). */
   | { t: 'release-all' }
   | { t: 'audio'; on: boolean }

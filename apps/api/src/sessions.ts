@@ -9,6 +9,8 @@ import {
   KEY_LAYOUTS,
   type ServerEvent,
   type SessionState,
+  TEXT_INPUT_MAX,
+  type TextArea,
   type SessionStatus,
   WS_BIN_AUDIO,
 } from '@j2me-web/protocol';
@@ -72,6 +74,9 @@ export class Session {
   private lastPacked: Buffer | null = null;
   private timers: NodeJS.Timeout[] = [];
   private pendingMenu: ServerEvent | null = null;
+  private textArea: TextArea | null = null;
+  /** `N` (maxSize, constraints, kind) arrives right before the `A` it belongs to. */
+  private textInfo: { maxSize: number; constraints: number; kind: 'field' | 'box' } | null = null;
   /** permission prompts waiting for a viewer's answer (id -> deny timer) */
   private pendingPerms = new Map<number, NodeJS.Timeout>();
   private logFile: string;
@@ -234,6 +239,24 @@ export class Session {
         this.broadcastText({ t: 'permission', id, message });
         break;
       }
+      case 'N':
+        if (b.length >= 9) this.textInfo = { maxSize: b.readInt32BE(0), constraints: b.readInt32BE(4), kind: b[8] === 66 ? 'box' : 'field' };
+        break;
+      case 'A': {
+        // text area of the focused TextField/TextBox; a packet without data removes it
+        if (b.length < 8 || !this.textInfo) this.textArea = null;
+        else
+          this.textArea = {
+            ...this.textInfo,
+            x: b.readInt16BE(0),
+            y: b.readInt16BE(2),
+            w: b.readInt16BE(4),
+            h: b.readInt16BE(6),
+            text: b.subarray(8).toString('utf8'),
+          };
+        this.broadcastText({ t: 'text', area: this.textArea });
+        break;
+      }
       case 'U': {
         const url = b.toString('utf8');
         // only schemes a browser can handle safely; file:, vlc: and friends are never forwarded
@@ -250,6 +273,7 @@ export class Session {
   }
 
   private onExit(e: ExitInfo): void {
+    this.textArea = null;
     this.exit = e;
     this.endedAt = Date.now();
     this.state = e.reason === 0 && (e.code === 0 || e.code === null) ? 'exited' : 'failed';
@@ -277,6 +301,7 @@ export class Session {
     c.sendText(JSON.stringify({ t: 'softkeys', ...this.softkeys } satisfies ServerEvent));
     if (this.title !== null) c.sendText(JSON.stringify({ t: 'title', title: this.title } satisfies ServerEvent));
     if (this.pendingMenu) c.sendText(JSON.stringify(this.pendingMenu));
+    if (this.textArea) c.sendText(JSON.stringify({ t: 'text', area: this.textArea } satisfies ServerEvent));
     for (const d of this.diagnostics) c.sendText(JSON.stringify({ t: 'log', line: `⚠ ${d}` } satisfies ServerEvent));
     // late joiners / reconnects must see the current screen even if the game never repaints
     if (this.lastPacked) c.sendFrame(this.lastPacked);
@@ -332,6 +357,9 @@ export class Session {
         this.adapter.answerPermission(ev.id, !!ev.allow);
         break;
       }
+      case 'text':
+        if (typeof ev.text === 'string' && this.textArea && ev.text.length <= TEXT_INPUT_MAX) this.adapter.setText(ev.text);
+        break;
       case 'audio':
         e.audio = !!ev.on;
         break;

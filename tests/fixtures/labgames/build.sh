@@ -24,6 +24,7 @@ mk kemnokia.jar KemNokia KemNokia "Nokia-MIDlet-Category: Game" "Nokia-UI-Enhanc
 mk kemmascot.jar KemMascot KemMascot
 mk kemnet.jar KemNet KemNet "MIDlet-Permissions: javax.microedition.io.Connector.http"
 
+mk kemtext.jar KemText KemText
 mk kemshutdown.jar KemShutdown KemShutdown
 
 mk kemshutdown-hang.jar KemShutdownHang KemShutdown "KemShutdown-Hang: true"

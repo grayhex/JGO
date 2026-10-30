@@ -308,6 +308,11 @@ export class KEmulatorAdapter extends EventEmitter<AdapterEvents> {
     if (Number.isInteger(id)) this.input(`C ${id}`);
   }
 
+  /** Bridge `E`: the text is sent percent-encoded because the adapter relays ASCII only. */
+  setText(text: string): void {
+    this.input(`E ${encodeURIComponent(text)}`);
+  }
+
   answerPermission(id: number, allow: boolean): void {
     if (Number.isInteger(id)) this.input(`P ${id} ${allow ? 1 : 0}`);
   }

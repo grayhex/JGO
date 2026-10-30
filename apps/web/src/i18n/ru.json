@@ -395,5 +395,7 @@
   "{active}/{max} sessions · v{version}": "Сессий: {active}/{max} · v{version}",
   "Made for landscape? Turn the picture and switch to the Nokia E71, whose display is landscape.": "Игра рассчитана на альбомную ориентацию? Поверните картинку и переключитесь на Nokia E71 — у неё альбомный экран.",
   "Landscape, turn right": "Альбомная, вправо",
-  "Landscape, turn left": "Альбомная, влево"
+  "Landscape, turn left": "Альбомная, влево",
+  "Text input": "Ввод текста",
+  "Type here; the game receives the text as you type.": "Печатайте здесь — игра получает текст сразу."
 }

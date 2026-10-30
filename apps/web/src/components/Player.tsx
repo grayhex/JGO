@@ -1,6 +1,7 @@
 import { t as translateUI } from '../i18n';
 import { useDeveloperMode } from '../developer';
 import { isPhoneId, resolvePhone } from '@j2me-web/protocol';
+import { TextEditor } from './TextEditor';
 import { GamepadPoller, loadPadProfile, type PadAction, type PadState } from '../gamepad';
 import { GamepadSettings } from './GamepadSettings';
 import { KEY_LAYOUTS, SCREEN_PRESETS, type DevicePreset, type GameMeta, type HealthStatus, type LayoutId, type ServerEvent, type SessionState, type SessionStatus } from '@j2me-web/protocol';
@@ -58,6 +59,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   const [client, setClient] = useState({ fps: 0, rtt: null as number | null, decode: 0, kbps: 0 });
   const [fpsHist, setFpsHist] = useState<number[]>([]);
   const [cpuHist, setCpuHist] = useState<number[]>([]);
+  const [textArea, setTextArea] = useState<Extract<ServerEvent, { t: 'text' }>['area']>(null);
   const [menu, setMenu] = useState<Extract<ServerEvent, { t: 'menu' }> | null>(null);
   const [perm, setPerm] = useState<Extract<ServerEvent, { t: 'permission' }> | null>(null);
   // Automatic mode synchronizes the skin; Advanced keeps presentation independent.
@@ -159,7 +161,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
       case 'state':
         setState(ev.state);
         if (ev.state === 'exited' || ev.state === 'failed') {
-          input.releaseAll();
+          input.releaseAll(); setTextArea(null);
           if (ev.state === 'failed') toast('error', translateUI('Emulator stopped: {detail}', {detail:ev.detail ?? translateUI('unknown error')}));
         }
         break;
@@ -169,6 +171,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
       case 'stats': setServer({ fps: ev.fps, dropped: ev.dropped, latencyMs: ev.latencyMs }); break;
       case 'menu': setMenu(ev); break;
       case 'menu-close': setMenu(null); break;
+      case 'text': setTextArea(ev.area); break;
       case 'permission': setPerm(ev); break;
       case 'vibrate': if (ev.ms > 0) buzz(Math.min(ev.ms, 2000)); else navigator.vibrate?.(0); break;
       case 'displayable': break; // the Bridge draws every screen into the framebuffer (patch 0006): the kind needs no UI
@@ -412,6 +415,8 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
             />
           ) : <p className="muted center">{translateUI("Loading the phone…")}</p>}
         </div>
+
+        {textArea && live && <TextEditor key={textArea.kind} area={textArea} onText={(text) => send({ t: 'text', text })} />}
 
         <SkinPicker skins={skins} value={prefs.skinId} onChange={(id) => isSkinId(id) && setPrefs({ skinId: id })} />
 
