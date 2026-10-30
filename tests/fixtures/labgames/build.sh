@@ -25,6 +25,7 @@ mk kemmascot.jar KemMascot KemMascot
 mk kemnet.jar KemNet KemNet "MIDlet-Permissions: javax.microedition.io.Connector.http"
 
 mk kemtext.jar KemText KemText
+mk kemsms.jar KemSms KemSms "MIDlet-Permissions: javax.wireless.messaging.sms.send"
 mk kemshutdown.jar KemShutdown KemShutdown
 
 mk kemshutdown-hang.jar KemShutdownHang KemShutdown "KemShutdown-Hang: true"

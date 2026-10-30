@@ -397,5 +397,9 @@
   "Landscape, turn right": "Альбомная, вправо",
   "Landscape, turn left": "Альбомная, влево",
   "Text input": "Ввод текста",
-  "Type here; the game receives the text as you type.": "Печатайте здесь — игра получает текст сразу."
+  "Type here; the game receives the text as you type.": "Печатайте здесь — игра получает текст сразу.",
+  " · paused": " · пауза",
+  "▶ Resume": "▶ Продолжить",
+  "⏸ Pause": "⏸ Пауза",
+  "Suspend the game: pauseApp is called, the picture stops": "Приостановить игру: вызывается pauseApp, картинка замирает"
 }

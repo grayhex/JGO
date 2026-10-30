@@ -247,6 +247,8 @@ export interface SessionStatus {
   audioBytes: number;
   /** Width/height of frames actually produced. */
   encoding: 'raw' | 'deflate';
+  /** The game is suspended (see `ServerEvent` `paused`). */
+  paused: boolean;
 }
 
 export interface HealthStatus {
@@ -325,6 +327,11 @@ export type ServerEvent =
   | { t: 'url'; url: string }
   /** The editable text area of the current screen, or `null` when nothing is being edited. */
   | { t: 'text'; area: TextArea | null }
+  /**
+   * The game is suspended (`pauseApp`, drawing loop frozen, no frames) or running again. `reason` says who asked:
+   * a viewer (`manual`) or the server because no viewer has the page in front of them (`hidden`).
+   */
+  | { t: 'paused'; on: boolean; reason: 'manual' | 'hidden' }
   | { t: 'log'; line: string }
   | { t: 'stats'; fps: number; frames: number; dropped: number; latencyMs: number | null }
   | { t: 'pong'; ts: number };
@@ -338,6 +345,10 @@ export type ClientEvent =
   | { t: 'perm'; id: number; allow: boolean }
   /** The new full text of the focused text area (the game may shorten or filter it and answers with `text`). */
   | { t: 'text'; text: string }
+  /** Suspend or resume the game for everyone watching. */
+  | { t: 'pause'; on: boolean }
+  /** Whether this viewer's page is in front of them; the game is suspended while no viewer can see it. */
+  | { t: 'visibility'; visible: boolean }
   /** Release every key the server believes is held (focus loss, reconnect). */
   | { t: 'release-all' }
   | { t: 'audio'; on: boolean }

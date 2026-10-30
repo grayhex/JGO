@@ -68,7 +68,10 @@ export class Session {
   framesDropped = 0;
   latencyMs: number | null = null;
   endedAt: number | null = null;
-  readonly clients = new Map<string, { c: StreamClient; held: Set<number>; audio: boolean }>();
+  readonly clients = new Map<string, { c: StreamClient; held: Set<number>; audio: boolean; visible: boolean }>();
+  private manualPause = false;
+  /** Why the game is suspended right now; null = running. */
+  private pauseReason: 'manual' | 'hidden' | null = null;
   audioBytes = 0;
   readonly meter = new ResourceMeter();
   private lastPacked: Buffer | null = null;
@@ -137,6 +140,7 @@ export class Session {
       layout: this.settings.layout,
       heapMb: this.settings.heapMb,
       encoding: this.cfg.frameEncoding,
+      paused: this.pauseReason !== null,
     };
   }
 
@@ -274,6 +278,7 @@ export class Session {
 
   private onExit(e: ExitInfo): void {
     this.textArea = null;
+    this.pauseReason = null;
     this.exit = e;
     this.endedAt = Date.now();
     this.state = e.reason === 0 && (e.code === 0 || e.code === null) ? 'exited' : 'failed';
@@ -295,7 +300,7 @@ export class Session {
   }
 
   addClient(c: StreamClient): void {
-    this.clients.set(c.id, { c, held: new Set(), audio: false });
+    this.clients.set(c.id, { c, held: new Set(), audio: false, visible: true });
     this.clearIdle();
     c.sendText(JSON.stringify({ t: 'hello', sessionId: this.id, width: this.settings.width, height: this.settings.height, state: this.state } satisfies ServerEvent));
     c.sendText(JSON.stringify({ t: 'softkeys', ...this.softkeys } satisfies ServerEvent));
@@ -303,8 +308,29 @@ export class Session {
     if (this.pendingMenu) c.sendText(JSON.stringify(this.pendingMenu));
     if (this.textArea) c.sendText(JSON.stringify({ t: 'text', area: this.textArea } satisfies ServerEvent));
     for (const d of this.diagnostics) c.sendText(JSON.stringify({ t: 'log', line: `⚠ ${d}` } satisfies ServerEvent));
+    if (this.pauseReason) c.sendText(JSON.stringify({ t: 'paused', on: true, reason: this.pauseReason } satisfies ServerEvent));
     // late joiners / reconnects must see the current screen even if the game never repaints
     if (this.lastPacked) c.sendFrame(this.lastPacked);
+    this.syncPause();
+  }
+
+  /**
+   * The game is suspended while a viewer asked for it, or while nobody can see the page (every connected viewer
+   * reported it hidden). A session without viewers keeps running: it waits for a reconnect (SESSION_RECOVERY.md).
+   */
+  private syncPause(): void {
+    if (this.state !== 'running') return;
+    const reason = this.manualPause ? 'manual' : this.clients.size > 0 && [...this.clients.values()].every((e) => !e.visible) ? 'hidden' : null;
+    if (reason === this.pauseReason) return;
+    const was = this.pauseReason !== null;
+    this.pauseReason = reason;
+    if (!was && reason) {
+      // keys held by a viewer would stay down while the game cannot see the release
+      for (const e of this.clients.values()) e.held.clear();
+      this.adapter.releaseAll();
+      this.adapter.setPaused(true);
+    } else if (was && !reason) this.adapter.setPaused(false);
+    this.broadcastText({ t: 'paused', on: reason !== null, reason: reason ?? 'manual' });
   }
 
   removeClient(id: string): void {
@@ -318,12 +344,23 @@ export class Session {
       this.pendingPerms.clear();
       this.startIdle();
     }
+    this.syncPause();
   }
 
   handleClientEvent(clientId: string, ev: ClientEvent): void {
     const e = this.clients.get(clientId);
     if (!e || this.state !== 'running') return;
+    // a suspended game must not get input queued up that fires on resume
+    if (this.pauseReason && (ev.t === 'key' || ev.t === 'pointer' || ev.t === 'cmd' || ev.t === 'text')) return;
     switch (ev.t) {
+      case 'pause':
+        this.manualPause = !!ev.on;
+        this.syncPause();
+        break;
+      case 'visibility':
+        e.visible = !!ev.visible;
+        this.syncPause();
+        break;
       case 'key': {
         if (!Number.isInteger(ev.code) || ev.code < -1000 || ev.code > 0x10ffff) return;
         if (ev.s === 'D' || ev.s === 'R') {

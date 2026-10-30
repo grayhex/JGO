@@ -153,6 +153,22 @@ describe('Bridge regressions found by the compatibility lab', () => {
     await g.done();
   });
 
+  it('SMS: sending fails with an IOException the game can handle (was: NullPointerException, IEmulatorFrontend.getMessage() == null)', async () => {
+    const g = await play(lab('kemsms.jar'));
+    const answered = new Set<number>();
+    const answer = setInterval(() => {
+      for (const e of g.ws.events as any[]) if (e.t === 'permission' && !answered.has(e.id)) { answered.add(e.id); g.ws.send({ t: 'perm', id: e.id, allow: true }); }
+    }, 50);
+    try {
+      await waitFor(async () => /SMS_DONE/.test(await g.log()), 'the MIDlet finished its send attempt');
+    } finally { clearInterval(answer); }
+    const log = await g.log();
+    assert.match(log, /SMS_RESULT java\.io\.IOException/);
+    assert.doesNotMatch(log, /NullPointerException/);
+    assert.match(log, /SMS is not available in this player/);
+    await g.done();
+  });
+
   it('Mascot Capsule v3 immediate-mode rendering produces a picture (OpenGL, needs a display)', { skip: !process.env.KEM_DISPLAY }, async () => {
     const g = await play(lab('kemmascot.jar'));
     const st = await waitFor(() => { const s = g.last(); return s.colors > 6 ? s : null; }, 'drawn triangle');

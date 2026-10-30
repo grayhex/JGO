@@ -1,0 +1,75 @@
+diff --git a/src/main/emulator/EventQueue.java b/src/main/emulator/EventQueue.java
+index 46ad49ad..54fe5fdf 100644
+--- a/src/main/emulator/EventQueue.java
++++ b/src/main/emulator/EventQueue.java
+@@ -96,6 +96,11 @@ public final class EventQueue implements Runnable {
+ 		running = false;
+ 	}
+ 
++	/** j2me-web: true after EVENT_PAUSE was handled (the queue then handles nothing until EVENT_RESUME). */
++	public boolean isPaused() {
++		return paused;
++	}
++
+ 	public void keyPress(int n) {
+ 		if (n == 10000) return;
+ 		if (AppSettings.synchronizeKeyEvents) {
+diff --git a/src/main/emulator/ui/bridge/BridgeInput.java b/src/main/emulator/ui/bridge/BridgeInput.java
+index 40255d50..1350e070 100644
+--- a/src/main/emulator/ui/bridge/BridgeInput.java
++++ b/src/main/emulator/ui/bridge/BridgeInput.java
+@@ -5,6 +5,7 @@ package emulator.ui.bridge;
+ 
+ import emulator.AppSettings;
+ import emulator.Emulator;
++import emulator.EventQueue;
+ import emulator.ui.TargetedCommand;
+ 
+ import java.io.IOException;
+@@ -124,6 +125,12 @@ class BridgeInput implements Runnable {
+ 				((BridgeOutput) Emulator.getEmulator().getScreen()).typed(text);
+ 				break;
+ 			}
++			case "S": {
++				// j2me-web: "S 1" suspends the MIDlet like KEmulator's Suspend menu item (hideNotify, pauseApp,
++				// events stop) and freezes its drawing loop like Pause (AppSettings.steps); "S 0" undoes both.
++				suspend(parseBool(data[1]));
++				break;
++			}
+ 			case "X": {
+ 				AppSettings.xrayView = parseBool(data[1]);
+ 				break;
+@@ -133,6 +140,33 @@ class BridgeInput implements Runnable {
+ 		}
+ 	}
+ 
++	private boolean suspended;
++	private boolean eventsSuspended;
++
++	private synchronized void suspend(boolean on) {
++		if (on == suspended) return;
++		suspended = on;
++		EventQueue q = Emulator.getEventQueue();
++		if (on) {
++			q.queue(EventQueue.EVENT_PAUSE);
++			// the event thread handles nothing once paused, so the freeze must come after it handled EVENT_PAUSE;
++			// it ignores the event on screens other than a Canvas, which are then only frozen
++			for (int i = 0; i < 30 && !q.isPaused(); i++) {
++				try {
++					Thread.sleep(10);
++				} catch (InterruptedException e) {
++					break;
++				}
++			}
++			eventsSuspended = q.isPaused();
++			AppSettings.steps = 0;
++		} else {
++			AppSettings.steps = -1;
++			if (eventsSuspended) q.queue(EventQueue.EVENT_RESUME);
++			eventsSuspended = false;
++		}
++	}
++
+ 	private static boolean parseBool(String s) {
+ 		if (s.equals("0"))
+ 			return false;

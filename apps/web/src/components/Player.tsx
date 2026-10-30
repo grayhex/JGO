@@ -59,6 +59,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   const [client, setClient] = useState({ fps: 0, rtt: null as number | null, decode: 0, kbps: 0 });
   const [fpsHist, setFpsHist] = useState<number[]>([]);
   const [cpuHist, setCpuHist] = useState<number[]>([]);
+  const [pauseInfo, setPauseInfo] = useState<{ on: boolean; reason: 'manual' | 'hidden' } | null>(null);
   const [textArea, setTextArea] = useState<Extract<ServerEvent, { t: 'text' }>['area']>(null);
   const [menu, setMenu] = useState<Extract<ServerEvent, { t: 'menu' }> | null>(null);
   const [perm, setPerm] = useState<Extract<ServerEvent, { t: 'permission' }> | null>(null);
@@ -161,7 +162,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
       case 'state':
         setState(ev.state);
         if (ev.state === 'exited' || ev.state === 'failed') {
-          input.releaseAll(); setTextArea(null);
+          input.releaseAll(); setTextArea(null); setPauseInfo(null);
           if (ev.state === 'failed') toast('error', translateUI('Emulator stopped: {detail}', {detail:ev.detail ?? translateUI('unknown error')}));
         }
         break;
@@ -172,6 +173,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
       case 'menu': setMenu(ev); break;
       case 'menu-close': setMenu(null); break;
       case 'text': setTextArea(ev.area); break;
+      case 'paused': setPauseInfo({ on: ev.on, reason: ev.reason }); break;
       case 'permission': setPerm(ev); break;
       case 'vibrate': if (ev.ms > 0) buzz(Math.min(ev.ms, 2000)); else navigator.vibrate?.(0); break;
       case 'displayable': break; // the Bridge draws every screen into the framebuffer (patch 0006): the kind needs no UI
@@ -226,6 +228,14 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
     return () => window.clearInterval(t);
   }, [audio]);
   const live = state === 'running';
+  // the game is suspended while no viewer has the page in front of them (the server decides, see Session.syncPause)
+  useEffect(() => {
+    if (!live || conn !== 'open') return;
+    const sync = () => send({ t: 'visibility', visible: !document.hidden });
+    sync();
+    document.addEventListener('visibilitychange', sync);
+    return () => document.removeEventListener('visibilitychange', sync);
+  }, [live, conn, send]);
   useEffect(() => {
     if (!sessionRef.current || !(state === 'running' || state === 'starting')) return;
     const t = window.setInterval(() => {
@@ -390,7 +400,8 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
             </div>
           </div>
           <div className="stage-actions">
-            <span className={`badge ${STATE_BADGE[state] ?? ''} ${live ? 'live' : ''}`} data-testid="state-badge"><span className="dot" />{translateUI(state === 'idle' ? 'stopped' : state)}{translateUI(conn === 'reconnecting' ? ' · reconnecting…' : '')}</span>
+            <span className={`badge ${STATE_BADGE[state] ?? ''} ${live ? 'live' : ''}`} data-testid="state-badge"><span className="dot" />{translateUI(state === 'idle' ? 'stopped' : state)}{translateUI(conn === 'reconnecting' ? ' · reconnecting…' : '')}{pauseInfo?.on && live ? translateUI(' · paused') : ''}</span>
+            {live && <button className="btn ghost sm" onClick={() => send({ t: 'pause', on: !(pauseInfo?.on && pauseInfo.reason === 'manual') })} aria-pressed={!!pauseInfo?.on && pauseInfo.reason === 'manual'} title={translateUI('Suspend the game: pauseApp is called, the picture stops')}>{translateUI(pauseInfo?.on && pauseInfo.reason === 'manual' ? '▶ Resume' : '⏸ Pause')}</button>}
             <Seg label={translateUI("View")} value={prefs.view} onChange={(view) => setPrefs({ view })} options={[{ value: 'full', label: <><Icon name="phone" /> {translateUI("Phone")}</>, title: 'Whole phone, body keys active' }, { value: 'screen', label: <><Icon name="zoom" /> {translateUI("Screen")}</>, title: 'Enlarged display; controls below' }]} />
             {prefs.view === 'screen' && <button className="btn ghost sm" onClick={()=>setLights(v=>!v)} aria-label={translateUI("Lights Out")} aria-pressed={lights} title={translateUI("Lights Out · Alt+L")}>{translateUI("☾ Lights Out")}</button>}
             <button className="btn ghost sm icon" onClick={() => setRotation(nextRotation(rotation))} aria-label={translateUI("Rotate the picture")} title={translateUI("Rotate the picture (for games made for landscape)")} data-testid="rotate"><Icon name="rotate" /></button>
