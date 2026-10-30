@@ -3,11 +3,12 @@ import { useDeveloperMode } from '../developer';
 import { isPhoneId, resolvePhone } from '@j2me-web/protocol';
 import { TextEditor } from './TextEditor';
 import { RecordingPanel } from './RecordingPanel';
+import { EmulationTweaksForm } from './EmulationTweaksForm';
 import { Recorder, Replayer } from '../recording';
 import { downloadBlob, fileSafe, framePng } from '../snapshot';
 import { GamepadPoller, loadPadProfile, type PadAction, type PadState } from '../gamepad';
 import { GamepadSettings } from './GamepadSettings';
-import { KEY_LAYOUTS, SCREEN_PRESETS, type DevicePreset, type GameMeta, type HealthStatus, type LayoutId, type ServerEvent, type SessionState, type SessionStatus } from '@j2me-web/protocol';
+import { KEY_LAYOUTS, SCREEN_PRESETS, type DevicePreset, type EmulationTweaks, type GameMeta, type HealthStatus, type LayoutId, type ServerEvent, type SessionState, type SessionStatus } from '@j2me-web/protocol';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError, type JarAnalysisView } from '../api';
 import type { Toast } from '../App';
@@ -74,6 +75,8 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   const [res, setRes] = useState<{ width: number; height: number } | null>(null);
   const [device, setDevice] = useState('');
   const [heapMb, setHeapMb] = useState(256);
+  const [tweaks, setTweaks] = useState<EmulationTweaks>({});
+  const [speed, setSpeed] = useState(1);
   const [devices, setDevices] = useState<DevicePreset[]>([]);
   const [analysis, setAnalysis] = useState<{ analysis: JarAnalysisView; recommendedDevice: string | null } | null>(null);
   // Presentation
@@ -148,7 +151,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
         const g = (await api.games()).find((x) => x.id === gameId);
         if (!g) { toast('error', 'Game not found'); onExit(); return; }
         if (dead) return;
-        setGame(g); setLayout(g.settings.layout); setRes({ width: g.settings.width, height: g.settings.height }); setDevice(g.settings.device ?? ''); setHeapMb(g.settings.heapMb); setAdvanced(g.settings.profileMode === 'advanced'); if (g.settings.skinId && isSkinId(g.settings.skinId)) setPrefs({skinId:g.settings.skinId}); setLoaded(true);
+        setGame(g); setLayout(g.settings.layout); setRes({ width: g.settings.width, height: g.settings.height }); setDevice(g.settings.device ?? ''); setHeapMb(g.settings.heapMb); setTweaks(g.settings.emulation ?? {}); setAdvanced(g.settings.profileMode === 'advanced'); if (g.settings.skinId && isSkinId(g.settings.skinId)) setPrefs({skinId:g.settings.skinId}); setLoaded(true);
         const running = (await api.sessions()).find((s) => s.gameId === gameId && (s.state === 'running' || s.state === 'starting'));
         if (running && !dead) attach(running);
       } catch (e) { toast('error', (e as Error).message); }
@@ -170,7 +173,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
       case 'state':
         setState(ev.state);
         if (ev.state === 'exited' || ev.state === 'failed') {
-          input.releaseAll(); replayer.stop(); setTextArea(null); setPauseInfo(null);
+          input.releaseAll(); replayer.stop(); setTextArea(null); setPauseInfo(null); setSpeed(1);
           if (ev.state === 'failed') toast('error', translateUI('Emulator stopped: {detail}', {detail:ev.detail ?? translateUI('unknown error')}));
         }
         break;
@@ -181,6 +184,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
       case 'menu': setMenu(ev); break;
       case 'menu-close': setMenu(null); break;
       case 'text': setTextArea(ev.area); break;
+      case 'speed': setSpeed(ev.modifier); break;
       case 'paused': setPauseInfo({ on: ev.on, reason: ev.reason }); break;
       case 'permission': setPerm(ev); break;
       case 'vibrate': if (ev.ms > 0) buzz(Math.min(ev.ms, 2000)); else navigator.vibrate?.(0); break;
@@ -193,7 +197,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   const attach = useCallback((s: SessionStatus) => {
     streamRef.current?.close();
     sessionRef.current = s;
-    setSession(s); setState(s.state); setFrameSize({ w: s.width, h: s.height }); setLog(s.logTail);
+    setSession(s); setSpeed(s.speed ?? 1); setState(s.state); setFrameSize({ w: s.width, h: s.height }); setLog(s.logTail);
     const st = new SessionStream(s.id, {
       onEvent,
       onFrame: (img) => {
@@ -302,12 +306,14 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
     window.addEventListener('pagehide',release);window.addEventListener('beforeunload',warn);
     return()=>{window.removeEventListener('pagehide',release);window.removeEventListener('beforeunload',warn);};
   },[input,state]);
+  const emuPatch = Object.keys(tweaks).length ? tweaks : null;
+  const emuKey = JSON.stringify(tweaks);
   const start = async () => {
     if (!game || busy || !loaded || (!advanced && !matched)) return;
     setBusy(true); setLog([]); setMenu(null); setPerm(null); setCpuHist([]); setFpsHist([]);
     void audio.resume(); // inside the click handler: allowed by autoplay policy
     try {
-      attach(await api.startSession(game.id, { layout, heapMb, ...(res ?? {}), device: device || null, skinId: prefs.skinId, profileMode: advanced ? 'advanced' : 'auto' }));
+      attach(await api.startSession(game.id, { layout, heapMb, ...(res ?? {}), device: device || null, skinId: prefs.skinId, profileMode: advanced ? 'advanced' : 'auto', emulation: emuPatch }));
     } catch (e) {
       const err = e as ApiError;
       toast('error', err.message);
@@ -379,11 +385,11 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   useEffect(() => {
     if (!loaded || !res) return;
     if (!advanced && matched && (device !== matched.preset.id || res.width !== matched.preset.width || res.height !== matched.preset.height || layout !== matched.preset.layout)) return;
-    api.patchGame(gameId,{settings:{skinId:prefs.skinId,profileMode:advanced?'advanced':'auto',device:device || null,...res,layout,heapMb}}).catch(e=>toast('error',(e as Error).message));
-  }, [loaded,prefs.skinId,advanced,device,res?.width,res?.height,layout,heapMb,gameId]);
+    api.patchGame(gameId,{settings:{skinId:prefs.skinId,profileMode:advanced?'advanced':'auto',device:device || null,...res,layout,heapMb,emulation:emuPatch}}).catch(e=>toast('error',(e as Error).message));
+  }, [loaded,prefs.skinId,advanced,device,res?.width,res?.height,layout,heapMb,gameId,emuKey]);
   const saveDefaults = async () => {
     if (!game || !res) return;
-    try { await api.patchGame(game.id, { settings: { ...res, layout, heapMb, device: device || null, skinId:prefs.skinId,profileMode:advanced?'advanced':'auto' } }); toast('info', 'Saved as this game’s defaults'); } catch (e) { toast('error', (e as Error).message); }
+    try { await api.patchGame(game.id, { settings: { ...res, layout, heapMb, device: device || null, skinId:prefs.skinId,profileMode:advanced?'advanced':'auto', emulation: emuPatch } }); toast('info', 'Saved as this game’s defaults'); } catch (e) { toast('error', (e as Error).message); }
   };
 
   const running = state === 'running' || state === 'starting' || state === 'stopping';
@@ -470,6 +476,11 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
               : <button className="btn danger grow" onClick={stop} disabled={busy || state === 'stopping'}><Icon name="stop" /> {translateUI("Stop")}</button>}
             {running && <button className="btn" disabled={busy || state === 'stopping'} onClick={async () => { if (await stop()) setTimeout(start, 400); }}><Icon name="restart" /> {translateUI("Restart")}</button>}
           </div>
+          {running && <div className="field"><span className="label-caps">{translateUI("Game speed")}</span>
+            <Seg<string> label={translateUI("Game speed")} value={String(speed)} onChange={(v) => send({ t: 'speed', modifier: Number(v) })}
+              options={[{ value: '-75', label: '×0.25' }, { value: '-50', label: '×0.5' }, { value: '1', label: '×1' }, { value: '2', label: '×2' }, { value: '4', label: '×4' }]} />
+            {![-75, -50, 1, 2, 4].includes(speed) && <span className="hint">{translateUI("Custom speed")}: {speed}</span>}
+          </div>}
           {running && <div className="note">{translateUI("Stop requests a safe MIDlet shutdown. An unresponsive game may be forcibly closed after 8 seconds; unsaved in-game progress can be lost. Save inside the game first.")}</div>}
           {state === 'failed' && <div className="note err">{translateUI("The emulator stopped unexpectedly. The log below has the details.")}</div>}
           {health?.ok === false && <div className="note warn">{translateUI("The emulator runtime is not ready on this server.")}</div>}
@@ -511,6 +522,10 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
           </fieldset>
           {needRestart && <div className="note warn" role="status">{translateUI("The running game keeps its current profile. Restart to apply the selected phone/profile.")} <button className="btn sm" disabled={busy || state === 'stopping'} onClick={async()=>{if(await stop())await start();}}>{translateUI("Restart with selected profile")}</button></div>}
           <button className="btn sm" onClick={saveDefaults} disabled={!game || !res}>{translateUI("Save as game defaults")}</button>
+        </Panel>
+
+        <Panel icon="sliders" title={translateUI("Game compatibility options")} open={false}>
+          <EmulationTweaksForm value={tweaks} onChange={setTweaks} />
         </Panel>
 
         <Panel icon="layers" title={translateUI("Display")}>

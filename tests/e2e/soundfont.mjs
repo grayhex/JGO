@@ -42,5 +42,6 @@ try {
 } finally {
   await browser?.close();
   server.kill();
-  rmSync(dir, { recursive: true, force: true });
+  await new Promise((r) => setTimeout(r, 800)); // the emulator may still be writing its log
+  try { rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 }); } catch { /* temp dir: not worth hiding the real result */ }
 }

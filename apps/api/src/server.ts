@@ -232,8 +232,11 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
     if (patchSettings && typeof patchSettings === 'object') {
       const cur = library.get(req.params.id);
       if (cur) {
+        const resetEmulation = (patchSettings as Record<string, unknown>).emulation === null;
         const valid = validateSettings(patchSettings, cur.settings);
         patchSettings = valid.profileMode === 'auto' || 'device' in patchSettings ? withDevice(valid, patchSettings as Record<string, unknown>) : valid;
+        // `valid` is a complete settings object, so "remove the options" has to survive as an explicit null
+        if (resetEmulation) patchSettings = { ...(patchSettings as object), emulation: null };
       }
     }
     const g = library.update(req.params.id, { ...(typeof req.body?.favorite === 'boolean' ? { favorite: req.body.favorite } : {}), settings: patchSettings });

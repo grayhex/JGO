@@ -1,6 +1,6 @@
-import type { DevicePreset, GameInfo, GameMeta, GameSettings, HealthStatus, LibraryCheck, LibraryRoot, MetadataJob, MobyCandidate, PublicSettings, ScanReport, SessionStatus, SettingsResponse, SystemStatus } from '@j2me-web/protocol';
+import type { DevicePreset, EmulationTweaks, GameInfo, GameMeta, GameSettings, HealthStatus, LibraryCheck, LibraryRoot, MetadataJob, MobyCandidate, PublicSettings, ScanReport, SessionStatus, SettingsResponse, SystemStatus } from '@j2me-web/protocol';
 
-export type GameSettingsPatch = Partial<Omit<GameSettings, 'device'>> & { device?: string | null };
+export type GameSettingsPatch = Partial<Omit<GameSettings, 'device' | 'emulation'>> & { device?: string | null; emulation?: EmulationTweaks | null };
 
 export class ApiError extends Error {
   constructor(

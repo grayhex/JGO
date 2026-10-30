@@ -425,5 +425,20 @@
   "No recording yet. Record, then play it back or save it to a file.": "Записи пока нет. Запишите ввод, затем воспроизведите или сохраните в файл.",
   "The game wants to open a link": "Игра хочет открыть ссылку",
   "Open this address only if you trust it:": "Открывайте этот адрес, только если доверяете ему:",
-  "Open": "Открыть"
+  "Open": "Открыть",
+  "Game speed": "Скорость игры",
+  "Custom speed": "Другая скорость",
+  "Game compatibility options": "Параметры совместимости игры",
+  "Frame limit (fps)": "Ограничение кадров (fps)",
+  "Language of the phone": "Язык телефона",
+  "What the game reads as microedition.locale, for example en-US or ru-RU. Some games pick their language from it.": "Это игра читает как microedition.locale, например en-US или ru-RU. Некоторые игры выбирают по нему язык.",
+  "Font sizes (small / medium / large, pixels)": "Размеры шрифтов (малый / средний / крупный, пикселей)",
+  "Font size small": "Размер малого шрифта",
+  "Font size medium": "Размер среднего шрифта",
+  "Font size large": "Размер крупного шрифта",
+  "Raise them if the text of a game looks tiny or lowers into the next line.": "Увеличьте, если текст игры слишком мелкий или не помещается в строку.",
+  "Tell the game the phone has a touch screen": "Сообщать игре, что у телефона сенсорный экран",
+  "Call pauseApp and startApp when the game is paused and resumed": "Вызывать pauseApp и startApp при паузе и продолжении игры",
+  "Back to the emulator defaults": "Вернуть значения эмулятора",
+  "Applied when the game is started the next time.": "Применяется при следующем запуске игры."
 }

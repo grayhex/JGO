@@ -6,7 +6,29 @@ export * from './phones.js';
 
 // ---- REST types -------------------------------------------------------------------------
 
+/**
+ * Per-game emulator options that really change what the game sees (each is a KEmulator `AppSettings` key, written to
+ * the game's midlets.ini). Absent = the emulator's own default, shown in {@link EMULATION_DEFAULTS}.
+ */
+export interface EmulationTweaks {
+  /** `FrameRate`: the frame limit of the drawing loop, 1..120 fps. */
+  frameRate?: number;
+  /** `StartAppOnResume`: call `pauseApp` when the game is suspended and `startApp` when it resumes (as phones do); off = only hideNotify/showNotify. */
+  startAppOnResume?: boolean;
+  /** `MIDPLocale`: the `microedition.locale` property, e.g. `en-US`, `ru-RU`. */
+  locale?: string;
+  /** `HasPointerEvents`: what `Canvas.hasPointerEvents()` answers; some games change their menus for touch. */
+  pointerEvents?: boolean;
+  /** `FontSmallSize`/`FontMediumSize`/`FontLargeSize`: pixel sizes behind `Font.SIZE_*`. */
+  fontSizes?: { small: number; medium: number; large: number };
+}
+
+export const EMULATION_DEFAULTS = { frameRate: 30, startAppOnResume: true, locale: 'en-US', pointerEvents: true, fontSizes: { small: 12, medium: 14, large: 16 } } as const;
+export const EMULATION_LIMITS = { frameRate: [1, 120], fontSize: [6, 64] } as const;
+
 export interface GameSettings {
+  /** Options beyond the phone profile; see {@link EmulationTweaks}. */
+  emulation?: EmulationTweaks;
   skinId?: import('./phones.js').PhoneId;
   profileMode?: 'auto' | 'advanced';
   /** Emulated screen size; the game sees exactly this canvas. */
@@ -258,6 +280,8 @@ export interface SessionStatus {
   encoding: 'raw' | 'deflate';
   /** The game is suspended (see `ServerEvent` `paused`). */
   paused: boolean;
+  /** Game speed: KEmulator's speed modifier (1 = normal, 2..100 faster, -1..-100 slower, -50 = half speed). */
+  speed: number;
 }
 
 export interface HealthStatus {
@@ -341,6 +365,8 @@ export type ServerEvent =
    * a viewer (`manual`) or the server because no viewer has the page in front of them (`hidden`).
    */
   | { t: 'paused'; on: boolean; reason: 'manual' | 'hidden' }
+  /** The game speed changed (see {@link SessionStatus.speed}). */
+  | { t: 'speed'; modifier: number }
   | { t: 'log'; line: string }
   | { t: 'stats'; fps: number; frames: number; dropped: number; latencyMs: number | null }
   | { t: 'pong'; ts: number };
@@ -354,6 +380,8 @@ export type ClientEvent =
   | { t: 'perm'; id: number; allow: boolean }
   /** The new full text of the focused text area (the game may shorten or filter it and answers with `text`). */
   | { t: 'text'; text: string }
+  /** Set the game speed for everyone watching: KEmulator's modifier, an integer in -100..100 except 0. */
+  | { t: 'speed'; modifier: number }
   /** Suspend or resume the game for everyone watching. */
   | { t: 'pause'; on: boolean }
   /** Whether this viewer's page is in front of them; the game is suspended while no viewer can see it. */

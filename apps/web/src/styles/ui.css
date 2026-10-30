@@ -121,3 +121,5 @@ input[type='range'] { width: 100%; accent-color: var(--primary); height: 20px; }
 .toasts { position: fixed; right: 16px; bottom: 16px; display: grid; gap: 8px; z-index: 70; max-width: min(420px, calc(100vw - 32px)); }
 .toast { background: var(--surface-elevated); border: 1px solid var(--outline); border-left: 4px solid var(--primary); box-shadow: var(--shadow-raised); border-radius: var(--r-md); padding: 10px 14px; font-size: 0.875rem; animation: rise var(--t-normal) var(--ease); }
 .toast.error { border-left-color: var(--danger); }
+.field-row.three { grid-template-columns: repeat(3, 1fr); }
+.tweaks { border: 0; padding: 0; margin: 0; display: grid; gap: 12px; min-width: 0; }

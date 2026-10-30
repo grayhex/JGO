@@ -92,6 +92,7 @@ public class KemGame extends MIDlet {
 				g.setColor(0xffffff);
 				g.drawString("KemGame " + frame, 2, 2, Graphics.TOP | Graphics.LEFT);
 				flushGraphics();
+				if (frame % 25 == 0) System.out.println("GAME_CLOCK frame=" + frame + " game_ms=" + System.currentTimeMillis() + " real_ms=" + System.nanoTime() / 1000000L);
 				try {
 					Thread.sleep(25);
 				} catch (InterruptedException e) {

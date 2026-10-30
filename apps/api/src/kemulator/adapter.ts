@@ -313,6 +313,11 @@ export class KEmulatorAdapter extends EventEmitter<AdapterEvents> {
     this.input(`S ${on ? 1 : 0}`);
   }
 
+  /** Bridge `Y` (JGO patch 0013): KEmulator's speed modifier, an integer in -100..100 except 0. */
+  setSpeed(modifier: number): void {
+    this.input(`Y ${modifier}`);
+  }
+
   /** Bridge `E`: the text is sent percent-encoded because the adapter relays ASCII only. */
   setText(text: string): void {
     this.input(`E ${encodeURIComponent(text)}`);

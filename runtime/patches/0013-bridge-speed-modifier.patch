@@ -1,0 +1,34 @@
+diff --git a/src/main/emulator/custom/CustomMethod.java b/src/main/emulator/custom/CustomMethod.java
+index cd1b4386..b7d2bae2 100644
+--- a/src/main/emulator/custom/CustomMethod.java
++++ b/src/main/emulator/custom/CustomMethod.java
+@@ -48,7 +48,9 @@ public class CustomMethod {
+ 		if (AppSettings.ignoreSleep) return;
+ 		if (AppSettings.applySpeedToSleep && AppSettings.speedModifier != 1 && t > 1) {
+ 			if (AppSettings.speedModifier < 0) {
+-				t = t * ((100L - AppSettings.speedModifier * 1024L) / 100L);
++				// j2me-web: a speed factor of (100 + m) / 100 stretches sleeps by 100 / (100 + m); the stock
++				// formula multiplied them by about 5 * |m| (so -50 slept 513 times as long). At most 100 times.
++				t = t * 100L / Math.max(1L, 100L + AppSettings.speedModifier);
+ 			} else {
+ 				t = t / AppSettings.speedModifier;
+ 			}
+diff --git a/src/main/emulator/ui/bridge/BridgeInput.java b/src/main/emulator/ui/bridge/BridgeInput.java
+index 1350e070..27dd392d 100644
+--- a/src/main/emulator/ui/bridge/BridgeInput.java
++++ b/src/main/emulator/ui/bridge/BridgeInput.java
+@@ -131,6 +131,14 @@ class BridgeInput implements Runnable {
+ 				suspend(parseBool(data[1]));
+ 				break;
+ 			}
++			case "Y": {
++				// j2me-web: "Y <n>" sets KEmulator's speed modifier like the Speed up / Slow down menu items:
++				// 1 = normal, 2..100 = faster, -1..-100 = slower (-50 is half speed). 0 would stop time and divide by zero.
++				int n = Integer.parseInt(data[1]);
++				if (n == 0 || n < -100 || n > 100) throw new IllegalArgumentException();
++				AppSettings.speedModifier = n;
++				break;
++			}
+ 			case "X": {
+ 				AppSettings.xrayView = parseBool(data[1]);
+ 				break;

@@ -69,6 +69,7 @@ export class Session {
   latencyMs: number | null = null;
   endedAt: number | null = null;
   readonly clients = new Map<string, { c: StreamClient; held: Set<number>; audio: boolean; visible: boolean }>();
+  private speed = 1;
   private manualPause = false;
   /** Why the game is suspended right now; null = running. */
   private pauseReason: 'manual' | 'hidden' | null = null;
@@ -141,6 +142,7 @@ export class Session {
       heapMb: this.settings.heapMb,
       encoding: this.cfg.frameEncoding,
       paused: this.pauseReason !== null,
+      speed: this.speed,
     };
   }
 
@@ -308,6 +310,7 @@ export class Session {
     if (this.pendingMenu) c.sendText(JSON.stringify(this.pendingMenu));
     if (this.textArea) c.sendText(JSON.stringify({ t: 'text', area: this.textArea } satisfies ServerEvent));
     for (const d of this.diagnostics) c.sendText(JSON.stringify({ t: 'log', line: `⚠ ${d}` } satisfies ServerEvent));
+    if (this.speed !== 1) c.sendText(JSON.stringify({ t: 'speed', modifier: this.speed } satisfies ServerEvent));
     if (this.pauseReason) c.sendText(JSON.stringify({ t: 'paused', on: true, reason: this.pauseReason } satisfies ServerEvent));
     // late joiners / reconnects must see the current screen even if the game never repaints
     if (this.lastPacked) c.sendFrame(this.lastPacked);
@@ -357,6 +360,13 @@ export class Session {
         this.manualPause = !!ev.on;
         this.syncPause();
         break;
+      case 'speed': {
+        if (!Number.isInteger(ev.modifier) || ev.modifier === 0 || ev.modifier < -100 || ev.modifier > 100 || ev.modifier === this.speed) break;
+        this.speed = ev.modifier;
+        this.adapter.setSpeed(this.speed);
+        this.broadcastText({ t: 'speed', modifier: this.speed });
+        break;
+      }
       case 'visibility':
         e.visible = !!ev.visible;
         this.syncPause();
@@ -476,7 +486,7 @@ export class SessionManager {
     this.lib.pruneLogs();
     // Per-app emulator settings (device preset, key codes of the chosen layout) go to midlets.ini
     writeSoundfontProperty(userPath, this.soundfontPath());
-    writeMidletsIni(userPath, { jarPath: paths.jar, width: overrides.width, height: overrides.height, keys: KEY_LAYOUTS[overrides.layout].keys, preset });
+    writeMidletsIni(userPath, { jarPath: paths.jar, width: overrides.width, height: overrides.height, keys: KEY_LAYOUTS[overrides.layout].keys, preset, tweaks: overrides.emulation });
     const adapter = new KEmulatorAdapter({
       adapterBin: this.cfg.adapterBin,
       javaBin: this.cfg.javaBin,
