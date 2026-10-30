@@ -1,4 +1,4 @@
-import type { GameMeta, GameSettings, HealthStatus, SessionStatus } from '@j2me-web/protocol';
+import type { DevicePreset, GameMeta, GameSettings, HealthStatus, SessionStatus } from '@j2me-web/protocol';
 
 export class ApiError extends Error {
   constructor(
@@ -23,6 +23,18 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
+/** The part of the server's JAR analysis the UI shows (apps/api/src/lab/analyze.ts). */
+export interface JarAnalysisView {
+  classCount: number;
+  apis: { id: string; label: string; group: string; classes: number; missing: string[]; needsGl: boolean; note?: string }[];
+  missingClasses: string[];
+  needs3d: boolean;
+  platform: { family: string; evidence: string[] };
+  screenHints: { width: number; height: number; source: string }[];
+  findings: { level: 'info' | 'warn' | 'error'; code: string; message: string }[];
+  risk: 'low' | 'medium' | 'high';
+}
+
 const jsonInit = (method: string, body: unknown): RequestInit => ({ method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 
 export const api = {
@@ -39,6 +51,9 @@ export const api = {
   deleteGame: (id: string, saves: boolean) => req<void>(`/api/games/${id}${saves ? '?saves=1' : ''}`, { method: 'DELETE' }),
   iconUrl: (id: string) => `/api/games/${id}/icon`,
   startSession: (gameId: string, settings?: Partial<GameSettings>) => req<SessionStatus>('/api/sessions', jsonInit('POST', { gameId, settings })),
+  devices: () => req<{ presets: DevicePreset[]; defaultName: string | null }>('/api/devices'),
+  analysis: (id: string) => req<{ analysis: JarAnalysisView; recommendedDevice: string | null }>(`/api/games/${id}/analysis`),
+  sessions: () => req<SessionStatus[]>('/api/sessions'),
   session: (id: string) => req<SessionStatus>(`/api/sessions/${id}`),
   stopSession: (id: string) => req<SessionStatus>(`/api/sessions/${id}`, { method: 'DELETE' }),
 };

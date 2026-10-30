@@ -55,6 +55,14 @@ npm start          # http://127.0.0.1:8080
 3D (M3G / Mascot Capsule) требует X-дисплей с GLX: `Xvfb :99 -screen 0 640x480x24 +extension GLX &`,
 затем `KEM_DISPLAY=:99 LIBGL_ALWAYS_SOFTWARE=1 npm start`. Без `KEM_DISPLAY` 2D и звук работают как есть.
 
+## Интерфейс и скины телефонов
+
+Пять моделей на выбор (Nokia 6100, 6230i, N95-1, E71, Sony Ericsson K750i): живой экран KEmulator в прозрачном окне картинки телефона без растяжения,
+кнопки корпуса с удержанием и мультитачем, вид «Screen» (увеличенный верх) с внешней панелью управления, страница `/phones` для проверки.
+Скины — **review draft**, не исторический сертификат. Подробнее: [docs/UI.md](docs/UI.md).
+
+![phones](docs/img/phones.png)
+
 ## Лаборатория совместимости
 
 Пакетный прогон **настоящих** игр (без добавления в Git): статический анализ JAR (M3G, Mascot Capsule, Nokia UI, Sony Ericsson и др. против реального списка классов эмулятора),
@@ -76,11 +84,12 @@ browser (React) ⇄ WS/REST ⇄ apps/api (Fastify) ⇄ stdio ⇄ kem-adapter (Ru
 
 | Путь | Назначение |
 |---|---|
-| `apps/web` | React + Vite: библиотека, плеер, ввод, экранная клавиатура, ремаппинг клавиш |
+| `apps/web` | React + Vite: дизайн-система Command Center, библиотека, плеер, `PhoneSkin` (5 моделей, hitboxes, мультитач), страница `/phones`, ввод |
 | `apps/api` | Fastify: REST, WebSocket-поток, библиотека (SQLite), сессии, лимиты, авторизация |
 | `bridge/kemulator-adapter` | Rust: FIFO-рукопожатие Bridge, mmap фреймбуфера, процесс-супервизор |
 | `packages/protocol` | общие типы/константы WS-протокола |
 | `runtime/` | Dockerfile, сборка KEmulator, **патчи**, Java-микшер звука |
+| `design/phones`, `tools/phones` | исходники и скрипты экспорта/проверки скинов телефонов (`apps/web/public/phones`) |
 | `tests/` | тестовые MIDlet (2D, M3G), интеграционные и e2e тесты |
 | `docs/` | Proxmox/LXC, резервные копии, архитектура, Bridge, совместимость, безопасность, лаборатория (Cloudflare — архивная оценка) |
 
@@ -95,10 +104,11 @@ browser (React) ⇄ WS/REST ⇄ apps/api (Fastify) ⇄ stdio ⇄ kem-adapter (Ru
 ## Тесты
 
 ```bash
-npm test                    # юнит: парсер JAR, пресеты, анализатор
+npm test                    # юнит: парсер JAR, пресеты, анализатор, геометрия скинов и разбор hitboxes.svg
+python3 tools/phones/validate_assets.py   # ассеты скинов телефонов (Pillow, NumPy)
 cargo test --manifest-path bridge/kemulator-adapter/Cargo.toml
 npm run test:integration    # тесты на НАСТОЯЩЕМ KEmulator: кадры, ввод, RMS, краш, 3D, звук, auth, пресеты, регрессии Bridge
-npm run test:e2e            # настоящий Chromium: загрузка, игра, клавиши, звук, перезагрузка страницы
+npm run test:e2e            # настоящий Chromium: загрузка, игра, клавиши, звук, перезагрузка; скины, hitboxes, мультитач, zoom
 BASE=http://127.0.0.1:8080 node tests/e2e/container-smoke.mjs   # против запущенного docker compose
 ```
 

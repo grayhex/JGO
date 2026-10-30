@@ -1,0 +1,22 @@
+/* PhoneSkin: display backplate < canvas < body < glass < hitboxes (see skin/PhoneSkin.tsx) */
+.skin-fit { position: relative; width: 100%; height: 100%; min-width: 0; min-height: 0; display: grid; place-items: center; }
+.skin-box { position: relative; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; filter: drop-shadow(0 18px 24px rgba(40, 20, 0, 0.28)); }
+.skin-lcd { position: absolute; overflow: hidden; background: var(--lcd); container-type: size; }
+.skin-canvas { position: absolute; display: block; touch-action: none; user-select: none; }
+.skin-canvas.crisp { image-rendering: pixelated; image-rendering: crisp-edges; }
+.skin-canvas.smooth { image-rendering: auto; }
+.skin-body, .skin-glass { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; user-select: none; -webkit-user-drag: none; }
+.skin-hit { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.skin-hit polygon { fill: transparent; stroke: none; transition: fill 80ms linear; }
+.skin-hit polygon.pressed { fill: rgba(254, 110, 0, 0.42); stroke: rgba(255, 255, 255, 0.85); stroke-width: 1.5px; vector-effect: non-scaling-stroke; }
+.skin-hit polygon.unbound.pressed { fill: rgba(121, 112, 103, 0.4); }
+.skin-hit polygon.debug { fill: rgba(254, 110, 0, 0.16); stroke: var(--primary); stroke-width: 1.25px; vector-effect: non-scaling-stroke; }
+.skin-hit polygon.debug.unbound { fill: rgba(121, 112, 103, 0.18); stroke: var(--muted); stroke-dasharray: 3 2; }
+.skin-hit polygon.debug.pressed { fill: rgba(254, 110, 0, 0.5); }
+.skin-box.has-keys { cursor: default; }
+.skin-debug-rect { position: absolute; outline: 2px dashed var(--primary); outline-offset: 0; pointer-events: none; }
+.skin-debug-label { position: absolute; transform: translate(-50%, -50%); font: 600 9px/1 var(--mono); padding: 1px 3px; border-radius: 3px; background: rgba(0, 0, 0, 0.7); color: #fff; pointer-events: none; white-space: nowrap; }
+.skin-lcd-overlay { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 6cqh; padding: 6cqmin; text-align: center; background: rgba(11, 16, 14, 0.82); color: #fff; font-size: clamp(9px, 6cqw, 16px); line-height: 1.25; overflow: hidden; }
+.skin-lcd-overlay h2 { font-size: 1.15em; font-weight: 700; margin: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.skin-lcd-overlay .btn { height: auto; padding: 0.55em 1.2em; font-size: 1em; }
+.skin-lcd-overlay .error { color: #ff9ba0; font-size: 0.9em; }

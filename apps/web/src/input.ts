@@ -58,8 +58,9 @@ type Send = (ev: { t: 'key'; s: 'D' | 'U'; code: number } | { t: 'release-all' }
  * a J2ME code is held down while at least one source maps to it.
  */
 export class InputController {
-  private sources = new Map<string, number>();
+  private sources = new Map<string, { code: number; action: Action }>();
   private refs = new Map<number, number>();
+  private listeners = new Set<() => void>();
   layout: LayoutId = 'nokia';
   bindings: Bindings = loadBindings();
   enabled = true;
@@ -68,28 +69,44 @@ export class InputController {
 
   setSend(s: Send) { this.send = s; }
 
+  /** Notified after every change of what is held (UI feedback only; never sends anything). */
+  subscribe(fn: () => void): () => void {
+    this.listeners.add(fn);
+    return () => { this.listeners.delete(fn); };
+  }
+
+  private emit(): void { for (const l of this.listeners) l(); }
+
+  /** Logical actions currently held by any source (keyboard, gamepad, touch, skin). */
+  heldActions(): Set<Action> { return new Set([...this.sources.values()].map((v) => v.action)); }
+
   press(source: string, action: Action): void {
     if (!this.enabled || this.sources.has(source)) return;
     const code = codeFor(action, this.layout);
-    this.sources.set(source, code);
+    this.sources.set(source, { code, action });
     const n = (this.refs.get(code) ?? 0) + 1;
     this.refs.set(code, n);
     if (n === 1) this.send({ t: 'key', s: 'D', code });
+    this.emit();
   }
 
   release(source: string): void {
-    const code = this.sources.get(source);
-    if (code === undefined) return;
+    const held = this.sources.get(source);
+    if (held === undefined) return;
+    const { code } = held;
     this.sources.delete(source);
     const n = (this.refs.get(code) ?? 1) - 1;
     if (n <= 0) { this.refs.delete(code); this.send({ t: 'key', s: 'U', code }); } else this.refs.set(code, n);
+    this.emit();
   }
 
-  /** Focus loss, tab hidden, disconnect: nothing may stay pressed. */
+  /** Focus loss, tab hidden, disconnect, a different skin or view: nothing may stay pressed. */
   releaseAll(): void {
+    const had = this.sources.size > 0;
     this.sources.clear();
     this.refs.clear();
     this.send({ t: 'release-all' });
+    if (had) this.emit();
   }
 
   heldCodes(): number[] { return [...this.refs.keys()]; }

@@ -1,23 +1,22 @@
-import type { Action } from '../input';
+import type { Action, InputController } from '../input';
+import { useHeld } from '../skin/useHeld';
 
-type Press = (source: string, a: Action) => void;
-type Release = (source: string) => void;
-
-function Key({ a, label, sub, cls = '', press, release }: { a: Action; label: string; sub?: string; cls?: string; press: Press; release: Release }) {
+function Key({ input, held, a, label, sub, cls = '' }: { input: InputController; held: Set<Action>; a: Action; label: string; sub?: string; cls?: string }) {
+  const release = (id: number) => input.release(`touch:${a}:${id}`);
   return (
     <button
       type="button"
-      className={`key ${cls}`}
+      className={`key ${cls} ${held.has(a) ? 'held' : ''}`}
       aria-label={sub ? `${label} ${sub}` : label}
       onPointerDown={(e) => {
         e.preventDefault();
         try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* synthetic or already-released pointer */ }
-        press(`touch:${a}:${e.pointerId}`, a);
+        input.press(`touch:${a}:${e.pointerId}`, a);
         navigator.vibrate?.(8);
       }}
-      onPointerUp={(e) => release(`touch:${a}:${e.pointerId}`)}
-      onPointerCancel={(e) => release(`touch:${a}:${e.pointerId}`)}
-      onLostPointerCapture={(e) => release(`touch:${a}:${e.pointerId}`)}
+      onPointerUp={(e) => release(e.pointerId)}
+      onPointerCancel={(e) => release(e.pointerId)}
+      onLostPointerCapture={(e) => release(e.pointerId)}
       onContextMenu={(e) => e.preventDefault()}
     >
       <span className="key-main">{label}</span>
@@ -26,11 +25,15 @@ function Key({ a, label, sub, cls = '', press, release }: { a: Action; label: st
   );
 }
 
-/** On-screen phone keypad: soft keys, D-pad with OK, 12-key matrix. Multi-touch capable. */
-export function Keypad({ press, release, softLeft, softRight }: { press: Press; release: Release; softLeft: string; softRight: string }) {
-  const k = { press, release };
+/**
+ * External phone controls: soft keys, D-pad with OK, 12-key matrix. Used in the screen close-up (the body has no keys
+ * there) and wherever a touch screen needs bigger targets. Every finger is its own input source, so multi-touch works.
+ */
+export function Keypad({ input, softLeft, softRight }: { input: InputController; softLeft: string; softRight: string }) {
+  const held = useHeld(input);
+  const k = { input, held };
   return (
-    <div className="keypad" aria-label="Phone keypad">
+    <div className="keypad" aria-label="Phone keypad" data-testid="keypad">
       <div className="keypad-top">
         <Key a="softLeft" label={softLeft || '◂'} sub="soft" cls="soft" {...k} />
         <div className="dpad">
