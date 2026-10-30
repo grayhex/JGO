@@ -77,7 +77,7 @@ launches() { smoke launches | sed -n 's/^LAUNCHES=//p'; }
 
 cleanup() {
   [[ ${KEEP:-0} == 1 ]] && { echo "KEEP=1: containers $CT / $CT_B and the fake GitHub (pid $(cat "$WORK/fake.pid" 2>/dev/null)) are left running"; return; }
-  be_rm "$CT" "$CT_B"
+  be_rm "$CT" "$CT_B" jgo-lxc-test-fresh
   [[ -f $WORK/fake.pid ]] && kill "$(cat "$WORK/fake.pid")" 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -247,7 +247,10 @@ t_backup() {
   check "the restore made a safety copy first" sh_ "ls /var/backups/jgo/ | grep -q pre-restore"
 }
 
-run_ct_noop() { run_ct 2>&1 | tee "$WORK/ct-noop.out" | grep -qi 'no update available'; }
+run_ct_noop() {
+  run_ct >"$WORK/ct-noop.out" 2>&1 || return 1
+  grep -qi 'no update available' "$WORK/ct-noop.out"
+}
 publish() { echo "$1" >"$WORK/releases/latest"; }
 
 t_update() {
@@ -266,6 +269,13 @@ t_update() {
   check "RMS survived the update ($n0 -> $n1)" eq "$n1" "$((n0 + 1))"
   check "running the update again finds nothing to do" run_ct_noop
   check "jgo doctor is still clean" sh_ "jgo doctor"
+  # the manual way back and forth, with the CLI directly
+  check "jgo rollback returns to the previous release" sh_ "jgo rollback"
+  check "... which is 0.2.0-test and healthy" eq "$(version) $(health_version)" "0.2.0-test 0.2.0-test"
+  check "jgo update --yes goes forward again to 0.2.1-test" sh_ "jgo update --yes"
+  check "... and the service runs it" eq "$(version) $(health_version)" "0.2.1-test 0.2.1-test"
+  n1=$(launches)
+  check "RMS survived both switches ($n0 -> $n1)" eq "$n1" "$((n0 + 2))"
 }
 
 t_update_failures() {
@@ -287,11 +297,6 @@ t_update_failures() {
   check "rolled back: /root/.jgo says 0.2.1-test" eq "$(sh_ 'cat /root/.jgo')" 0.2.1-test
   n1=$(launches)
   check "rolled back: RMS intact ($n0 -> $n1)" eq "$n1" "$((n0 + 1))"
-  # 3. manual rollback to the release before
-  publish v0.2.1-test
-  check "jgo rollback returns to the previous release" sh_ "jgo rollback"
-  check "... which is 0.2.0-test" eq "$(version)" 0.2.0-test
-  check "... and healthy" eq "$(health_version)" 0.2.0-test
 }
 
 t_migrate() {
@@ -300,6 +305,8 @@ t_migrate() {
   before=$(launches)
   tokA=$(token)
   sh_ "jgo backup --out /var/backups/jgo/migrate.tar.gz" >/dev/null
+  # A is finished with: stop it, so that B can have port 8080 and the X display on hosts where containers share a network namespace
+  sh_ "systemctl stop jgo jgo-xvfb"
   be_cp_from "$CT" /var/backups/jgo/migrate.tar.gz "$WORK/migrate.tar.gz"
   # B = the snapshot taken right after the first install, with its own token
   be_start "$CT_B" "$(cat "$WORK/snap")"

@@ -171,6 +171,46 @@ jobs:
       - if: failure()
         run: tail -n 80 .lxc-test/fake.log || true
 
+  lxc-real:
+    name: Same scenarios in a real unprivileged LXC container (LXD, Debian 13 image)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: runtime/build/kemulator
+          key: kemulator-${{ hashFiles('runtime/patches/*', 'runtime/audio/**', 'runtime/scripts/build-kemulator.sh', 'runtime/scripts/lib.sh') }}
+      - name: Build (KEmulator from the pinned commit + patches, adapter, web, fixtures)
+        run: |
+          npm ci
+          bash runtime/scripts/setup.sh
+      - name: LXD
+        run: |
+          sudo snap install lxd 2>/dev/null || sudo snap refresh lxd || true
+          sudo lxd waitready
+          sudo lxd init --auto
+          # Docker on the runner sets the FORWARD policy to DROP, which cuts the LXD bridge off from the internet
+          sudo iptables -I DOCKER-USER -j ACCEPT || true
+          sudo iptables -I FORWARD -i lxdbr0 -j ACCEPT || true
+          sudo iptables -I FORWARD -o lxdbr0 -m state --state RELATED,ESTABLISHED -j ACCEPT || true
+          sudo lxc version
+      - name: Run the scenarios in an LXC container
+        run: sudo -E env "PATH=$PATH" BACKEND=lxd LXC_BIN=lxc tests/lxc/run.sh
+      - if: failure()
+        run: |
+          sudo lxc list || true
+          tail -n 60 .lxc-test/fake.log || true
+
   docker:
     name: Docker image + container smoke test
     runs-on: ubuntu-24.04
