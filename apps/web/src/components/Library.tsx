@@ -91,7 +91,7 @@ export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['ki
       <div className="page-head">
         <div>
           <h1>Library</h1>
-          <p>{games === null ? 'Loading…' : `${new Set((games ?? []).map((g) => g.groupKey)).size} games · ${favCount} favorites · stored on this server only`}</p>
+          <p>{games === null ? 'Loading…' : (() => { const n = new Set((games ?? []).map((g) => g.groupKey)).size; return `${n} ${n === 1 ? 'game' : 'games'} · ${favCount} favorites · stored on this server only`; })()}</p>
         </div>
         <span className="spacer" />
         <Seg<Filter> label="Filter" value={filter} onChange={setFilter} options={[{ value: 'all', label: 'All' }, { value: 'favorites', label: 'Favorites' }, { value: 'recent', label: 'Recent' }]} />
@@ -128,7 +128,7 @@ export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['ki
                     {vs.map((v) => <option key={v.id} value={v.id}>{v.version ? `v${v.version}` : v.id.slice(0, 6)} · {(v.sizeBytes / 1024).toFixed(0)} KB</option>)}
                   </select>
                 ) : (
-                  <span className="badge">{sel.version ? `v${sel.version}` : 'no version'}</span>
+                  <span className="badge plain">{sel.version ? `v${sel.version}` : 'no version'}</span>
                 )}
                 {sel.warnings.length > 0 && <span className="badge mock" title={sel.warnings.join('\n')}>!</span>}
                 <span className="spacer" />

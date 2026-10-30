@@ -54,6 +54,7 @@ input[type='range'] { width: 100%; accent-color: var(--primary); height: 20px; }
 
 /* Badges */
 .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: var(--r-pill); font-size: 0.75rem; line-height: 1rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; background: var(--badge-planned-bg); color: var(--badge-planned-fg); white-space: nowrap; }
+.badge.plain { text-transform: none; letter-spacing: 0; }
 .badge.mock { background: var(--badge-mock-bg); color: var(--badge-mock-fg); }
 .badge.dev { background: var(--badge-dev-bg); color: var(--badge-dev-fg); }
 .badge.integrated { background: var(--badge-integrated-bg); color: var(--badge-integrated-fg); }

@@ -31,8 +31,20 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build
-      - name: Unit tests (JAR parser, device presets, analyzer)
+      - name: Unit tests (JAR parser, device presets, analyzer, skin geometry and hitbox parsing)
         run: npm test
+
+  phone-skins:
+    name: Phone skins (asset validation)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pillow numpy
+      - name: config.json, transparent windows, non-overlapping hitboxes, mappings
+        run: python3 tools/phones/validate_assets.py
 
   rust:
     name: Rust (fmt, clippy, tests)
@@ -112,7 +124,7 @@ jobs:
             env KEM_DISPLAY="$DISPLAY" LIBGL_ALWAYS_SOFTWARE=1 npm run test:integration
       - name: Install Chromium for the browser e2e test
         run: npx playwright install --with-deps chromium
-      - name: Browser e2e (upload, play, keys, audio level, reload)
+      - name: Browser e2e (upload, play, keys, audio level, reload, phone skins, hitboxes, zoom)
         run: npm run test:e2e
       - name: Compatibility lab on the free fixtures
         run: |

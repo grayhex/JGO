@@ -282,7 +282,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
 
   return (
     <div className="player-grid">
-      <section className="card stage-card" ref={card} aria-label="Phone">
+      <section className={`card stage-card ${prefs.view === 'screen' ? 'is-screen' : ''}`} ref={card} aria-label="Phone">
         <div className="stage-bar">
           <button className="btn ghost sm" onClick={leave}><Icon name="back" /> Library</button>
           <div className="title">

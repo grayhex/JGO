@@ -19,11 +19,12 @@
     "typecheck": "npm run build -w @j2me-web/protocol && npm run typecheck -w @j2me-web/protocol -w @j2me-web/api -w @j2me-web/web",
     "dev": "bash runtime/scripts/dev.sh",
     "start": "node apps/api/dist/server.js",
-    "test": "npm run test -w @j2me-web/api",
+    "test": "npm run test -w @j2me-web/api && npm run test -w @j2me-web/web",
     "lab": "node --import tsx apps/api/src/lab/cli.ts",
     "setup": "bash runtime/scripts/setup.sh",
     "test:integration": "node --import tsx --test --test-concurrency=1 tests/integration/*.test.ts",
-    "test:e2e": "node tests/e2e/browser.mjs",
+    "test:e2e": "node tests/e2e/browser.mjs && node tests/e2e/skins.mjs",
+    "test:phones": "python3 tools/phones/validate_assets.py",
     "test:lab-report": "node tests/e2e/lab-report.mjs"
   },
   "devDependencies": {

@@ -64,6 +64,7 @@ export function PhoneSkin({ skin, view, frame, canvasRef, canvasProps, integer =
 
   // --- hitboxes: pointer id -> hitbox id; every pointer is its own input source
   const tracked = useRef(new Map<number, { id: string; label: string; action: string | null; source: string }>());
+  const dragging = useRef(new Set<number>()); // pointers that went down on a key and are still pressed: they may slide across gaps onto other keys
   const [local, setLocal] = useState<Set<string>>(() => new Set());
   const held = useHeld(input);
   const boxes = skin.hitboxes;
@@ -92,7 +93,7 @@ export function PhoneSkin({ skin, view, frame, canvasRef, canvasProps, integer =
     syncLocal();
   }, [syncLocal]);
 
-  const releaseLocal = useCallback(() => { for (const p of [...tracked.current.keys()]) up(p); }, [up]);
+  const releaseLocal = useCallback(() => { dragging.current.clear(); for (const p of [...tracked.current.keys()]) up(p); }, [up]);
 
   const hit = (e: React.PointerEvent): Hitbox | null => {
     const el = box.current;
@@ -107,18 +108,19 @@ export function PhoneSkin({ skin, view, frame, canvasRef, canvasProps, integer =
     if (!h) return;
     e.preventDefault();
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* synthetic or already released pointer */ }
+    dragging.current.add(e.pointerId);
     down(e.pointerId, h);
     if (e.pointerType === 'touch') navigator.vibrate?.(8);
   };
   const onMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragging.current.has(e.pointerId)) return;
     const cur = tracked.current.get(e.pointerId);
-    if (!cur) return;
     const h = hit(e);
-    if (h?.id === cur.id) return;
-    up(e.pointerId); // sliding onto another key releases the first
+    if (h?.id === cur?.id) return;
+    if (cur) up(e.pointerId); // sliding off a key releases it, onto another key presses that one
     if (h) down(e.pointerId, h);
   };
-  const onUp = (e: React.PointerEvent<HTMLDivElement>) => up(e.pointerId);
+  const onUp = (e: React.PointerEvent<HTMLDivElement>) => { dragging.current.delete(e.pointerId); up(e.pointerId); };
 
   // everything held through the body is released when the picture changes, the window loses focus or the component goes away
   useEffect(() => {

@@ -45,22 +45,22 @@ try {
     dt.items.add(new File([bin], 'kemtest.jar', { type: 'application/java-archive' }));
     for (const t of ['dragenter', 'dragover', 'drop']) window.dispatchEvent(new DragEvent(t, { dataTransfer: dt, bubbles: true, cancelable: true }));
   }, bytes);
-  await page.waitForSelector('article.card h3:has-text("KemTest")');
+  await page.waitForSelector('article.game-card h3:has-text("KemTest")');
   ok('drag-and-drop upload creates a library card with MIDlet-Name', true);
   await page.screenshot({ path: path.join(outDir, '02-library.png') });
 
-  await page.fill('input.search', 'zzz-no-match');
-  ok('search filters the grid', (await page.locator('article.card').count()) === 0);
-  await page.fill('input.search', 'kemt');
-  ok('search finds by name', (await page.locator('article.card').count()) === 1);
+  await page.fill('input[aria-label=Search]', 'zzz-no-match');
+  ok('search filters the grid', (await page.locator('article.game-card').count()) === 0);
+  await page.fill('input[aria-label=Search]', 'kemt');
+  ok('search finds by name', (await page.locator('article.game-card').count()) === 1);
   await page.click('button[aria-label="Add to favorites"]');
-  await page.click('button.chip:has-text("Favorites")');
-  ok('favorite toggle + filter', (await page.locator('article.card').count()) === 1);
+  await page.getByRole('radio', { name: 'Favorites' }).click();
+  ok('favorite toggle + filter', (await page.locator('article.game-card').count()) === 1);
 
-  await page.click('article.card button.card-main');
-  await page.waitForSelector('button:has-text("Start")');
-  await page.click('.screen-overlay button.primary');
-  await page.waitForFunction(() => document.querySelector('.pill.ok'), null, { timeout: 20000 });
+  await page.click('article.game-card button.card-main');
+  await page.waitForSelector('.skin-lcd-overlay button.primary');
+  await page.click('.skin-lcd-overlay button.primary');
+  await page.waitForFunction(() => document.querySelector('[data-testid=state-badge]')?.textContent?.includes('running'), null, { timeout: 20000 });
   ok('session reaches running state', true);
 
   const sample = () => page.evaluate(() => {
@@ -113,9 +113,11 @@ try {
   await page.keyboard.up('Digit7');
 
   // on-screen keypad (touch/pointer) works too
-  await page.check('text=On-screen keypad');
-  await page.waitForSelector('.keypad');
-  const k0 = await page.locator('.key:has-text("0")').first().boundingBox();
+  await page.getByText('On-screen keypad', { exact: true }).click();
+  await page.waitForSelector('[data-testid=keypad]');
+  const k0loc = page.locator('[data-testid=keypad] .key:has-text("0")').first();
+  await k0loc.scrollIntoViewIfNeeded();
+  const k0 = await k0loc.boundingBox();
   await page.mouse.move(k0.x + k0.width / 2, k0.y + k0.height / 2);
   await page.mouse.down();
   await page.waitForTimeout(200);
@@ -131,48 +133,49 @@ try {
 
   // reload: the page re-attaches to the running session and the picture comes back
   await page.reload();
-  await page.waitForFunction(() => document.querySelector('.pill.ok'), null, { timeout: 15000 });
-  await page.waitForFunction(() => { const c = document.querySelector('canvas'); const d = c.getContext('2d').getImageData(0, 0, 1, 1).data; return d[0] === 255 && d[1] === 0; }, null, { timeout: 10000 });
+  await page.waitForFunction(() => document.querySelector('[data-testid=state-badge]')?.textContent?.includes('running'), null, { timeout: 15000 });
+  await page.waitForFunction(() => { const c = document.querySelector('canvas'); if (!c) return false; const d = c.getContext('2d').getImageData(0, 0, 1, 1).data; return d[0] === 255 && d[1] === 0; }, null, { timeout: 10000 });
   ok('page reload re-attaches to the running session and redraws', true);
 
   // WebSocket reconnect: kill only the socket from inside the page
   await page.evaluate(() => { for (const w of window.__sockets ?? []) w.close(); });
 
   // stop and restart
-  await page.click('.panel button:has-text("Stop")');
-  await page.waitForSelector('.screen-overlay button:has-text("Start")', { timeout: 10000 });
+  await page.click('button.danger:has-text("Stop")');
+  await page.waitForSelector('.skin-lcd-overlay button:has-text("Start")', { timeout: 10000 });
   ok('Stop ends the session and shows Start again', true);
   const live = await fetch(base + '/api/sessions').then((r) => r.json());
   ok('server reports the session as exited', live.every((x) => x.state === 'exited'), live.map((x) => x.state).join());
-  await page.click('.screen-overlay button.primary');
-  await page.waitForFunction(() => document.querySelector('.pill.ok'), null, { timeout: 20000 });
+  await page.click('.skin-lcd-overlay button.primary');
+  await page.waitForFunction(() => document.querySelector('[data-testid=state-badge]')?.textContent?.includes('running'), null, { timeout: 20000 });
   await page.waitForFunction(() => /launches 3/.test('x') || true);
   ok('restart works', true);
 
   // light/dark theme
-  await page.selectOption('select[aria-label="Theme"]', 'dark');
+  await page.getByRole('radio', { name: 'Dark' }).click();
+  await page.waitForTimeout(400); // let the colour transitions finish before the screenshot
   await page.screenshot({ path: path.join(outDir, '06-player-dark.png') });
-  await page.click('.panel button:has-text("Stop")');
-  await page.waitForSelector('.screen-overlay button:has-text("Start")');
-  await page.click('button:has-text("Library")');
-  await page.waitForSelector('article.card');
+  await page.click('button.danger:has-text("Stop")');
+  await page.waitForSelector('.skin-lcd-overlay button:has-text("Start")');
+  await page.click('a:has-text("Library")');
+  await page.waitForSelector('article.game-card');
   await page.screenshot({ path: path.join(outDir, '07-library-dark.png') });
-  await page.selectOption('select[aria-label="Theme"]', 'light');
+  await page.getByRole('radio', { name: 'Light' }).click();
 
   // mobile viewport
   const m = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   const mp = await m.newPage();
   await mp.goto(base);
-  await mp.waitForSelector('article.card');
+  await mp.waitForSelector('article.game-card');
   await mp.screenshot({ path: path.join(outDir, '08-mobile-library.png') });
-  await mp.click('article.card button.card-main');
-  await mp.click('.screen-overlay button.primary');
-  await mp.waitForFunction(() => document.querySelector('.pill.ok'), null, { timeout: 20000 });
-  await mp.waitForSelector('.keypad');
+  await mp.click('article.game-card button.card-main');
+  await mp.click('.skin-lcd-overlay button.primary');
+  await mp.waitForFunction(() => document.querySelector('[data-testid=state-badge]')?.textContent?.includes('running'), null, { timeout: 20000 });
+  await mp.waitForSelector('[data-testid=keypad]');
   await mp.waitForTimeout(500);
   await mp.screenshot({ path: path.join(outDir, '09-mobile-player.png') });
-  ok('mobile viewport shows the on-screen keypad', (await mp.locator('.keypad').count()) === 1);
-  await mp.click('.panel button:has-text("Stop")').catch(() => undefined);
+  ok('mobile viewport shows the on-screen keypad', (await mp.locator('[data-testid=keypad]').count()) === 1);
+  await mp.click('button.danger:has-text("Stop")').catch(() => undefined);
 
   ok('no uncaught browser errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (e) {
