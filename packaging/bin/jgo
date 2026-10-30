@@ -550,7 +550,7 @@ cmd_doctor() {
   [[ $show == *"User=$JGO_USER"* && $show == *NoNewPrivileges=yes* && $show == *ProtectSystem=strict* && $show == *PrivateTmp=yes* ]] && pass "sandbox active: $show" || bad "systemd sandbox is not applied: $show"
   [[ $show != *MemoryMax=infinity* && $show != *TasksMax=infinity* ]] && pass "cgroup limits set (memory, tasks, cpu)" || bad "cgroup limits are missing"
   local up
-  up=$(ps -o user= -C java 2>/dev/null | sort -u | tr '\n' ' ')
+  up=$(ps -o user= -C java 2>/dev/null | sort -u | tr '\n' ' ' || true)
   [[ -z $up || $up == "$JGO_USER " ]] && pass "emulator processes run as $JGO_USER" || bad "java runs as: $up"
 
   info "access"

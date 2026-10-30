@@ -96,6 +96,7 @@ prepare() {
   git -C "$CORE_DIR" checkout -q "$(cat "$here/core.pin")"
   ok "community-scripts/core at $(git -C "$CORE_DIR" rev-parse --short HEAD)"
 
+  (cd "$root" && npm run build >/dev/null) && ok "API and web UI built from the working tree"
   rm -rf "$WORK/releases" "$WORK/tls"
   mkdir -p "$WORK/releases" "$WORK/tls" "$WORK/build"
   # A = what the installer deploys, B = a newer release, BAD = a release whose server dies on start, SUM = tampered download
