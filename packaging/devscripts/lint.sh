@@ -23,7 +23,7 @@ chk "var_arm64 decided, with a reason" grep -Eq '^var_arm64="\$\{var_arm64:-(yes
 chk "update_script is the only function" bash -c "[[ \$(grep -cE '^(function )?[a-z_]+\(\) *\{|^function [a-z_]+' '$ct') -eq 1 ]] && grep -q '^function update_script()' '$ct'"
 chk "update_script: header_info, check_container_storage, check_container_resources" bash -c "grep -q '^  header_info' '$ct' && grep -q '^  check_container_storage' '$ct' && grep -q '^  check_container_resources' '$ct'"
 chk "update_script: install check, check_for_gh_release, ends with exit" bash -c "grep -q 'No \${APP} Installation Found' '$ct' && grep -q 'check_for_gh_release \"jgo\" \"grayhex/JGO\"' '$ct' && grep -q '^  exit\$' '$ct'"
-chk "tail: start, build_container, description, URL echo" bash -c "tail -12 '$ct' | grep -q '^start\$' && tail -12 '$ct' | grep -q '^build_container\$' && tail -12 '$ct' | grep -q '^description\$' && grep -q 'GATEWAY' '$ct'"
+chk "tail: start, build_container, description (in this order), URL echo" bash -c "s=\$(grep -n '^start\$' '$ct' | tail -1 | cut -d: -f1); b=\$(grep -n '^build_container\$' '$ct' | tail -1 | cut -d: -f1); d=\$(grep -n '^description\$' '$ct' | tail -1 | cut -d: -f1); [[ -n \$s && \$s -lt \$b && \$b -lt \$d ]] && grep -q 'GATEWAY' '$ct' && [[ \$(wc -l < '$ct') -le \$((d + 8)) ]]"
 chk "no Docker, apt-get, sudo, su -c, banners" bash -c "! grep -Eiq 'docker|apt-get|sudo |su -c|^# *[=#-]{4,}' '$ct' '$inst'"
 echo "install/jgo-install.sh"
 chk "bash syntax" bash -n "$inst"

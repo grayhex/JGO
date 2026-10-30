@@ -126,6 +126,30 @@ if (cmd === 'auth') {
   console.log(`HOLD ${s.id}`);
   await sleep(Number(process.argv[3] ?? 30) * 1000);
   await stop(s);
+} else if (cmd === 'library') {
+  // settings, the library folder inside the container, the import and the secret handling, over the real HTTP API
+  const j = async (p, init) => { const r = await api(p, init); return { status: r.status, json: await r.json().catch(() => null) }; };
+  const patch = (b) => j('/api/settings', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) });
+  ok('library: the settings API needs the token', (await fetch(base + '/api/settings')).status === (token ? 401 : 200));
+  const roots = await j('/api/library/roots');
+  ok('library: the import folder of the data directory is an allowed location', roots.json.roots.some((r) => r.path === '/var/lib/jgo/import' && r.exists && r.readable), JSON.stringify(roots.json.roots.map((r) => [r.path, r.exists])));
+  ok('library: /etc is refused as a library folder', (await patch({ libraryPath: '/etc' })).status === 400);
+  ok('library: so is a path with ..', (await patch({ libraryPath: '/var/lib/jgo/import/../saves' })).status === 400);
+  ok('library: the folder cannot be browsed outside the allowed locations', (await j('/api/library/browse?path=%2Fetc')).status === 400);
+  const set = await patch({ libraryPath: '/var/lib/jgo/import', audio: { volume: 33 } });
+  ok('library: the import folder is accepted, audio volume saved', set.status === 200 && set.json.settings.libraryPath === '/var/lib/jgo/import' && set.json.settings.audio.volume === 33, JSON.stringify(set.json).slice(0, 200));
+  const chk = await j('/api/library/check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: '/var/lib/jgo/import' }) });
+  ok('library: the folder check sees the JAR', chk.json.ok && chk.json.jarCount >= 1, JSON.stringify(chk.json).slice(0, 200));
+  await j('/api/library/scan', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"mode":"update"}' });
+  let rep = null;
+  for (let i = 0; i < 60; i++) { rep = (await j('/api/library/scan')).json; if (rep.report && rep.report.state !== 'running') break; await sleep(500); }
+  ok('library: the scan finished and found the JAR', rep.report?.state === 'done' && rep.report.jars >= 1 && rep.report.errors.length === 0, JSON.stringify(rep.report).slice(0, 240));
+  const games = (await j('/api/games')).json;
+  ok('library: the game is in the library (imported or already known by its SHA-256)', games.some((g) => g.name.includes('KemTest')));
+  const key = 'moby_lxc_test_key_0001';
+  const put = await j('/api/settings/mobygames-key', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ key }) });
+  const after = await j('/api/settings');
+  ok('library: the MobyGames key is stored but never returned', put.status === 200 && after.json.secrets.mobygames.configured && !JSON.stringify(after.json).includes(key));
 } else if (cmd === 'launches') {
   const g = await upload('kemtest');
   const s = await start(g);
@@ -140,7 +164,7 @@ if (cmd === 'auth') {
   console.log(`LAUNCHES=${n}`);
   if (!n) failed++;
 } else {
-  console.error('usage: smoke.mjs <auth|2d|3d|audio|launches>');
+  console.error('usage: smoke.mjs <auth|2d|3d|audio|launches|library>');
   process.exit(2);
 }
 process.exit(failed ? 1 : 0);

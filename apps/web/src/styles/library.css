@@ -37,3 +37,10 @@
 .login-side { display: grid; place-items: center; padding: var(--s-xl); background: var(--bg); }
 .login-card { width: min(380px, 100%); background: var(--surface-elevated); border: 1px solid var(--outline); border-radius: var(--r-md); padding: var(--s-2xl); box-shadow: var(--shadow-raised); display: grid; gap: 14px; }
 @media (max-width: 760px) { .login { grid-template-columns: 1fr; } .login-hero { padding: var(--s-2xl) var(--s-xl); } .login-hero h1 { font-size: 2rem; } }
+
+.cover.art { aspect-ratio: 4 / 5; background: var(--surface-soft); }
+.cover.art::after { display: none; }
+.cover.art img { width: 100%; height: 100%; object-fit: cover; image-rendering: auto; filter: none; }
+.lib-grid { align-items: start; }
+.card-foot { flex-wrap: wrap; row-gap: 4px; }
+.library > .note { margin-bottom: var(--s-xl); }

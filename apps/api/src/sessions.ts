@@ -129,6 +129,8 @@ export class Session {
       firstFrameMs: st.firstFrameAt ? st.firstFrameAt - this.createdAt : null,
       resources: this.meter.peakRssKb ? this.meter.usage() : null,
       device: this.settings.device ?? null,
+      layout: this.settings.layout,
+      heapMb: this.settings.heapMb,
       encoding: this.cfg.frameEncoding,
     };
   }

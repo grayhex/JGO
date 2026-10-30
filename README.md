@@ -55,6 +55,10 @@ npm start          # http://127.0.0.1:8080
 3D (M3G / Mascot Capsule) требует X-дисплей с GLX: `Xvfb :99 -screen 0 640x480x24 +extension GLX &`,
 затем `KEM_DISPLAY=:99 LIBGL_ALWAYS_SOFTWARE=1 npm start`. Без `KEM_DISPLAY` 2D и звук работают как есть.
 
+## Первый запуск, настройки и импорт библиотеки
+
+При первом открытии мастер предлагает: папку с играми (JAR/JAD, рекурсивно; на Proxmox — read-only bind mount хоста), ключ MobyGames (необязательно; обложки, описания, жанры, годы, рейтинги, скриншоты), телефон по умолчанию, звук, управление и лимиты сервера, и показывает состояние Java, KEmulator, Bridge, Mesa и хранилища. Всё меняется позже в **Settings**; секреты хранятся только на сервере, токен доступа не меняется, API не читает файлы вне разрешённых каталогов. Импорт находит дубли (SHA-256) и версии одной игры, обновляется без повторного импорта и не трогает сохранения. Игры из интернета не скачиваются. Подробнее: [docs/LIBRARY.md](docs/LIBRARY.md).
+
 ## Интерфейс и скины телефонов
 
 Пять моделей на выбор (Nokia 6100, 6230i, N95-1, E71, Sony Ericsson K750i): живой экран KEmulator в прозрачном окне картинки телефона без растяжения,
@@ -108,7 +112,8 @@ npm test                    # юнит: парсер JAR, пресеты, ана
 python3 tools/phones/validate_assets.py   # ассеты скинов телефонов (Pillow, NumPy)
 cargo test --manifest-path bridge/kemulator-adapter/Cargo.toml
 npm run test:integration    # тесты на НАСТОЯЩЕМ KEmulator: кадры, ввод, RMS, краш, 3D, звук, auth, пресеты, регрессии Bridge
-npm run test:e2e            # настоящий Chromium: загрузка, игра, клавиши, звук, перезагрузка; скины, hitboxes, мультитач, zoom
+npm run test:e2e            # настоящий Chromium: загрузка, игра, клавиши, звук; скины, hitboxes, мультитач, zoom; мастер, импорт, MobyGames (заглушка)
+bash tests/scripts/library-mount.test.sh   # bind mount хоста Proxmox (поддельный pct)
 BASE=http://127.0.0.1:8080 node tests/e2e/container-smoke.mjs   # против запущенного docker compose
 ```
 
@@ -127,3 +132,7 @@ BASE=http://127.0.0.1:8080 node tests/e2e/container-smoke.mjs   # против �
 под GPLv3/Apache-2.0/EPL (см. README апстрима): поэтому он **не поставляется** вместе с проектом, а собирается
 из апстрима при сборке образа; перед публичным распространением собранных образов нужно уточнить условия у автора
 (shinovon) или распространять только скрипты сборки.
+
+## Профили, Lights Out и геймпады
+
+Телефон автоматически выбирает существующий device-пресет KEmulator; Advanced разрешает независимый выбор. Настройки сохраняются для каждой игры. В Screen-виде кнопка ☾ и Alt+L включают Lights Out, Escape выключает. Настройки геймпада позволяют переназначать кнопки/оси глобально или для игры. Таблица соответствий и подробности: [PLAYER_CONTROLS.md](docs/PLAYER_CONTROLS.md).

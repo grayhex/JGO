@@ -1,3 +1,4 @@
+export * from './phones.js';
 /**
  * Wire protocol shared by the API and the web client. It is provider-neutral:
  * nothing here knows about Docker, Cloudflare or KEmulator internals.
@@ -6,6 +7,8 @@
 // ---- REST types -------------------------------------------------------------------------
 
 export interface GameSettings {
+  skinId?: import('./phones.js').PhoneId;
+  profileMode?: 'auto' | 'advanced';
   /** Emulated screen size; the game sees exactly this canvas. */
   width: number;
   height: number;
@@ -38,6 +41,167 @@ export interface GameMeta {
   groupKey: string;
   settings: GameSettings;
   warnings: string[];
+  /** 'upload' (web upload) or 'import' (scanned from the library directory). */
+  origin?: 'upload' | 'import';
+  /** True when every file this game was imported from has disappeared from the library directory (the game itself is kept). */
+  sourceMissing?: boolean;
+  /** Short MobyGames summary, when the game has been matched. */
+  info?: GameInfoSummary;
+}
+
+export type MetaStatus = 'none' | 'matched' | 'ambiguous' | 'unmatched' | 'manual' | 'error';
+
+export interface GameInfoSummary {
+  status: MetaStatus;
+  title?: string;
+  year?: number | null;
+  genres?: string[];
+  hasCover?: boolean;
+}
+
+export interface MobyCandidate {
+  mobyId: number;
+  title: string;
+  year: number | null;
+  platforms: string[];
+  genres: string[];
+  url: string | null;
+  /** 0..1 similarity between the library title and the candidate. */
+  score: number;
+  /** True when the candidate has the J2ME platform. */
+  j2me: boolean;
+  thumb: string | null;
+}
+
+export interface GameInfo {
+  status: MetaStatus;
+  groupKey: string;
+  mobyId: number | null;
+  title: string | null;
+  description: string | null;
+  genres: string[];
+  publishers: string[];
+  developers: string[];
+  year: number | null;
+  /** MobyGames score on a 0..10 scale. */
+  score: number | null;
+  mobyUrl: string | null;
+  officialUrl: string | null;
+  hasCover: boolean;
+  screenshots: number;
+  candidates: MobyCandidate[];
+  fetchedAt: string | null;
+  /** Text that must be displayed wherever this data is shown. */
+  attribution: string;
+  error: string | null;
+}
+
+export type SetupStatus = 'pending' | 'completed' | 'skipped';
+
+export interface PublicSettings {
+  /** Absolute path of the library directory (always inside one of the server's library roots) or null. */
+  libraryPath: string | null;
+  autoScan: boolean;
+  /** Look the games up on MobyGames after a scan (only when a key is configured). */
+  autoMetadata: boolean;
+  phone: { skinId: string; view: 'full' | 'screen'; device: string | null; layout: LayoutId; width: number; height: number; heapMb: number };
+  audio: { enabled: boolean; volume: number };
+  controls: { keypad: 'auto' | 'always' | 'never'; haptics: boolean; gamepad: boolean };
+  server: { maxSessions: number; sessionMaxMinutes: number; sessionIdleMinutes: number; libraryQuotaMb: number; frameEncoding: 'raw' | 'deflate' };
+}
+
+export interface SettingsResponse {
+  settings: PublicSettings;
+  /** Secrets are never returned: only whether they are set. */
+  secrets: { mobygames: { configured: boolean; hint: string | null } };
+  /** Values that come from /etc/jgo/jgo.env and cannot be changed from the web UI. */
+  readonly: { host: string; port: number; auth: 'none' | 'token'; dataDirName: string };
+  /** Environment defaults the server settings fall back to. */
+  envDefaults: PublicSettings['server'];
+  setup: { status: SetupStatus; completedAt: string | null; legacy: boolean };
+}
+
+export type CheckState = 'ok' | 'warn' | 'error';
+
+export interface SystemCheck {
+  id: string;
+  label: string;
+  state: CheckState;
+  detail: string;
+  hint?: string;
+}
+
+export interface SystemStatus {
+  version: string;
+  checks: SystemCheck[];
+  storage: { totalBytes: number; freeBytes: number; libraryBytes: number; quotaBytes: number };
+}
+
+export interface LibraryRoot {
+  path: string;
+  exists: boolean;
+  readable: boolean;
+  writable: boolean;
+  /** Free-form note, e.g. "mounted read-only". */
+  note: string | null;
+}
+
+export interface LibraryCheck {
+  ok: boolean;
+  path: string;
+  exists: boolean;
+  isDirectory: boolean;
+  readable: boolean;
+  /** A writable library directory is allowed but not needed: the import never writes there. */
+  writable: boolean;
+  insideRoot: boolean;
+  jarCount: number;
+  jadCount: number;
+  totalBytes: number;
+  /** True when the count stopped at the safety limit. */
+  truncated: boolean;
+  problems: string[];
+  warnings: string[];
+}
+
+export interface ScanReport {
+  id: string;
+  mode: 'update' | 'full';
+  state: 'running' | 'done' | 'cancelled' | 'failed';
+  root: string;
+  startedAt: string;
+  finishedAt: string | null;
+  filesSeen: number;
+  jars: number;
+  added: number;
+  updated: number;
+  unchanged: number;
+  /** Same bytes (SHA-256) found at another path. */
+  duplicates: number;
+  /** Same vendor+name but different bytes: kept as separate versions. */
+  newVersions: number;
+  missing: number;
+  skipped: number;
+  errors: { path: string; code: string; message: string }[];
+  /** Relative paths of the duplicate files, grouped by the game they duplicate. */
+  duplicateGroups: { gameId: string; name: string; paths: string[] }[];
+  versionGroups: { groupKey: string; name: string; versions: { gameId: string; version: string; path: string }[] }[];
+  current: string | null;
+  error: string | null;
+}
+
+export interface MetadataJob {
+  state: 'idle' | 'running' | 'cancelled' | 'done' | 'failed';
+  total: number;
+  done: number;
+  matched: number;
+  ambiguous: number;
+  unmatched: number;
+  failed: number;
+  current: string | null;
+  /** Epoch ms until which the job waits because of rate limiting (null when not waiting). */
+  waitingUntil: number | null;
+  error: string | null;
 }
 
 export type SessionState = 'starting' | 'running' | 'stopping' | 'exited' | 'failed';
@@ -55,6 +219,8 @@ export interface ResourceUsage {
 }
 
 export interface SessionStatus {
+  layout: LayoutId;
+  heapMb: number;
   id: string;
   gameId: string;
   state: SessionState;

@@ -240,19 +240,31 @@ t_rms_restart() {
   check "the access token survived the reboot unchanged" eq "$(token)" "$tok0"
 }
 
+t_library() {
+  log "library folder, settings and secrets inside the container"
+  be_cp_to "$CT" "$root/tests/fixtures/testmidlet/build/kemtest.jar" /root/kemtest-import.jar
+  sh_ "install -d -o jgo -g jgo -m 755 /var/lib/jgo/import/sub && install -o jgo -g jgo -m 644 /root/kemtest-import.jar /var/lib/jgo/import/sub/kemtest.jar"
+  check "jgo library lists the import folder" sh_ "jgo library | grep -q '/var/lib/jgo/import: readable'"
+  check "settings, the folder check, the import and the secret handling" smoke library
+  check "secrets.json is mode 600 and settings.json does not hold the key" sh_ "[ \$(stat -c %a /var/lib/jgo/secrets.json) = 600 ] && ! grep -q moby_lxc_test /var/lib/jgo/settings.json"
+  check "jgo doctor accepts the library folder" sh_ "jgo doctor | grep -q 'library folder /var/lib/jgo/import is readable'"
+}
+
 t_backup() {
   log "backup and restore"
   local before after
   before=$(launches)
   check "jgo backup writes a checksummed archive (mode 600)" sh_ "jgo backup --out /var/backups/jgo/manual.tar.gz && [ \$(stat -c %a /var/backups/jgo/manual.tar.gz) = 600 ]"
   check "the archive holds the library, the saves and the configuration" sh_ "tar -tzf /var/backups/jgo/manual.tar.gz | grep -q library.sqlite && tar -tzf /var/backups/jgo/manual.tar.gz | grep -q 'saves/' && tar -tzf /var/backups/jgo/manual.tar.gz | grep -q 'etc/jgo.env'"
+  check "... and the web settings with the MobyGames key" sh_ "tar -tzf /var/backups/jgo/manual.tar.gz | grep -q 'data/settings.json' && tar -tzf /var/backups/jgo/manual.tar.gz | grep -q 'data/secrets.json'"
   expect_fail "a damaged archive is refused" sh_ "cp /var/backups/jgo/manual.tar.gz /tmp/bad.tar.gz && printf x >>/tmp/bad.tar.gz && jgo restore /tmp/bad.tar.gz --yes"
-  sh_ "systemctl stop jgo; rm -rf /var/lib/jgo/saves /var/lib/jgo/library.sqlite*; systemctl start jgo"
+  sh_ "systemctl stop jgo; rm -rf /var/lib/jgo/saves /var/lib/jgo/library.sqlite* /var/lib/jgo/settings.json /var/lib/jgo/secrets.json; systemctl start jgo"
   wait_health 40 || true
   check "after losing the data the counter starts from scratch" eq "$(launches)" 1
   check "jgo restore brings library and saves back" sh_ "jgo restore /var/backups/jgo/manual.tar.gz --yes"
   after=$(launches)
   check "the restored RMS continues where the backup was taken ($before -> $after)" eq "$after" "$((before + 1))"
+  check "the restore brought the web settings back (volume 33, key stored, mode 600)" sh_ "grep -q '\"volume\": 33' /var/lib/jgo/settings.json && [ \$(stat -c %a /var/lib/jgo/secrets.json) = 600 ] && grep -q moby_lxc_test /var/lib/jgo/secrets.json"
   check "the restore made a safety copy first" sh_ "ls /var/backups/jgo/ | grep -q pre-restore"
 }
 
@@ -334,7 +346,7 @@ t_migrate() {
 
 # --------------------------------------------------------------------------------------------------------------
 prepare
-for s in install access functional hardening rms_restart backup update update_failures migrate; do
+for s in install access functional hardening rms_restart library backup update update_failures migrate; do
   if [[ -z $ONLY || " $ONLY " == *" $s "* ]]; then "t_$s"; fi
 done
 printf '\n\033[1m%d passed, %d failed\033[0m\n' "$pass" "$fail"

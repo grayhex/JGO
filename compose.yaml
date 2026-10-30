@@ -23,6 +23,8 @@ services:
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
     volumes:
       - j2me-data:/data
+      # An existing collection of .jar/.jad files, read-only (then choose /mnt/jgo-library in Settings > Game library):
+      # - ${JGO_LIBRARY:-./games}:/mnt/jgo-library:ro
     networks: [internal]
     # --- hardening: the JAR is untrusted code ---
     user: "10001:10001"

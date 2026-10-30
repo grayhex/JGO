@@ -88,6 +88,28 @@ JAR — недоверенный код. Слои защиты (проверяю
 
 `jgo rollback` вручную возвращает предыдущий релиз (дерево `/opt/jgo.prev`). Данные при этом не откатываются — для них `jgo restore`.
 
+## Библиотека игр с хоста (read-only bind mount)
+
+Коллекцию JAR/JAD можно оставить на хосте Proxmox и подключить к контейнеру **только для чтения**. JGO ничего там не пишет, не переносит и не удаляет: при импорте он копирует *новые* игры в собственную библиотеку (`/var/lib/jgo`).
+
+```bash
+# на хосте Proxmox, от root; CTID — номер контейнера JGO
+tools/proxmox/jgo-library-mount.sh <CTID> /path/on/host/games      # добавит mp<N>: ...,mp=/mnt/jgo-library,ro=1 и перезапустит контейнер
+tools/proxmox/jgo-library-mount.sh <CTID> --remove                   # убрать
+```
+
+Либо сразу при создании контейнера: `var_library_path=/path/on/host/games bash -c "$(curl -fsSL https://raw.githubusercontent.com/grayhex/JGO/main/ct/jgo.sh)"`.
+То же вручную: `pct set <CTID> -mp0 /path/on/host/games,mp=/mnt/jgo-library,ro=1 && pct reboot <CTID>`.
+
+Затем в JGO: **Settings → Game library** (или мастер первого запуска) → выбрать `/mnt/jgo-library` → *Check access* → *Use this folder* → *Scan library folder*.
+
+* **Права в непривилегированном контейнере.** Пользователи контейнера отображаются на хосте как `100000+uid`, поэтому файлы должны читаться «остальными» (`chmod -R o+rX /path/on/host/games`) либо надо выдать ACL для `100000+uid` пользователя `jgo` (`pct exec <CTID> -- id -u jgo`). Скрипт предупреждает, если у каталога нет прав `o+rx`; `jgo library` и `jgo doctor` показывают, читает ли каталог служба.
+* **Куда можно указывать.** Только в разрешённые каталоги: `/mnt/jgo-library`, `/srv/jgo-library` и `/var/lib/jgo/import` (список задаёт `LIBRARY_ROOTS` в `/etc/jgo/jgo.env`). Веб-интерфейс и API не читают ничего за их пределами; символические ссылки не разыменовываются.
+* **Без bind mount**: скопируйте файлы в `/var/lib/jgo/import` внутри контейнера (`pct push` / `scp`) или загружайте игры из браузера.
+* Скрипт отказывается подключать `/`, `/etc`, `/root`, `/boot`, `/proc`, `/sys`, `/dev`, пути со пробелами/запятыми и символические ссылки.
+
+Подробнее об импорте, дублях и MobyGames — [LIBRARY.md](LIBRARY.md).
+
 ## Команда `jgo`
 
 | Команда | Что делает |
@@ -95,12 +117,13 @@ JAR — недоверенный код. Слои защиты (проверяю
 | `jgo status [--json]` | версия, службы, адрес, health, размер данных, последний бэкап |
 | `jgo update [--check] [--to vX] [--yes]` | обновление (см. выше); `--check` возвращает код 10, если есть новая версия |
 | `jgo backup [--out PATH] [--no-games] [--stop]` | архив `.tar.gz` (`0600`) с контрольными суммами; без остановки службы (SQLite — `VACUUM INTO`) |
-| `jgo restore FILE [--yes] [--with-config] [--only db,saves,games,config]` | проверка архива, страховочная копия текущего состояния, откат при неудаче |
+| `jgo restore FILE [--yes] [--with-config] [--only db,saves,games,settings,metadata,config]` | проверка архива, страховочная копия текущего состояния, откат при неудаче |
 | `jgo rollback` | вернуть предыдущий релиз |
 | `jgo logs [-f] [-n N]` | журнал `jgo` и `jgo-xvfb` (`journalctl`) |
 | `jgo doctor [--online]` | проверка системы, установки, службы, песочницы, лимитов, доступа и бэкапов; код 1 при ошибках |
 | `jgo token [--rotate]` | показать / заменить токен |
 | `jgo network [deny\|allow\|status]` | сеть игр: `deny` (по умолчанию) или `allow` |
+| `jgo library [status]` | папки библиотеки: подключены ли, читает ли их служба, сколько JAR |
 
 ## Настройка
 

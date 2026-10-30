@@ -25,20 +25,21 @@ export function GameSettingsDialog({ game, toast, onClose, onChanged }: { game: 
         <dt>SHA-256</dt><dd className="mono">{game.sha256.slice(0, 16)}…</dd>
       </dl>
       {game.warnings.map((w) => <p key={w} className="note warn">{w}</p>)}
+      <p className="hint">Editing resolution or key layout enables Advanced mode for this game.</p>
       <label className="field">
         <span className="label-caps">Screen resolution</span>
-        <select className="select" value={preset ? `${preset.width}x${preset.height}` : 'custom'} onChange={(e) => { const [w, h] = e.target.value.split('x').map(Number); if (w && h) setS({ ...s, width: w, height: h }); }}>
+        <select className="select" value={preset ? `${preset.width}x${preset.height}` : 'custom'} onChange={(e) => { const [w, h] = e.target.value.split('x').map(Number); if (w && h) setS({ ...s, profileMode: 'advanced', width: w, height: h }); }}>
           {SCREEN_PRESETS.map((p) => <option key={p.label} value={`${p.width}x${p.height}`}>{p.label}</option>)}
           {!preset && <option value="custom">{s.width}×{s.height} (custom)</option>}
         </select>
       </label>
       <div className="field-row">
-        <label className="field"><span className="label-caps">Width</span><input className="input" type="number" min={64} max={800} value={s.width} onChange={(e) => setS({ ...s, width: Number(e.target.value) })} /></label>
-        <label className="field"><span className="label-caps">Height</span><input className="input" type="number" min={64} max={800} value={s.height} onChange={(e) => setS({ ...s, height: Number(e.target.value) })} /></label>
+        <label className="field"><span className="label-caps">Width</span><input className="input" type="number" min={64} max={800} value={s.width} onChange={(e) => setS({ ...s, profileMode: 'advanced', width: Number(e.target.value) })} /></label>
+        <label className="field"><span className="label-caps">Height</span><input className="input" type="number" min={64} max={800} value={s.height} onChange={(e) => setS({ ...s, profileMode: 'advanced', height: Number(e.target.value) })} /></label>
       </div>
       <label className="field">
         <span className="label-caps">Key layout</span>
-        <select className="select" value={s.layout} onChange={(e) => setS({ ...s, layout: e.target.value as LayoutId })}>
+        <select className="select" value={s.layout} onChange={(e) => setS({ ...s, profileMode: 'advanced', layout: e.target.value as LayoutId })}>
           {Object.entries(KEY_LAYOUTS).map(([id, l]) => <option key={id} value={id}>{l.label}</option>)}
         </select>
       </label>
