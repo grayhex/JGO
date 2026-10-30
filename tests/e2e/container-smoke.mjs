@@ -1,6 +1,7 @@
 // Smoke test against a RUNNING stack (docker compose up): real KEmulator inside the container.
 // Usage: BASE=http://127.0.0.1:8080 node tests/e2e/container-smoke.mjs
 import { readFileSync } from 'node:fs';
+import { inflateRawSync } from 'node:zlib';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -30,7 +31,7 @@ async function run(kind) {
   const ws = new WebSocket(base.replace('http', 'ws') + `/api/sessions/${s.id}/stream`);
   ws.binaryType = 'arraybuffer';
   const frames = [];
-  ws.onmessage = (m) => { if (typeof m.data !== 'string') frames.push({ t: Date.now(), px: new Uint8Array(m.data).subarray(14) }); };
+  ws.onmessage = (m) => { if (typeof m.data !== 'string') { const u = new Uint8Array(m.data); if (u[0] !== 1) return; const px = u[5] === 1 ? new Uint8Array(inflateRawSync(u.subarray(14))) : u.subarray(14); frames.push({ t: Date.now(), px }); } };
   await new Promise((res) => (ws.onopen = res));
   const t0 = Date.now();
   while (frames.length < 5 && Date.now() - t0 < 25000) await sleep(100);
@@ -46,6 +47,13 @@ async function run(kind) {
       await sleep(100);
     }
     ok('3d: M3G triangle with R/G/B vertex colours rendered', r > 15 && gg > 15 && b > 15, `r=${r} g=${gg} b=${b}`);
+  }
+  if (kind === '2d') {
+    ws.send(JSON.stringify({ t: 'audio', on: true }));
+    ws.send(JSON.stringify({ t: 'key', s: 'D', code: 49 })); ws.send(JSON.stringify({ t: 'key', s: 'U', code: 49 }));
+    await sleep(2500);
+    const st = await (await fetch(`${base}/api/sessions/${s.id}`)).json();
+    ok('2d: game audio produced inside the container (PCM bytes)', st.audioBytes > 150000, `${st.audioBytes} bytes`);
   }
   const n0 = frames.length; await sleep(3000);
   ok(`${kind}: sustained frame rate`, true, `${((frames.length - n0) / 3).toFixed(1)} fps measured at the client`);

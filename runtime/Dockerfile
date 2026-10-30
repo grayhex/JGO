@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends openjdk-21-jdk-
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY runtime/patches runtime/patches
+COPY runtime/audio runtime/audio
 COPY runtime/scripts/build-kemulator.sh runtime/scripts/
 # Optional: behind a TLS-inspecting proxy pass the proxy CA with
 #   docker build --secret id=extra_ca,src=/path/to/ca.pem --build-arg HTTPS_PROXY=... ...
