@@ -1,0 +1,8 @@
+**/node_modules
+**/dist
+**/target
+runtime/build
+data
+test-results
+.git
+tests/fixtures/**/build

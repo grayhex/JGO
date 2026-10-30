@@ -1,6 +1,7 @@
 import { type ChildProcessByStdio, spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { Readable, Writable } from 'node:stream';
 
@@ -179,6 +180,9 @@ export class KEmulatorAdapter extends EventEmitter<AdapterEvents> {
       PATH: process.env.PATH ?? '/usr/local/bin:/usr/bin:/bin',
       HOME: o.userPath,
       LANG: 'C.UTF-8',
+      // private, per-session: GLFW wants XDG_RUNTIME_DIR; fontconfig caches go to tmpfs, not into the saves
+      XDG_RUNTIME_DIR: o.bridgeDir,
+      XDG_CACHE_HOME: path.join(tmpdir(), 'j2me-web-cache'),
       ...(o.display ? { DISPLAY: o.display } : {}),
       ...(process.env.LIBGL_ALWAYS_SOFTWARE ? { LIBGL_ALWAYS_SOFTWARE: process.env.LIBGL_ALWAYS_SOFTWARE } : {}),
       ...(process.env.JAVA_HOME ? { JAVA_HOME: process.env.JAVA_HOME } : {}),

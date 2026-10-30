@@ -1,0 +1,50 @@
+diff --git a/src/main/emulator/ui/swt/Property.java b/src/main/emulator/ui/swt/Property.java
+index 969e2bcf..70e9f031 100644
+--- a/src/main/emulator/ui/swt/Property.java
++++ b/src/main/emulator/ui/swt/Property.java
+@@ -337,9 +337,13 @@ public final class Property implements IProperty, SelectionListener {
+ 			this.monospaceFont = properties.getProperty("MonospacedFont", null);
+ 			if (defaultFont == null) {
+ 				String systemName = pickFont(false);
+-				Font systemFont = Display.getDefault().getSystemFont();
+-				if (systemFont != null && systemFont.getFontData().length > 0)
+-					systemName = systemFont.getFontData()[0].getName();
++				try {
++					Font systemFont = Display.getDefault().getSystemFont();
++					if (systemFont != null && systemFont.getFontData().length > 0)
++						systemName = systemFont.getFontData()[0].getName();
++				} catch (Throwable ignored) {
++					// j2me-web patch: no SWT/GTK in the Bridge (headless) runtime
++				}
+ 				defaultFont = systemName;
+ 			}
+ 			if (monospaceFont == null) {
+@@ -544,7 +548,28 @@ public final class Property implements IProperty, SelectionListener {
+ 		}
+ 	}
+ 
++	/**
++	 * j2me-web patch: SWT needs GTK and a display. In the Bridge (headless) runtime fall back to
++	 * the fonts AWT can see, instead of dying with an UnsatisfiedLinkError that aborts loadProperties().
++	 */
+ 	private String pickFont(boolean monospace) {
++		try {
++			return pickFontSwt(monospace);
++		} catch (Throwable t) {
++			String res = "Arial";
++			try {
++				for (String n : java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames()) {
++					if (monospace ? n.equals("DejaVu Sans Mono") || n.equals("Liberation Mono") : n.equals("DejaVu Sans") || n.equals("Liberation Sans")) {
++						return n;
++					}
++				}
++			} catch (Throwable ignored) {
++			}
++			return res;
++		}
++	}
++
++	private String pickFontSwt(boolean monospace) {
+ 		String res = "Arial";
+ 		final ArrayList<String> list = new ArrayList<>();
+ 

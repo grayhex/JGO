@@ -15,7 +15,7 @@
     "dev": "bash runtime/scripts/dev.sh",
     "start": "node apps/api/dist/server.js",
     "test": "npm run test -w @j2me-web/api",
-    "test:integration": "node --import tsx --test tests/integration/*.test.ts",
+    "test:integration": "node --import tsx --test --test-concurrency=1 tests/integration/*.test.ts",
     "test:e2e": "node tests/e2e/browser.mjs"
   },
   "devDependencies": {

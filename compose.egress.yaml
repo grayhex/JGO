@@ -1,0 +1,6 @@
+# Opt-in: let MIDlets reach the network (online features, ads, analytics).
+#   docker compose -f compose.yaml -f compose.egress.yaml up --build
+# The JAR is untrusted code: it will be able to connect to anything the container can reach.
+services:
+  app:
+    networks: [internal, edge]

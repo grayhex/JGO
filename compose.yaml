@@ -1,0 +1,60 @@
+# One command:   docker compose up --build        then open http://localhost:8080
+name: j2me-web
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: runtime/Dockerfile
+      args:
+        BASE_REGISTRY: ${BASE_REGISTRY:-docker.io/library}
+    image: j2me-web:local
+    restart: unless-stopped
+    init: true
+    environment:
+      # Set a real token before exposing this anywhere but your own machine.
+      AUTH_TOKEN: ${AUTH_TOKEN:-}
+      # The app listens on the private compose network only; nginx publishes it on 127.0.0.1.
+      ALLOW_INSECURE_PUBLIC: "1"
+      MAX_SESSIONS: ${MAX_SESSIONS:-1}
+      SESSION_MAX_MINUTES: ${SESSION_MAX_MINUTES:-120}
+      FRAME_ENCODING: ${FRAME_ENCODING:-raw}
+      KEM_CPU_SECONDS: ${KEM_CPU_SECONDS:-0}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+    volumes:
+      - j2me-data:/data
+    networks: [internal]
+    # --- hardening: the JAR is untrusted code ---
+    user: "10001:10001"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 512
+    mem_limit: ${MEM_LIMIT:-1536m}
+    cpus: ${CPUS:-2}
+    shm_size: 256m
+    tmpfs:
+      - /tmp:size=128m,mode=1777,exec
+
+  gateway:
+    image: ${BASE_REGISTRY:-docker.io/library}/nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on: [app]
+    ports:
+      - "127.0.0.1:${PORT:-8080}:8080"
+    volumes:
+      - ./infrastructure/local/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks: [internal, edge]
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETUID, SETGID, NET_BIND_SERVICE]
+    tmpfs: [/var/cache/nginx, /var/run, /tmp]
+
+networks:
+  # no route out: games cannot reach the internet or your LAN. See compose.egress.yaml to allow it.
+  internal:
+    internal: true
+  edge: {}
+
+volumes:
+  j2me-data:
