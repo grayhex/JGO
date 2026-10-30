@@ -33,6 +33,19 @@ npm start          # http://127.0.0.1:8080
 3D (M3G / Mascot Capsule) требует X-дисплей с GLX: `Xvfb :99 -screen 0 640x480x24 +extension GLX &`,
 затем `KEM_DISPLAY=:99 LIBGL_ALWAYS_SOFTWARE=1 npm start`. Без `KEM_DISPLAY` 2D и звук работают как есть.
 
+## Лаборатория совместимости
+
+Пакетный прогон **настоящих** игр (без добавления в Git): статический анализ JAR (M3G, Mascot Capsule, Nokia UI, Sony Ericsson и др. против реального списка классов эмулятора),
+FPS/CPU/RAM/логи/звук/скриншоты, HTML-отчёт с ручной оценкой, device-пресеты KEmulator (модель, разрешение, раскладка клавиш).
+
+```bash
+npm run lab -- run ~/j2me-games --out lab-out      # открыть lab-out/report.html
+npm run lab -- analyze ~/j2me-games                 # только статический анализ
+npm run lab -- devices                              # 59 пресетов KEmulator
+```
+
+Подробнее: [docs/LAB.md](docs/LAB.md). Исправления Bridge, найденные лабораторией: [docs/BRIDGE.md](docs/BRIDGE.md).
+
 ## Что внутри
 
 ```
@@ -60,9 +73,9 @@ browser (React) ⇄ WS/REST ⇄ apps/api (Fastify) ⇄ stdio ⇄ kem-adapter (Ru
 ## Тесты
 
 ```bash
-npm test                    # юнит: парсер JAR (9) 
+npm test                    # юнит: парсер JAR, пресеты, анализатор
 cargo test --manifest-path bridge/kemulator-adapter/Cargo.toml
-npm run test:integration    # 20 тестов на НАСТОЯЩЕМ KEmulator: кадры, ввод, RMS, краш, 3D, звук, auth
+npm run test:integration    # тесты на НАСТОЯЩЕМ KEmulator: кадры, ввод, RMS, краш, 3D, звук, auth, пресеты, регрессии Bridge
 npm run test:e2e            # настоящий Chromium: загрузка, игра, клавиши, звук, перезагрузка страницы
 BASE=http://127.0.0.1:8080 node tests/e2e/container-smoke.mjs   # против запущенного docker compose
 ```

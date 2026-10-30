@@ -47,7 +47,8 @@ javac_checked -nowarn -encoding UTF-8 -source 8 -target 8 -XDignore.symbol.file 
   -cp "$CP" -d "$work/stage" @"$work/sources.txt"
 
 # headless Java Sound provider (no sound card in containers); plain JDK APIs, our own code
-javac_checked -nowarn -source 8 -target 8 -XDignore.symbol.file -d "$work/stage" $(find "$runtime_dir/audio/src" -name '*.java')
+find "$runtime_dir/audio/src" -name '*.java' > "$work/audio-sources.txt"
+javac_checked -nowarn -source 8 -target 8 -XDignore.symbol.file -d "$work/stage" @"$work/audio-sources.txt"
 mkdir -p "$work/stage/META-INF/services"
 cp "$runtime_dir/audio/src/META-INF/services/javax.sound.sampled.spi.MixerProvider" "$work/stage/META-INF/services/"
 

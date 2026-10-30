@@ -185,7 +185,7 @@ export function analyzeJar(jar: Uint8Array, attrs: Record<string, string>, emula
   const has = (id: string) => apis.find((a) => a.id === id);
   const needsGl = apis.some((a) => a.needsGl);
   if (needsGl) findings.push({ level: 'info', code: 'needs-gl', message: 'Uses 3D APIs: the runtime needs an X display with GLX and Mesa (software llvmpipe is fine, slower).' });
-  if (has('lcdui-high')) findings.push({ level: 'warn', code: 'lcdui-high', message: 'Uses Form/List/TextBox/Alert. TextBox and List screens are not rendered by the Bridge frontend; Form and Alert are drawn into the framebuffer.' });
+  if (has('lcdui-high')) findings.push({ level: 'warn', code: 'lcdui-high', message: 'Uses Form/List/TextBox/Alert: all are drawn into the framebuffer by software implementations; typing into a TextBox/TextField is not possible yet (Bridge "E" event is unimplemented in KEmulator).' });
   if (has('doja')) findings.push({ level: 'warn', code: 'doja', message: 'DoJa (i-appli) profile: only limited support in KEmulator.' });
   if (has('net')) findings.push({ level: 'info', code: 'network', message: 'Opens network connections; blocked unless the container is started with egress enabled.' });
   if (has('fileconn') || has('pim') || has('bluetooth') || has('wma') || has('location') || has('sensor')) {

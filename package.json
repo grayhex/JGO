@@ -18,7 +18,8 @@
     "lab": "node --import tsx apps/api/src/lab/cli.ts",
     "setup": "bash runtime/scripts/setup.sh",
     "test:integration": "node --import tsx --test --test-concurrency=1 tests/integration/*.test.ts",
-    "test:e2e": "node tests/e2e/browser.mjs"
+    "test:e2e": "node tests/e2e/browser.mjs",
+    "test:lab-report": "node tests/e2e/lab-report.mjs"
   },
   "devDependencies": {
     "tsx": "^4.19.0",

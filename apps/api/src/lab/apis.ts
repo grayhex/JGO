@@ -41,7 +41,7 @@ export const API_FAMILIES: ApiFamily[] = [
   { id: 'net', label: 'Network (HTTP/socket/datagram)', group: 'core', prefixes: ['javax/microedition/io/Connector', 'javax/microedition/io/HttpConnection', 'javax/microedition/io/SocketConnection', 'javax/microedition/io/DatagramConnection', 'javax/microedition/io/StreamConnection'], note: 'blocked by default in the container (internal network)' },
   { id: 'gamecanvas', label: 'LCDUI game API (GameCanvas, Sprite, LayerManager)', group: 'core', prefixes: ['javax/microedition/lcdui/game/'] },
   { id: 'rms', label: 'Record Management System', group: 'core', prefixes: ['javax/microedition/rms/'] },
-  { id: 'lcdui-high', label: 'High-level LCDUI (Form, List, TextBox, Alert)', group: 'core', prefixes: ['javax/microedition/lcdui/Form', 'javax/microedition/lcdui/List', 'javax/microedition/lcdui/TextBox', 'javax/microedition/lcdui/Alert', 'javax/microedition/lcdui/TextField', 'javax/microedition/lcdui/ChoiceGroup'], note: 'TextBox/List are not rendered by the Bridge frontend (see docs/BRIDGE.md)' },
+  { id: 'lcdui-high', label: 'High-level LCDUI (Form, List, TextBox, Alert)', group: 'core', prefixes: ['javax/microedition/lcdui/Form', 'javax/microedition/lcdui/List', 'javax/microedition/lcdui/TextBox', 'javax/microedition/lcdui/Alert', 'javax/microedition/lcdui/TextField', 'javax/microedition/lcdui/ChoiceGroup'], note: 'List/TextBox/Form/Alert are drawn in software; typing into a TextBox is not possible yet (Bridge "E" event unimplemented, see docs/BRIDGE.md)' },
 ];
 
 /** Prefixes that identify a vendor/optional API: references to classes in these namespaces that

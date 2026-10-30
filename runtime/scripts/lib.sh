@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Shared helpers for the build scripts (source this file).
 
 # javac_checked <javac args...>

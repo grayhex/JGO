@@ -35,7 +35,10 @@ pub fn read_msg<R: Read>(r: &mut R) -> io::Result<Option<(u8, Vec<u8>)>> {
     }
     let len = u32::from_be_bytes([head[1], head[2], head[3], head[4]]) as usize;
     if len > 1 << 20 {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "oversized message from API"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "oversized message from API",
+        ));
     }
     let mut buf = vec![0u8; len];
     r.read_exact(&mut buf)?;
@@ -58,7 +61,9 @@ mod tests {
 
     #[test]
     fn eof_is_none_and_oversize_is_rejected() {
-        assert!(read_msg(&mut Cursor::new(Vec::<u8>::new())).unwrap().is_none());
+        assert!(read_msg(&mut Cursor::new(Vec::<u8>::new()))
+            .unwrap()
+            .is_none());
         let mut huge = vec![b'I'];
         huge.extend_from_slice(&(2u32 << 20).to_be_bytes());
         assert!(read_msg(&mut Cursor::new(huge)).is_err());
