@@ -1,7 +1,12 @@
+# shellcheck shell=bash
 # Backend: a real unprivileged LXC container (LXD/Incus `lxc` client) running the official Debian 13 image.
 # This is the same kernel mechanism Proxmox VE uses for its containers. Sourced by run.sh; needs `lxc` and root or the lxd group.
 LXC="${LXC_BIN:-lxc}"
 LXD_IMAGE="${LXD_IMAGE:-images:debian/13}"
+
+LXC_ENV=()
+for _a in "${PROXY_ENV[@]}"; do [[ $_a == -e ]] || LXC_ENV+=(--env "$_a"); done
+unset _a
 
 be_prepare() { "$LXC" version >/dev/null; }
 

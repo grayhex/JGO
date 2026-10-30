@@ -1,8 +1,9 @@
+# shellcheck shell=bash
 # Backend: a privileged Docker container with systemd as PID 1 (local runs, fast). Sourced by run.sh.
 NET="${DOCKER_NET:-bridge}"
 IMAGE="jgo-lxc-test-base"
 
-be_prepare() { docker build -q --network host -t "$IMAGE" "$here" >/dev/null; }
+be_prepare() { docker build -q --network host --build-arg "BASE=${BASE_IMAGE:-debian:trixie}" -t "$IMAGE" "$here" >/dev/null; }
 
 be_host_ip() { if [[ $NET == host ]]; then echo 127.0.0.1; else docker network inspect bridge -f '{{(index .IPAM.Config 0).Gateway}}'; fi; }
 be_ip() { if [[ $NET == host ]]; then echo 127.0.0.1; else docker inspect -f '{{.NetworkSettings.IPAddress}}' "$1"; fi; }
@@ -23,6 +24,9 @@ be_start() { # be_start NAME [snapshot token]
     sleep 0.5
   done
   docker exec "$name" update-ca-certificates >/dev/null 2>&1
+  # a host that reaches the internet through a CONNECT-only proxy cannot serve plain-http mirrors
+  [[ ${#PROXY_ENV[@]} -gt 0 ]] && docker exec "$name" sh -c 'sed -i "s|http://|https://|" /etc/apt/sources.list.d/*.sources /etc/apt/sources.list 2>/dev/null; true'
+  return 0
 }
 
 be_exec() { local name=$1; shift; docker exec -i "${PROXY_ENV[@]}" "$name" "$@"; }

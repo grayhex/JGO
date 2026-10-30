@@ -17,8 +17,7 @@ root="$(cd "$here/../.." && pwd)"
 WORK="${WORK:-$root/.lxc-test}"
 CT="${CT:-jgo-lxc-test}"
 CT_B="$CT-b"
-NET="${DOCKER_NET:-bridge}"
-IMAGE="jgo-lxc-test-base"
+BACKEND="${BACKEND:-docker}"
 CORE_DIR="${CORE_DIR:-$WORK/core}"
 ONLY="${ONLY:-}"
 PORT=8080
@@ -55,16 +54,13 @@ if [[ -n ${HTTPS_PROXY:-} ]]; then
   PROXY_ENV=(-e "HTTPS_PROXY=$HTTPS_PROXY" -e "https_proxy=$HTTPS_PROXY" -e "HTTP_PROXY=${HTTP_PROXY:-$HTTPS_PROXY}" -e "http_proxy=${HTTP_PROXY:-$HTTPS_PROXY}"
     -e "NO_PROXY=api.github.com,github.com,127.0.0.1,localhost" -e "no_proxy=api.github.com,github.com,127.0.0.1,localhost")
 fi
-cx() { docker exec -i "${PROXY_ENV[@]}" "$CT" "$@"; }       # run in container A
-cxb() { docker exec -i "${PROXY_ENV[@]}" "$CT_B" "$@"; }    # run in container B
+# shellcheck source=/dev/null
+. "$here/backend-$BACKEND.sh"
+cx() { be_exec "$CT" "$@"; }    # run in container A
+cxb() { be_exec "$CT_B" "$@"; } # run in container B
 sh_() { cx bash -c "$*"; }
 
-ct_ip() {
-  if [[ $NET == host ]]; then echo 127.0.0.1; else docker inspect -f '{{.NetworkSettings.IPAddress}}' "$1"; fi
-}
-host_ip() {
-  if [[ $NET == host ]]; then echo 127.0.0.1; else docker network inspect bridge -f '{{(index .IPAM.Config 0).Gateway}}'; fi
-}
+ct_ip() { be_ip "$1"; }
 token() { sh_ "sed -n 's/^AUTH_TOKEN=//p' /etc/jgo/jgo.env"; }
 smoke() { BASE="http://$(ct_ip "$CT"):$PORT" TOKEN="$(token)" node "$here/smoke.mjs" "$@"; }
 version() { sh_ "tr -d '[:space:]' </opt/jgo/VERSION"; }
@@ -81,7 +77,7 @@ launches() { smoke launches | sed -n 's/^LAUNCHES=//p'; }
 
 cleanup() {
   [[ ${KEEP:-0} == 1 ]] && { echo "KEEP=1: containers $CT / $CT_B and the fake GitHub (pid $(cat "$WORK/fake.pid" 2>/dev/null)) are left running"; return; }
-  docker rm -f "$CT" "$CT_B" >/dev/null 2>&1 || true
+  be_rm "$CT" "$CT_B"
   [[ -f $WORK/fake.pid ]] && kill "$(cat "$WORK/fake.pid")" 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -134,31 +130,8 @@ prepare() {
   grep -q 'fake GitHub on' "$WORK/fake.log" || { cat "$WORK/fake.log"; echo "fake GitHub did not start (port 443 busy?)"; exit 1; }
   ok "fake GitHub serving v0.2.0-test (latest), v0.2.1-test, v0.2.2-broken, v0.2.3-badsum"
 
-  docker build -q --network host -t "$IMAGE" "$here" >/dev/null
-  ok "base image: Debian 13 + systemd"
-}
-
-start_container() { # start_container <name> [image]
-  local name=$1 image=${2:-$IMAGE}
-  docker rm -f "$name" >/dev/null 2>&1 || true
-  local ip
-  ip=$(host_ip)
-  docker run -d --name "$name" --privileged --cgroupns=host --network "$NET" \
-    -v /sys/fs/cgroup:/sys/fs/cgroup:rw --tmpfs /run --tmpfs /run/lock \
-    --add-host "api.github.com:$ip" --add-host "github.com:$ip" --add-host "codeload.github.com:$ip" --add-host "objects.githubusercontent.com:$ip" \
-    -v "$CORE_DIR:/opt/cs-core:ro" -v "$root/ct:/opt/jgo-src/ct:ro" -v "$root/install:/opt/jgo-src/install:ro" -v "$root/json:/opt/jgo-src/json:ro" \
-    -v "$WORK/tls/ca.crt:/usr/local/share/ca-certificates/jgo-test-ca.crt:ro" \
-    ${EXTRA_CA:+-v "$EXTRA_CA:/usr/local/share/ca-certificates/egress-proxy.crt:ro"} \
-    "$image" >/dev/null
-  local i
-  for i in {1..40}; do
-    [[ $(docker exec "$name" systemctl is-system-running 2>/dev/null) =~ ^(running|degraded)$ ]] && break
-    sleep 0.5
-  done
-  docker exec "$name" update-ca-certificates >/dev/null 2>&1
-  # a host that reaches the internet through a CONNECT-only proxy cannot serve plain-http mirrors
-  [[ ${#PROXY_ENV[@]} -gt 0 ]] && docker exec "$name" sh -c 'sed -i "s|http://|https://|" /etc/apt/sources.list.d/*.sources /etc/apt/sources.list 2>/dev/null; true'
-  true
+  be_prepare
+  ok "backend: $(be_describe)"
 }
 
 install_in() { # install_in <exec fn>
@@ -177,7 +150,7 @@ run_ct() { # run the ct script as `update` does inside a container
 # ---------------------------------------------------------------------------------------------------------- scenarios
 t_install() {
   log "install: install/jgo-install.sh on a fresh Debian 13 container"
-  start_container "$CT"
+  be_start "$CT"
   check "the install script finishes" install_in cx
   check "version deployed from the (fake) GitHub release is 0.2.0-test" eq "$(version)" 0.2.0-test
   check "user jgo is a system user without a login shell" sh_ "getent passwd jgo | grep -q ':/usr/sbin/nologin\$'"
@@ -191,7 +164,7 @@ t_install() {
   check "jgo CLI is on the PATH" sh_ "command -v jgo"
   check "jgo doctor finds no problems" sh_ "jgo doctor"
   check "jgo status runs" sh_ "jgo status"
-  docker commit "$CT" jgo-lxc-test-fresh >/dev/null && ok "snapshot of the fresh install kept (for the migration test)"
+  be_snapshot "$CT" >"$WORK/snap" && ok "snapshot of the fresh install kept (for the migration test)"
 }
 expect_fail_in_ct() { ! sh_ "$1"; }
 
@@ -249,7 +222,7 @@ t_rms_restart() {
   wait_health 40 && ok "service restart: healthy again" || no "service did not come back after restart"
   c=$(launches)
   check "RMS survives a service restart ($b -> $c)" eq "$c" "$((b + 1))"
-  docker restart -t 20 "$CT" >/dev/null
+  be_restart "$CT"
   for _ in {1..60}; do wait_health 1 && break; sleep 1; done
   wait_health 60 && ok "container reboot: services came back by themselves" || no "services did not autostart after the reboot"
   d=$(launches)
@@ -326,20 +299,20 @@ t_migrate() {
   before=$(launches)
   tokA=$(token)
   sh_ "jgo backup --out /var/backups/jgo/migrate.tar.gz" >/dev/null
-  docker cp "$CT:/var/backups/jgo/migrate.tar.gz" "$WORK/migrate.tar.gz"
+  be_cp_from "$CT" /var/backups/jgo/migrate.tar.gz "$WORK/migrate.tar.gz"
   # B = the snapshot taken right after the first install, with its own token
-  start_container "$CT_B" jgo-lxc-test-fresh
+  be_start "$CT_B" "$(cat "$WORK/snap")"
   for _ in {1..60}; do cxb sh -c "curl -fsS http://127.0.0.1:$PORT/api/health >/dev/null" 2>/dev/null && break; sleep 1; done
   cxb jgo token --rotate >/dev/null
   local tokB
   tokB=$(cxb sed -n 's/^AUTH_TOKEN=//p' /etc/jgo/jgo.env)
   check "container B has a token of its own" ne "$tokA" "$tokB"
-  docker cp "$WORK/migrate.tar.gz" "$CT_B:/root/migrate.tar.gz"
+  be_cp_to "$CT_B" "$WORK/migrate.tar.gz" /root/migrate.tar.gz
   check "jgo restore --with-config on B" cxb jgo restore /root/migrate.tar.gz --yes --with-config
   check "B now uses the token of A" eq "$(cxb sed -n 's/^AUTH_TOKEN=//p' /etc/jgo/jgo.env)" "$tokA"
   after=$(BASE="http://$(ct_ip "$CT_B"):$PORT" TOKEN="$tokA" node "$here/smoke.mjs" launches 2>&1 | sed -n 's/^LAUNCHES=//p')
   check "the games and the RMS moved with it ($before -> $after)" eq "$after" "$((before + 1))"
-  docker rm -f "$CT_B" >/dev/null 2>&1 || true
+  be_rm "$CT_B"
 }
 
 # --------------------------------------------------------------------------------------------------------------
