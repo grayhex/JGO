@@ -3,12 +3,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../api';
 import type { Toast } from '../App';
 import { GameSettingsDialog } from './GameSettingsDialog';
+import { Icon } from './Icon';
+import { Seg } from './ui';
 
 type Filter = 'all' | 'favorites' | 'recent';
 
 function Cover({ g }: { g: GameMeta }) {
   const [broken, setBroken] = useState(false);
-  const hue = parseInt(g.groupKey.slice(0, 4), 16) % 360;
+  const hue = 18 + (parseInt(g.groupKey.slice(0, 4), 16) % 34); // warm range only: the palette has one signal colour
   return (
     <div className="cover" style={{ ['--hue' as string]: hue }}>
       {g.hasIcon && !broken ? <img src={api.iconUrl(g.id)} alt="" onError={() => setBroken(true)} /> : <span className="initials">{g.name.slice(0, 2).toUpperCase()}</span>}
@@ -16,9 +18,8 @@ function Cover({ g }: { g: GameMeta }) {
   );
 }
 
-export function Library({ toast, onPlay, health }: { toast: (k: Toast['kind'], t: string) => void; onPlay: (id: string) => void; health: HealthStatus | null }) {
+export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['kind'], t: string) => void; onPlay: (id: string) => void; health: HealthStatus | null; query: string }) {
   const [games, setGames] = useState<GameMeta[] | null>(null);
-  const [q, setQ] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(0);
@@ -72,30 +73,29 @@ export function Library({ toast, onPlay, health }: { toast: (k: Toast['kind'], t
   const groups = useMemo(() => {
     const m = new Map<string, GameMeta[]>();
     for (const g of games ?? []) (m.get(g.groupKey) ?? m.set(g.groupKey, []).get(g.groupKey)!).push(g);
-    const needle = q.trim().toLowerCase();
+    const needle = query.trim().toLowerCase();
     return [...m.values()]
       .map((vs) => vs.sort((a, b) => b.createdAt.localeCompare(a.createdAt)))
       .filter((vs) => !needle || vs.some((g) => `${g.name} ${g.vendor}`.toLowerCase().includes(needle)))
       .filter((vs) => (filter === 'favorites' ? vs.some((g) => g.favorite) : filter === 'recent' ? vs.some((g) => g.lastPlayedAt) : true))
       .sort((a, b) => (filter === 'recent' ? (b[0]!.lastPlayedAt ?? '').localeCompare(a[0]!.lastPlayedAt ?? '') : a[0]!.name.localeCompare(b[0]!.name)));
-  }, [games, q, filter]);
+  }, [games, query, filter]);
 
   const toggleFav = async (g: GameMeta) => {
     try { const u = await api.patchGame(g.id, { favorite: !g.favorite }); setGames((gs) => gs!.map((x) => (x.id === u.id ? u : x))); } catch (e) { toast('error', (e as Error).message); }
   };
 
+  const favCount = (games ?? []).filter((g) => g.favorite).length;
   return (
     <div className="library">
-      <div className="toolbar">
-        <input className="search" type="search" placeholder="Search games or vendors" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search" />
-        <div className="chips" role="tablist">
-          {(['all', 'favorites', 'recent'] as Filter[]).map((f) => (
-            <button key={f} role="tab" aria-selected={filter === f} className={`chip ${filter === f ? 'on' : ''}`} onClick={() => setFilter(f)}>
-              {f === 'all' ? 'All' : f === 'favorites' ? 'Favorites' : 'Recent'}
-            </button>
-          ))}
+      <div className="page-head">
+        <div>
+          <h1>Library</h1>
+          <p>{games === null ? 'Loading…' : `${new Set((games ?? []).map((g) => g.groupKey)).size} games · ${favCount} favorites · stored on this server only`}</p>
         </div>
-        <button className="btn primary" onClick={() => fileInput.current?.click()}>Add games</button>
+        <span className="spacer" />
+        <Seg<Filter> label="Filter" value={filter} onChange={setFilter} options={[{ value: 'all', label: 'All' }, { value: 'favorites', label: 'Favorites' }, { value: 'recent', label: 'Recent' }]} />
+        <button className="btn primary" onClick={() => fileInput.current?.click()}><Icon name="upload" /> Add games</button>
         <input ref={fileInput} type="file" accept=".jar,.jad" multiple hidden onChange={(e) => { void upload([...(e.target.files ?? [])]); e.target.value = ''; }} />
       </div>
 
@@ -104,17 +104,17 @@ export function Library({ toast, onPlay, health }: { toast: (k: Toast['kind'], t
           <div className="empty-art" aria-hidden />
           <h2>Your library is empty</h2>
           <p>Drop your own <code>.jar</code> files here (a matching <code>.jad</code> is optional). Games are stored on this server only; nothing is downloaded for you.</p>
-          <button className="btn primary" onClick={() => fileInput.current?.click()}>Choose files</button>
+          <button className="btn primary" onClick={() => fileInput.current?.click()}><Icon name="upload" /> Choose files</button>
         </div>
       )}
       {games === null && <p className="muted">Loading…</p>}
 
-      <div className="grid">
+      <div className="lib-grid">
         {groups.map((vs) => {
           const sel = vs.find((v) => v.id === chosen[vs[0]!.groupKey]) ?? vs[0]!;
           const bad = sel.classVersion >= 49;
           return (
-            <article className="card" key={sel.groupKey}>
+            <article className="card game-card" key={sel.groupKey}>
               <button className="card-main" onClick={() => onPlay(sel.id)} disabled={bad || health?.ok === false} title={bad ? 'Java 5+ class files are not supported by KEmulator' : `Play ${sel.name}`}>
                 <Cover g={sel} />
                 <div className="meta">
@@ -128,12 +128,12 @@ export function Library({ toast, onPlay, health }: { toast: (k: Toast['kind'], t
                     {vs.map((v) => <option key={v.id} value={v.id}>{v.version ? `v${v.version}` : v.id.slice(0, 6)} · {(v.sizeBytes / 1024).toFixed(0)} KB</option>)}
                   </select>
                 ) : (
-                  <span className="pill">{sel.version ? `v${sel.version}` : 'no version'}</span>
+                  <span className="badge">{sel.version ? `v${sel.version}` : 'no version'}</span>
                 )}
-                {sel.warnings.length > 0 && <span className="pill warn" title={sel.warnings.join('\n')}>!</span>}
+                {sel.warnings.length > 0 && <span className="badge mock" title={sel.warnings.join('\n')}>!</span>}
                 <span className="spacer" />
-                <button className={`icon-btn ${sel.favorite ? 'fav' : ''}`} onClick={() => toggleFav(sel)} aria-label={sel.favorite ? 'Remove from favorites' : 'Add to favorites'} aria-pressed={sel.favorite}>★</button>
-                <button className="icon-btn" onClick={() => setEditing(sel)} aria-label="Game settings">⚙</button>
+                <button className={`icon-btn ${sel.favorite ? 'fav' : ''}`} onClick={() => toggleFav(sel)} aria-label={sel.favorite ? 'Remove from favorites' : 'Add to favorites'} aria-pressed={sel.favorite}><Icon name="star" /></button>
+                <button className="icon-btn" onClick={() => setEditing(sel)} aria-label="Game settings"><Icon name="sliders" /></button>
               </div>
             </article>
           );

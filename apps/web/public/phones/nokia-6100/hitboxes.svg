@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1" preserveAspectRatio="none">
+<polygon id="softLeft" points="0.2728298,0.4881623 0.481398,0.4966178 0.4058625,0.5084555 0.3494927,0.524239 0.3111612,0.5304397" fill="transparent" pointer-events="all"><title>Left soft key</title></polygon>
+<polygon id="softRight" points="0.5174746,0.4954904 0.7215333,0.4881623 0.6798196,0.5310034 0.6335964,0.5214205 0.5952649,0.5078918" fill="transparent" pointer-events="all"><title>Right soft key</title></polygon>
+<polygon id="call" points="0.2029312,0.5174746 0.2897407,0.5417136 0.3742954,0.6031567 0.2299887,0.5715896" fill="transparent" pointer-events="all"><title>Call</title></polygon>
+<polygon id="end" points="0.7136415,0.542841 0.7936866,0.5157835 0.7711387,0.5732807 0.6335964,0.6048478" fill="transparent" pointer-events="all"><title>End</title></polygon>
+<polygon id="up" points="0.4191657,0.5095829 0.5774521,0.5095829 0.5372717,0.5370462 0.4593461,0.5370462" fill="transparent" pointer-events="all"><title>up</title></polygon>
+<polygon id="down" points="0.4593461,0.5768207 0.5372717,0.5768207 0.5774521,0.6042841 0.4191657,0.6042841" fill="transparent" pointer-events="all"><title>down</title></polygon>
+<polygon id="left" points="0.3765502,0.5261556 0.4471702,0.5417813 0.4471702,0.5720857 0.3765502,0.5877114" fill="transparent" pointer-events="all"><title>left</title></polygon>
+<polygon id="right" points="0.5494476,0.5417813 0.6200676,0.5261556 0.6200676,0.5877114 0.5494476,0.5720857" fill="transparent" pointer-events="all"><title>right</title></polygon>
+<polygon id="d1" points="0.2029312,0.6104848 0.2987599,0.621195 0.4114994,0.6747463 0.2367531,0.6521984" fill="transparent" pointer-events="all"><title>1</title></polygon>
+<polygon id="d2" points="0.4002255,0.6459977 0.4960541,0.638106 0.5907554,0.6459977 0.5400225,0.6775648 0.4780158,0.6792559" fill="transparent" pointer-events="all"><title>2</title></polygon>
+<polygon id="d3" points="0.5975197,0.6747463 0.6899662,0.621195 0.7903044,0.6104848 0.7643743,0.6521984" fill="transparent" pointer-events="all"><title>3</title></polygon>
+<polygon id="d4" points="0.2119504,0.6775648 0.2987599,0.6882751 0.4114994,0.7367531 0.2435175,0.7142052" fill="transparent" pointer-events="all"><title>4</title></polygon>
+<polygon id="d5" points="0.4002255,0.7091319 0.4960541,0.7012401 0.5907554,0.7091319 0.5400225,0.7395716 0.4780158,0.7412627" fill="transparent" pointer-events="all"><title>5</title></polygon>
+<polygon id="d6" points="0.5975197,0.7367531 0.6899662,0.6882751 0.7812852,0.6775648 0.7587373,0.7142052" fill="transparent" pointer-events="all"><title>6</title></polygon>
+<polygon id="d7" points="0.2209696,0.7440812 0.2987599,0.7547914 0.4114994,0.7993236 0.2502818,0.7767756" fill="transparent" pointer-events="all"><title>7</title></polygon>
+<polygon id="d8" points="0.4002255,0.7728298 0.4960541,0.764938 0.5907554,0.7728298 0.5400225,0.8021421 0.4780158,0.8038331" fill="transparent" pointer-events="all"><title>8</title></polygon>
+<polygon id="d9" points="0.5975197,0.7993236 0.6899662,0.7547914 0.7722661,0.7440812 0.7531003,0.7767756" fill="transparent" pointer-events="all"><title>9</title></polygon>
+<polygon id="star" points="0.2299887,0.8089064 0.2987599,0.8196167 0.4114994,0.8635851 0.2570462,0.8410372" fill="transparent" pointer-events="all"><title>*</title></polygon>
+<polygon id="d0" points="0.4002255,0.8348365 0.4960541,0.8269448 0.5907554,0.8348365 0.5400225,0.8664036 0.4780158,0.8680947" fill="transparent" pointer-events="all"><title>0</title></polygon>
+<polygon id="pound" points="0.5975197,0.8635851 0.6899662,0.8196167 0.7632469,0.8089064 0.7474634,0.8410372" fill="transparent" pointer-events="all"><title>#</title></polygon>
+</svg>

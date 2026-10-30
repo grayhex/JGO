@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { api } from '../api';
 import type { Toast } from '../App';
 import { Modal } from './Modal';
+import { Switch } from './ui';
 
 export function GameSettingsDialog({ game, toast, onClose, onChanged }: { game: GameMeta; toast: (k: Toast['kind'], t: string) => void; onClose: () => void; onChanged: () => void }) {
   const [s, setS] = useState<GameSettings>(game.settings);
@@ -25,24 +26,24 @@ export function GameSettingsDialog({ game, toast, onClose, onChanged }: { game: 
       </dl>
       {game.warnings.map((w) => <p key={w} className="note warn">{w}</p>)}
       <label className="field">
-        <span>Screen resolution</span>
+        <span className="label-caps">Screen resolution</span>
         <select className="select" value={preset ? `${preset.width}x${preset.height}` : 'custom'} onChange={(e) => { const [w, h] = e.target.value.split('x').map(Number); if (w && h) setS({ ...s, width: w, height: h }); }}>
           {SCREEN_PRESETS.map((p) => <option key={p.label} value={`${p.width}x${p.height}`}>{p.label}</option>)}
           {!preset && <option value="custom">{s.width}×{s.height} (custom)</option>}
         </select>
       </label>
-      <div className="row">
-        <label className="field"><span>Width</span><input className="input" type="number" min={64} max={800} value={s.width} onChange={(e) => setS({ ...s, width: Number(e.target.value) })} /></label>
-        <label className="field"><span>Height</span><input className="input" type="number" min={64} max={800} value={s.height} onChange={(e) => setS({ ...s, height: Number(e.target.value) })} /></label>
+      <div className="field-row">
+        <label className="field"><span className="label-caps">Width</span><input className="input" type="number" min={64} max={800} value={s.width} onChange={(e) => setS({ ...s, width: Number(e.target.value) })} /></label>
+        <label className="field"><span className="label-caps">Height</span><input className="input" type="number" min={64} max={800} value={s.height} onChange={(e) => setS({ ...s, height: Number(e.target.value) })} /></label>
       </div>
       <label className="field">
-        <span>Key layout</span>
+        <span className="label-caps">Key layout</span>
         <select className="select" value={s.layout} onChange={(e) => setS({ ...s, layout: e.target.value as LayoutId })}>
           {Object.entries(KEY_LAYOUTS).map(([id, l]) => <option key={id} value={id}>{l.label}</option>)}
         </select>
       </label>
       <label className="field">
-        <span>Heap (MB)</span>
+        <span className="label-caps">Heap (MB)</span>
         <input className="input" type="number" min={64} max={1024} step={32} value={s.heapMb} onChange={(e) => setS({ ...s, heapMb: Number(e.target.value) })} />
       </label>
       {game.midlets.length > 1 && (
@@ -54,7 +55,7 @@ export function GameSettingsDialog({ game, toast, onClose, onChanged }: { game: 
         </label>
       )}
       <div className="modal-actions">
-        <label className="check"><input type="checkbox" checked={delSaves} onChange={(e) => setDelSaves(e.target.checked)} /> also delete saves</label>
+        <Switch checked={delSaves} onChange={setDelSaves}>also delete saves</Switch>
         <button className="btn danger" onClick={del}>Delete</button>
         <span className="spacer" />
         <button className="btn" onClick={onClose}>Cancel</button>
