@@ -1,0 +1,57 @@
+diff --git a/src/main/emulator/Emulator.java b/src/main/emulator/Emulator.java
+index ea9fdcc2..c0840e95 100644
+--- a/src/main/emulator/Emulator.java
++++ b/src/main/emulator/Emulator.java
+@@ -65,6 +65,7 @@ public class Emulator implements Runnable {
+ 	private static boolean forked;
+ 	private static boolean updated;
+ 	private static boolean bridge;
++	private static String bridgeDir = "/tmp/kem/";
+ 	public static boolean doja;
+ 
+ 	static int startWidth, startHeight;
+@@ -620,8 +621,9 @@ public class Emulator implements Runnable {
+ 				return;
+ 			}
+ 			
++			preScanBridgeArgs(args);
+ 			if (bridge)
+-				Emulator.emulatorimpl = new BridgeFrontend("/tmp/kem/",
++				Emulator.emulatorimpl = new BridgeFrontend(bridgeDir,
+ 						startWidth != 0 ? startWidth : 240, startHeight != 0 ? startHeight : 320);
+ 			else
+ 				Emulator.emulatorimpl = new SWTFrontend();
+@@ -736,6 +738,33 @@ public class Emulator implements Runnable {
+ 		System.exit(0);
+ 	}
+ 
++	/**
++	 * j2me-web patch: "-bridge [FOLDER]" and "-screen WxH" have to be known before the
++	 * frontend is created, but parseLaunchArgs() runs after that. Without this the
++	 * stock build always starts the SWT frontend and the bridge folder is fixed to /tmp/kem/.
++	 */
++	private static void preScanBridgeArgs(final String[] args) {
++		for (int i = 0; i < args.length; i++) {
++			String a = args[i].trim();
++			if (a.equals("-bridge")) {
++				bridge = true;
++				if (i + 1 < args.length && !args[i + 1].startsWith("-")) {
++					bridgeDir = args[i + 1];
++					if (!bridgeDir.endsWith("/")) bridgeDir += "/";
++				}
++			} else if (a.equalsIgnoreCase("-screen") && i + 1 < args.length) {
++				String[] size = args[i + 1].split("x");
++				try {
++					if (size.length == 2 && Integer.parseInt(size[0]) > 0 && Integer.parseInt(size[1]) > 0) {
++						startWidth = Integer.parseInt(size[0]);
++						startHeight = Integer.parseInt(size[1]);
++					}
++				} catch (NumberFormatException ignored) {
++				}
++			}
++		}
++	}
++
+ 	private static void tryToSetDevice() {
+ 		String deviceName = AppSettings.devicePreset;
+ 		if (!Devices.setPreset(deviceName)) {

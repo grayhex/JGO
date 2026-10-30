@@ -1,0 +1,11 @@
+node_modules/
+dist/
+target/
+runtime/build/
+data/
+.env
+*.log
+tests/fixtures/**/build/
+test-results/
+apps/web/dist/
+.vite/

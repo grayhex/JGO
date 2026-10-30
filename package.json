@@ -1,0 +1,26 @@
+{
+  "name": "j2me-web",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Self-hosted web player for Java ME games, powered by KEmulator nnmod (Bridge frontend)",
+  "type": "module",
+  "engines": { "node": ">=22.13" },
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": {
+    "build:runtime": "bash runtime/scripts/build-kemulator.sh",
+    "build:adapter": "cargo build --release --manifest-path bridge/kemulator-adapter/Cargo.toml",
+    "build:fixtures": "bash tests/fixtures/testmidlet/build.sh runtime/build/kemulator/KEmulator.jar",
+    "build": "npm run build -w @j2me-web/protocol && npm run build -w @j2me-web/api && npm run build -w @j2me-web/web",
+    "typecheck": "npm run typecheck -w @j2me-web/protocol -w @j2me-web/api -w @j2me-web/web",
+    "dev": "bash runtime/scripts/dev.sh",
+    "start": "node apps/api/dist/server.js",
+    "test": "npm run test -w @j2me-web/api",
+    "test:integration": "node --import tsx --test tests/integration/*.test.ts",
+    "test:e2e": "node tests/e2e/browser.mjs"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "@types/node": "^22.0.0"
+  }
+}

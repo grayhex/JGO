@@ -1,0 +1,18 @@
+[package]
+name = "kem-adapter"
+version = "0.1.0"
+edition = "2021"
+description = "Supervisor + KEmulator Bridge frontend: FIFO handshake, mmap framebuffer, framed stdio protocol for the Node API"
+license = "MIT"
+
+[dependencies]
+libc = "0.2"
+memmap2 = "0.9"
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

@@ -1,0 +1,17 @@
+diff --git a/src/main/emulator/Emulator.java b/src/main/emulator/Emulator.java
+index c0840e95..4902aad2 100644
+--- a/src/main/emulator/Emulator.java
++++ b/src/main/emulator/Emulator.java
+@@ -999,6 +999,12 @@ public class Emulator implements Runnable {
+ 	}
+ 
+ 	public static String getUserPath() {
++		// j2me-web patch: let the host pin the per-game data directory (RMS, settings, JSR-75 root)
++		String override = System.getProperty("kem.userpath");
++		if (override != null && !override.isEmpty()) {
++			new File(override).mkdirs();
++			return override;
++		}
+ 		installed:
+ 		{
+ 			if (!isPortable) {
