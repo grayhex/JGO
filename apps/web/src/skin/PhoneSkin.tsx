@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CanvasHTMLAttributes, type ReactNode, type Ref } from 'react';
 import type { InputController } from '../input';
+import { buzz } from '../serverSettings';
 import { fitBox, hitTest, placeScreen, toNormalized } from './geometry';
 import { polygonPath } from './hitboxes';
 import type { Hitbox, LoadedSkin, SkinViewId } from './types';
@@ -110,7 +111,7 @@ export function PhoneSkin({ skin, view, frame, canvasRef, canvasProps, integer =
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* synthetic or already released pointer */ }
     dragging.current.add(e.pointerId);
     down(e.pointerId, h);
-    if (e.pointerType === 'touch') navigator.vibrate?.(8);
+    if (e.pointerType === 'touch') buzz(8);
   };
   const onMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!dragging.current.has(e.pointerId)) return;

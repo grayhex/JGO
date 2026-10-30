@@ -77,8 +77,9 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-      - run: shellcheck -S warning runtime/scripts/*.sh tests/fixtures/*/build.sh tests/scripts/*.sh
+      - run: shellcheck -S warning runtime/scripts/*.sh tests/fixtures/*/build.sh tests/scripts/*.sh tools/proxmox/*.sh
       - run: bash tests/scripts/build-scripts.test.sh
+      - run: bash tests/scripts/library-mount.test.sh
 
   integration:
     name: Integration + e2e on the real KEmulator
@@ -124,7 +125,7 @@ jobs:
             env KEM_DISPLAY="$DISPLAY" LIBGL_ALWAYS_SOFTWARE=1 npm run test:integration
       - name: Install Chromium for the browser e2e test
         run: npx playwright install --with-deps chromium
-      - name: Browser e2e (upload, play, keys, audio level, reload, phone skins, hitboxes, zoom)
+      - name: Browser e2e (upload, play, keys, audio, phone skins, first-run wizard, library import, MobyGames stand-in)
         run: npm run test:e2e
       - name: Compatibility lab on the free fixtures
         run: |
@@ -146,7 +147,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get install -y --no-install-recommends shellcheck >/dev/null
-      - run: shellcheck -S warning packaging/bin/jgo packaging/build-release.sh packaging/devscripts/*.sh ct/jgo.sh install/jgo-install.sh tests/lxc/run.sh -e SC1090,SC1091,SC2154,SC2034
+      - run: shellcheck -S warning packaging/bin/jgo packaging/build-release.sh packaging/devscripts/*.sh ct/jgo.sh install/jgo-install.sh tests/lxc/run.sh tools/proxmox/*.sh -e SC1090,SC1091,SC2154,SC2034
       - name: Rules of community-scripts/DevScripts that can be checked mechanically
         run: packaging/devscripts/lint.sh
       - name: The exported pull-request files pass the same lint

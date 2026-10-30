@@ -1,4 +1,4 @@
-import type { DevicePreset, GameMeta, GameSettings, HealthStatus, SessionStatus } from '@j2me-web/protocol';
+import type { DevicePreset, GameInfo, GameMeta, GameSettings, HealthStatus, LibraryCheck, LibraryRoot, MetadataJob, MobyCandidate, PublicSettings, ScanReport, SessionStatus, SettingsResponse, SystemStatus } from '@j2me-web/protocol';
 
 export class ApiError extends Error {
   constructor(
@@ -35,6 +35,10 @@ export interface JarAnalysisView {
   risk: 'low' | 'medium' | 'high';
 }
 
+export interface SetupState { status: 'pending' | 'completed' | 'skipped'; completedAt: string | null; legacy: boolean; needsWizard: boolean; libraryConfigured: boolean; mobygamesConfigured: boolean; games: number }
+export interface BrowseResult { path: string | null; parent: string | null; dirs: { name: string; path: string }[]; truncated: boolean }
+export type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K] };
+
 const jsonInit = (method: string, body: unknown): RequestInit => ({ method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 
 export const api = {
@@ -56,4 +60,36 @@ export const api = {
   sessions: () => req<SessionStatus[]>('/api/sessions'),
   session: (id: string) => req<SessionStatus>(`/api/sessions/${id}`),
   stopSession: (id: string) => req<SessionStatus>(`/api/sessions/${id}`, { method: 'DELETE' }),
+
+  // first run, settings, system
+  setup: () => req<SetupState>('/api/setup'),
+  setupAction: (a: 'complete' | 'skip' | 'reset') => req<unknown>(`/api/setup/${a}`, { method: 'POST' }),
+  settings: () => req<SettingsResponse>('/api/settings'),
+  patchSettings: (patch: DeepPartial<PublicSettings>) => req<SettingsResponse>('/api/settings', jsonInit('PATCH', patch)),
+  setMobyKey: (key: string) => req<SettingsResponse['secrets']>('/api/settings/mobygames-key', jsonInit('PUT', { key })),
+  deleteMobyKey: () => req<SettingsResponse['secrets']>('/api/settings/mobygames-key', { method: 'DELETE' }),
+  testMoby: () => req<{ ok: true; platformId: number }>('/api/mobygames/test', { method: 'POST' }),
+  systemStatus: () => req<SystemStatus>('/api/system/status'),
+
+  // library directory and import
+  libRoots: () => req<{ roots: LibraryRoot[]; current: string | null }>('/api/library/roots'),
+  libBrowse: (path: string | null) => req<BrowseResult>(`/api/library/browse${path ? `?path=${encodeURIComponent(path)}` : ''}`),
+  libCheck: (path: string) => req<LibraryCheck>('/api/library/check', jsonInit('POST', { path })),
+  scan: () => req<{ running: boolean; report: ScanReport | null }>('/api/library/scan'),
+  scanStart: (mode: 'update' | 'full') => req<{ running: boolean; report: ScanReport }>('/api/library/scan', jsonInit('POST', { mode })),
+  scanCancel: () => req<{ cancelled: boolean }>('/api/library/scan', { method: 'DELETE' }),
+
+  // MobyGames metadata
+  metaJob: () => req<{ job: MetadataJob; stats: { matched: number; ambiguous: number; unmatched: number; bytes: number }; review: number }>('/api/metadata/job'),
+  metaEnrich: (scope: 'missing' | 'retry' | 'all') => req<{ job: MetadataJob }>('/api/metadata/enrich', jsonInit('POST', { scope })),
+  metaCancel: () => req<{ cancelled: boolean }>('/api/metadata/job', { method: 'DELETE' }),
+  metaReview: () => req<{ groupKey: string; gameId: string; name: string; vendor: string; candidates: MobyCandidate[] }[]>('/api/metadata/review'),
+  metaClear: () => req<void>('/api/metadata', { method: 'DELETE' }),
+  gameInfo: (id: string) => req<GameInfo>(`/api/games/${id}/info`),
+  infoRefresh: (id: string) => req<GameInfo>(`/api/games/${id}/info/refresh`, { method: 'POST' }),
+  infoSearch: (id: string, query: string) => req<GameInfo>(`/api/games/${id}/info/search`, jsonInit('POST', { query })),
+  infoChoose: (id: string, mobyId: number) => req<GameInfo>(`/api/games/${id}/info/choose`, jsonInit('POST', { mobyId })),
+  infoUnlink: (id: string) => req<GameInfo>(`/api/games/${id}/info`, { method: 'DELETE' }),
+  coverUrl: (id: string) => `/api/games/${id}/cover`,
+  shotUrl: (id: string, n: number) => `/api/games/${id}/screenshots/${n}`,
 };

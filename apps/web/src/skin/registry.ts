@@ -1,3 +1,4 @@
+import { getServerSettings } from '../serverSettings';
 import { useEffect, useState } from 'react';
 import { ACTIONS, type Action } from '../input';
 import { parseHitboxSvg } from './hitboxes';
@@ -81,14 +82,21 @@ export function useSkin(id: string): { skin: LoadedSkin | null; error: string | 
 
 /** Preferences are presentation only: they never touch the emulated device or its resolution. */
 export interface SkinPrefs { skinId: SkinId; view: SkinViewId; integer: boolean }
-const KEY = 'j2me-web.skin.v1';
+export const SKIN_PREFS_KEY = 'j2me-web.skin.v1';
+const KEY = SKIN_PREFS_KEY;
+
+/** What this browser has not chosen itself comes from the server's default phone (Settings). */
+function serverDefault(): { skinId: SkinId; view: SkinViewId } {
+  const p = getServerSettings()?.settings.phone;
+  return { skinId: isSkinId(p?.skinId) ? p.skinId : DEFAULT_SKIN, view: p?.view === 'screen' ? 'screen' : 'full' };
+}
 
 export function loadPrefs(): SkinPrefs {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? 'null') as Partial<SkinPrefs> | null;
-    return { skinId: isSkinId(raw?.skinId) ? raw.skinId : DEFAULT_SKIN, view: raw?.view === 'screen' ? 'screen' : 'full', integer: raw?.integer !== false };
+    return { skinId: isSkinId(raw?.skinId) ? raw.skinId : serverDefault().skinId, view: raw ? (raw.view === 'screen' ? 'screen' : 'full') : serverDefault().view, integer: raw?.integer !== false };
   } catch {
-    return { skinId: DEFAULT_SKIN, view: 'full', integer: true };
+    return { ...serverDefault(), integer: true };
   }
 }
 

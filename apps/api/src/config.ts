@@ -33,6 +33,11 @@ export interface Config {
   /** DISPLAY used for 3D (M3G/Mascot Capsule); empty = none. */
   display: string;
   logLevel: string;
+  /**
+   * The only places a library directory may be chosen from (absolute paths, space separated in LIBRARY_ROOTS).
+   * `<dataDir>/import` is always allowed. The API never reads anything outside these directories.
+   */
+  libraryRoots: string[];
   /** Extra JVM args, space separated. */
   jvmExtraArgs: string[];
   /** Wrapper command prepended to the JVM (e.g. "xvfb-run -a"). Space separated. */
@@ -76,6 +81,9 @@ export function loadConfig(env = process.env): Config {
     cpuSeconds: int(env, 'KEM_CPU_SECONDS', 0),
     display: env.KEM_DISPLAY ?? env.DISPLAY ?? '',
     logLevel: env.LOG_LEVEL ?? 'info',
+    libraryRoots: (env.LIBRARY_ROOTS === undefined ? ['/mnt/jgo-library', '/srv/jgo-library'] : list(env, 'LIBRARY_ROOTS'))
+      .filter((p) => path.isAbsolute(p))
+      .map((p) => path.resolve(p)),
     jvmExtraArgs: list(env, 'KEM_JVM_ARGS'),
     launchWrapper: list(env, 'KEM_LAUNCH_WRAPPER'),
   };

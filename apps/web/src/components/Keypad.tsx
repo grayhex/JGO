@@ -1,4 +1,5 @@
 import type { Action, InputController } from '../input';
+import { buzz } from '../serverSettings';
 import { useHeld } from '../skin/useHeld';
 
 function Key({ input, held, a, label, sub, cls = '' }: { input: InputController; held: Set<Action>; a: Action; label: string; sub?: string; cls?: string }) {
@@ -12,7 +13,7 @@ function Key({ input, held, a, label, sub, cls = '' }: { input: InputController;
         e.preventDefault();
         try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* synthetic or already-released pointer */ }
         input.press(`touch:${a}:${e.pointerId}`, a);
-        navigator.vibrate?.(8);
+        buzz(8);
       }}
       onPointerUp={(e) => release(e.pointerId)}
       onPointerCancel={(e) => release(e.pointerId)}

@@ -15,6 +15,7 @@ import { Keypad } from './Keypad';
 import { Modal } from './Modal';
 import { SkinPicker, SkinStatus } from './SkinPicker';
 import { Meter, Panel, Seg, Spark, Switch } from './ui';
+import { audioSettings, buzz, controlSettings } from '../serverSettings';
 
 type Conn = 'connecting' | 'open' | 'reconnecting' | 'closed' | 'idle';
 
@@ -61,13 +62,13 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   // Presentation
   const [prefs, setPrefs] = usePrefs();
   const [smooth, setSmooth] = useState(false);
-  const [showKeypad, setShowKeypad] = useState(() => matchMedia('(pointer: coarse)').matches);
+  const [showKeypad, setShowKeypad] = useState(() => { const k = controlSettings().keypad; return k === 'always' || (k === 'auto' && matchMedia('(pointer: coarse)').matches); });
   const [keymap, setKeymap] = useState(false);
   const [pad, setPad] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [frameSize, setFrameSize] = useState({ w: 240, h: 320 });
-  const [vol, setVol] = useState(() => { try { return Number(localStorage.getItem('j2me-web.volume') ?? 80); } catch { return 80; } });
-  const [muted, setMuted] = useState(false);
+  const [vol, setVol] = useState(() => { try { return Number(localStorage.getItem('j2me-web.volume') ?? audioSettings().volume); } catch { return audioSettings().volume; } });
+  const [muted, setMuted] = useState(() => !audioSettings().enabled);
   const [audioInfo, setAudioInfo] = useState({ state: 'off' as string, rms: 0, buffered: 0 });
   const audio = useMemo(() => new PcmAudio(), []);
   const { skins } = useCatalog();
@@ -135,7 +136,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
       case 'menu': setMenu(ev); break;
       case 'menu-close': setMenu(null); break;
       case 'permission': setPerm(ev); break;
-      case 'vibrate': if (ev.ms > 0) navigator.vibrate?.(Math.min(ev.ms, 2000)); else navigator.vibrate?.(0); break;
+      case 'vibrate': if (ev.ms > 0) buzz(Math.min(ev.ms, 2000)); else navigator.vibrate?.(0); break;
       case 'displayable': if (ev.kind !== 'canvas') toast('error', `This game opened a ${ev.kind} screen, which the Bridge frontend cannot show yet.`); break;
       case 'url': toast('info', `The game wants to open ${ev.url} (blocked)`); break;
       default: break;
@@ -203,7 +204,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
     window.addEventListener('blur', rel);
     document.addEventListener('visibilitychange', vis);
     const gp = new GamepadPoller(input, setPad);
-    gp.start();
+    if (controlSettings().gamepad) gp.start();
     return () => {
       window.removeEventListener('keydown', input.onKeyDown); window.removeEventListener('keyup', input.onKeyUp);
       window.removeEventListener('blur', rel); document.removeEventListener('visibilitychange', vis);

@@ -1,7 +1,10 @@
-import type { GameMeta, HealthStatus } from '@j2me-web/protocol';
+import type { GameMeta, HealthStatus, ScanReport } from '@j2me-web/protocol';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../api';
 import type { Toast } from '../App';
+import { navigate } from '../router';
+import { useServerSettings } from '../serverSettings';
+import { GameInfoDialog } from './GameInfoDialog';
 import { GameSettingsDialog } from './GameSettingsDialog';
 import { Icon } from './Icon';
 import { Seg } from './ui';
@@ -10,10 +13,11 @@ type Filter = 'all' | 'favorites' | 'recent';
 
 function Cover({ g }: { g: GameMeta }) {
   const [broken, setBroken] = useState(false);
+  const art = !!g.info?.hasCover && !broken; // a MobyGames cover, served by this server
   const hue = 18 + (parseInt(g.groupKey.slice(0, 4), 16) % 34); // warm range only: the palette has one signal colour
   return (
-    <div className="cover" style={{ ['--hue' as string]: hue }}>
-      {g.hasIcon && !broken ? <img src={api.iconUrl(g.id)} alt="" onError={() => setBroken(true)} /> : <span className="initials">{g.name.slice(0, 2).toUpperCase()}</span>}
+    <div className={`cover ${art ? 'art' : ''}`} style={{ ['--hue' as string]: hue }}>
+      {art ? <img src={api.coverUrl(g.id)} alt="" loading="lazy" onError={() => setBroken(true)} /> : g.hasIcon && !broken ? <img src={api.iconUrl(g.id)} alt="" onError={() => setBroken(true)} /> : <span className="initials">{g.name.slice(0, 2).toUpperCase()}</span>}
     </div>
   );
 }
@@ -24,6 +28,10 @@ export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['ki
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(0);
   const [editing, setEditing] = useState<GameMeta | null>(null);
+  const [infoFor, setInfoFor] = useState<GameMeta | null>(null);
+  const [scan, setScan] = useState<ScanReport | null>(null);
+  const server = useServerSettings();
+  const libraryPath = server?.settings.libraryPath ?? null;
   const [chosen, setChosen] = useState<Record<string, string>>({}); // groupKey -> selected version id
   const fileInput = useRef<HTMLInputElement>(null);
   const depth = useRef(0);
@@ -32,6 +40,38 @@ export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['ki
     try { setGames(await api.games()); } catch (e) { toast('error', (e as Error).message); setGames([]); }
   }, [toast]);
   useEffect(() => { void reload(); }, [reload]);
+  useEffect(() => {
+    const f = () => void reload();
+    window.addEventListener('j2me:library-changed', f);
+    return () => window.removeEventListener('j2me:library-changed', f);
+  }, [reload]);
+
+  // an import started from the wizard or Settings keeps running while this page is open: follow it and refresh when it ends
+  const scanning = scan?.state === 'running';
+  const lastScan = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    let dead = false;
+    const tick = async () => {
+      try {
+        const s = await api.scan();
+        if (dead) return;
+        setScan(s.running ? s.report : null);
+        // refresh when a scan started or ended since the last look; the first look always refreshes (a quick scan may already be over)
+        const id = s.report ? `${s.report.id}:${s.report.state}` : null;
+        if (id !== lastScan.current) {
+          const first = lastScan.current === undefined;
+          lastScan.current = id;
+          void reload();
+          if (!first && !s.running && s.report && s.report.state === 'done' && s.report.added + s.report.updated > 0) toast('info', `Import finished: ${s.report.added} new, ${s.report.updated} changed`);
+        }
+      } catch { /* old server or offline */ }
+    };
+    void tick();
+    const t = window.setInterval(() => void tick(), scanning ? 1000 : 4000);
+    return () => { dead = true; window.clearInterval(t); };
+  }, [scanning, reload, toast]);
+  const review = (games ?? []).filter((g) => g.info?.status === 'ambiguous');
+  const reviewGroups = new Set(review.map((g) => g.groupKey)).size;
 
   const upload = useCallback(async (files: File[]) => {
     const jars = files.filter((f) => /\.jar$/i.test(f.name));
@@ -95,16 +135,25 @@ export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['ki
         </div>
         <span className="spacer" />
         <Seg<Filter> label="Filter" value={filter} onChange={setFilter} options={[{ value: 'all', label: 'All' }, { value: 'favorites', label: 'Favorites' }, { value: 'recent', label: 'Recent' }]} />
+        {libraryPath && <button className="btn" disabled={scanning} onClick={() => void api.scanStart('update').then((r) => setScan(r.report), (e) => toast('error', (e as Error).message))} title="Look for new and changed files in the library folder"><Icon name="restart" /> {scanning ? 'Importing…' : 'Scan folder'}</button>}
         <button className="btn primary" onClick={() => fileInput.current?.click()}><Icon name="upload" /> Add games</button>
         <input ref={fileInput} type="file" accept=".jar,.jad" multiple hidden onChange={(e) => { void upload([...(e.target.files ?? [])]); e.target.value = ''; }} />
       </div>
+
+      {scanning && scan && <div className="note info" role="status" data-testid="scan-banner">Importing from the library folder… {scan.added + scan.updated + scan.unchanged}/{scan.jars} files · {scan.added} new{scan.current ? ` · ${scan.current}` : ''}</div>}
+      {reviewGroups > 0 && <div className="note warn" role="status">{reviewGroups} game{reviewGroups === 1 ? '' : 's'} could be matched to several MobyGames entries. <a href="/settings#mobygames" onClick={(e) => { e.preventDefault(); navigate('/settings#mobygames'); }}>Choose the right ones</a>.</div>}
 
       {games && games.length === 0 && (
         <div className="empty">
           <div className="empty-art" aria-hidden />
           <h2>Your library is empty</h2>
-          <p>Drop your own <code>.jar</code> files here (a matching <code>.jad</code> is optional). Games are stored on this server only; nothing is downloaded for you.</p>
-          <button className="btn primary" onClick={() => fileInput.current?.click()}><Icon name="upload" /> Choose files</button>
+          <p>Drop your own <code>.jar</code> files here (a matching <code>.jad</code> is optional){libraryPath ? ', or import the folder you connected.' : ', or connect a folder with your collection.'} Games are stored on this server only; nothing is downloaded for you.</p>
+          <div className="btn-row">
+            <button className="btn primary" onClick={() => fileInput.current?.click()}><Icon name="upload" /> Choose files</button>
+            {libraryPath
+              ? <button className="btn" disabled={scanning} onClick={() => void api.scanStart('update').then((r) => setScan(r.report), (e) => toast('error', (e as Error).message))}><Icon name="restart" /> Scan folder</button>
+              : <a className="btn" href="/settings#library" onClick={(e) => { e.preventDefault(); navigate('/settings#library'); }}>Connect a game folder</a>}
+          </div>
         </div>
       )}
       {games === null && <p className="muted">Loading…</p>}
@@ -119,7 +168,7 @@ export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['ki
                 <Cover g={sel} />
                 <div className="meta">
                   <h3>{sel.name}</h3>
-                  <p className="muted">{sel.vendor}</p>
+                  <p className="muted">{sel.info?.year ? `${sel.vendor} · ${sel.info.year}` : sel.vendor}</p>
                 </div>
               </button>
               <div className="card-foot">
@@ -131,8 +180,11 @@ export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['ki
                   <span className="badge plain">{sel.version ? `v${sel.version}` : 'no version'}</span>
                 )}
                 {sel.warnings.length > 0 && <span className="badge mock" title={sel.warnings.join('\n')}>!</span>}
+                {sel.sourceMissing && <span className="badge plain" title="The file is no longer in the library folder; the game stays here with its saves">file gone</span>}
+                {sel.info?.status === 'ambiguous' && <span className="badge mock" title="Several MobyGames matches: open the info to choose">review</span>}
                 <span className="spacer" />
                 <button className={`icon-btn ${sel.favorite ? 'fav' : ''}`} onClick={() => toggleFav(sel)} aria-label={sel.favorite ? 'Remove from favorites' : 'Add to favorites'} aria-pressed={sel.favorite}><Icon name="star" /></button>
+                <button className="icon-btn" onClick={() => setInfoFor(sel)} aria-label="Game information"><Icon name="info" /></button>
                 <button className="icon-btn" onClick={() => setEditing(sel)} aria-label="Game settings"><Icon name="sliders" /></button>
               </div>
             </article>
@@ -142,6 +194,7 @@ export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['ki
       {games && games.length > 0 && groups.length === 0 && <p className="muted center">No games match.</p>}
       {uploading > 0 && <div className="uploading">Uploading {uploading}…</div>}
       {dragging && <div className="dropzone"><div><strong>Drop to add</strong><br />.jar and .jad files</div></div>}
+      {infoFor && <GameInfoDialog game={infoFor} toast={toast} onClose={() => setInfoFor(null)} onChanged={() => void reload()} />}
       {editing && <GameSettingsDialog game={editing} toast={toast} onClose={() => setEditing(null)} onChanged={() => { setEditing(null); void reload(); }} />}
     </div>
   );

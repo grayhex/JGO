@@ -43,6 +43,15 @@ function update_script() {
 
 start
 build_container
+if [[ -n ${var_library_path:-} ]]; then
+  if [[ $var_library_path =~ ^/[A-Za-z0-9_./+@-]+$ && $var_library_path != *..* && -d $var_library_path && $var_library_path != /etc* && $var_library_path != /root* ]]; then
+    msg_info "Sharing ${var_library_path} with the container (read-only) as the game library"
+    pct set "$CTID" -mp0 "${var_library_path},mp=/mnt/jgo-library,ro=1" && pct reboot "$CTID"
+    msg_ok "Game library: ${var_library_path} appears at /mnt/jgo-library (choose it in Settings)"
+  else
+    msg_warn "var_library_path is not a usable folder, skipped: use tools/proxmox/jgo-library-mount.sh later"
+  fi
+fi
 description
 
 msg_ok "Completed Successfully!\n"

@@ -13,7 +13,12 @@ import { type Config, loadConfig, readKemCommit } from './config.js';
 import { findPreset, loadDevicePresets, recommendPreset } from './devices.js';
 import { UploadError } from './jar.js';
 import { analyzeJar, emulatorClassSet, readAttributes } from './lab/analyze.js';
+import { registerAdminRoutes } from './adminRoutes.js';
 import { Library, newId, validateSettings } from './library.js';
+import { MetadataService } from './metadata.js';
+import { DEFAULT_API_BASE, MobyClient } from './mobygames.js';
+import { gameDefaults, ScanManager } from './scanner.js';
+import { SettingsStore } from './settingsStore.js';
 import { SessionError, SessionManager, type StreamClient } from './sessions.js';
 
 /** The release being run: JGO_VERSION (set by the systemd unit), else the VERSION file of the release tree, else the dev default. */
@@ -49,16 +54,32 @@ export interface App {
   cfg: Config;
   library: Library;
   sessions: SessionManager;
+  settings: SettingsStore;
+  scan: ScanManager;
+  metadata: MetadataService;
   close(): Promise<void>;
 }
 
 export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
   const app = Fastify({ logger: { level: cfg.logLevel }, bodyLimit: 64 * 1024, trustProxy: process.env.TRUST_PROXY === '1' });
   const library = new Library(cfg.dataDir);
+  // runtime settings (web UI) are layered over the environment; installations without a settings file behave exactly as before
+  const settings = new SettingsStore(cfg.dataDir, cfg);
+  settings.markLegacyIfPopulated(library.count());
   // stale bridge dirs from a crashed run
   if (existsSync(cfg.runDir)) for (const d of readdirSync(cfg.runDir)) rmSync(path.join(cfg.runDir, d), { recursive: true, force: true });
   const sessions = new SessionManager(cfg, library);
   const java = await javaVersion(cfg.javaBin);
+  const moby = new MobyClient(() => settings.mobygamesKey(), { base: process.env.MOBYGAMES_API_BASE || DEFAULT_API_BASE, ...(process.env.MOBYGAMES_MIN_INTERVAL_MS ? { minIntervalMs: Number(process.env.MOBYGAMES_MIN_INTERVAL_MS) } : {}), onWait: (until) => metadata.setWaiting(until) });
+  const metadata = new MetadataService(library, cfg.dataDir, () => moby, () => moby.hasKey());
+  const scan = new ScanManager(cfg, library, {
+    settings: () => settings.get(),
+    onFinished: (r) => {
+      if (r.state === 'done' && settings.get().autoMetadata && moby.hasKey()) {
+        try { metadata.start('missing'); } catch { /* already running */ }
+      }
+    },
+  });
   let emuClasses: Set<string> | null = null;
   const devicePresets = () => {
     try {
@@ -176,7 +197,7 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
         ? 'A .jad descriptor alone cannot be played: upload the .jar (optionally together with its .jad).'
         : 'No .jar file in the upload');
     }
-    const { game, duplicate } = library.add(jar, jad, cfg.libraryQuotaBytes);
+    const { game, duplicate } = library.add(jar, jad, cfg.libraryQuotaBytes, { origin: 'upload', defaults: gameDefaults(settings.get().phone) });
     return reply.code(duplicate ? 200 : 201).send({ game, duplicate });
   });
 
@@ -279,6 +300,8 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
     socket.on('error', gone);
   });
 
+  registerAdminRoutes(app, { cfg, library, store: settings, scan, metadata, moby, version: VERSION, java });
+
   // --- static web UI (production) ---
   if (cfg.webDir) {
     const webDir = cfg.webDir;
@@ -296,8 +319,11 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
   }
 
   return {
-    fastify: app, cfg, library, sessions,
+    fastify: app, cfg, library, sessions, settings, scan, metadata,
     async close() {
+      scan.cancel();
+      metadata.cancel();
+      await Promise.allSettled([scan.idle(), metadata.idle()]);
       await sessions.stopAll();
       await app.close();
       library.close();
@@ -319,6 +345,11 @@ async function main(): Promise<void> {
   process.on('SIGINT', () => void shutdown('SIGINT'));
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
   await app.fastify.listen({ host: cfg.host, port: cfg.port });
+  if (app.settings.get().autoScan && app.settings.get().libraryPath) {
+    setTimeout(() => {
+      try { app.scan.start('update'); } catch (e) { app.fastify.log.warn(`automatic library scan not started: ${(e as Error).message}`); }
+    }, 3000).unref();
+  }
   if (cfg.authToken === null) app.fastify.log.warn(`no AUTH_TOKEN: API is unauthenticated, reachable only on ${cfg.host}`);
 }
 

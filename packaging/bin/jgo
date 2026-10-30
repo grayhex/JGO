@@ -210,6 +210,12 @@ do_backup() { # do_backup <out> <label> <games 0|1> <stop 0|1>; prints the archi
     rm -rf "$snap"
   fi
   [[ -d $JGO_DATA/saves ]] && cp -a "$JGO_DATA/saves" "$stage/data/saves"
+  # settings from the web UI, the MobyGames key (secrets.json, so keep backups private) and downloaded covers/screenshots
+  local f
+  for f in settings.json secrets.json; do
+    [[ -f $JGO_DATA/$f ]] && cp -a "$JGO_DATA/$f" "$stage/data/$f"
+  done
+  [[ -d $JGO_DATA/metadata ]] && cp -a "$JGO_DATA/metadata" "$stage/data/metadata"
   if ((games)) && [[ -d $JGO_DATA/games ]]; then cp -a "$JGO_DATA/games" "$stage/data/games"; fi
   [[ -f $JGO_ENV ]] && cp -a "$JGO_ENV" "$stage/etc/jgo.env"
   ((was_active)) && svc_start
@@ -230,7 +236,7 @@ do_backup() { # do_backup <out> <label> <games 0|1> <stop 0|1>; prints the archi
 # jgo restore FILE [--yes] [--only db,saves,games,config] [--with-config] [--no-safety]
 cmd_restore() {
   need_root
-  local file='' yes=0 only='db,saves,games' safety=1
+  local file='' yes=0 only='db,saves,games,settings,metadata' safety=1
   while (($#)); do
     case $1 in
     --yes | -y) yes=1 ;;
@@ -238,7 +244,7 @@ cmd_restore() {
     --with-config) only="$only,config" ;;
     --no-safety) safety=0 ;;
     -h | --help)
-      info "usage: jgo restore FILE.tar.gz [--yes] [--with-config] [--only db,saves,games,config] [--no-safety]"
+      info "usage: jgo restore FILE.tar.gz [--yes] [--with-config] [--only db,saves,games,settings,metadata,config] [--no-safety]"
       return 0
       ;;
     -*) die "unknown option: $1" ;;
@@ -285,6 +291,13 @@ do_restore() { # do_restore <file> <yes> <only> <safety>
       ;;
     saves) [[ -d $stage/data/saves ]] && { rm -rf "$JGO_DATA/saves"; cp -a "$stage/data/saves" "$JGO_DATA/saves"; } ;;
     games) [[ -d $stage/data/games ]] && { rm -rf "$JGO_DATA/games"; cp -a "$stage/data/games" "$JGO_DATA/games"; } ;;
+    settings)
+      local f
+      for f in settings.json secrets.json; do
+        [[ -f $stage/data/$f ]] && install -o "$JGO_USER" -g "$JGO_USER" -m 600 "$stage/data/$f" "$JGO_DATA/$f"
+      done
+      ;;
+    metadata) [[ -d $stage/data/metadata ]] && { rm -rf "$JGO_DATA/metadata"; cp -a "$stage/data/metadata" "$JGO_DATA/metadata"; } ;;
     config) [[ -f $stage/etc/jgo.env ]] && { cp -a "$JGO_ENV" "$JGO_ENV.before-restore" 2>/dev/null || true; cat "$stage/etc/jgo.env" >"$JGO_ENV"; } ;;
     *) die "unknown part: $part" ;;
     esac
@@ -297,7 +310,7 @@ do_restore() { # do_restore <file> <yes> <only> <safety>
   else
     if [[ -n $safe ]]; then
       warn "JGO did not become healthy after the restore; putting the previous data back"
-      do_restore "$safe" 1 'db,saves,games,config' 0
+      do_restore "$safe" 1 'db,saves,games,settings,metadata,config' 0
     fi
     die "restore failed (see: jgo logs)"
   fi
@@ -513,6 +526,45 @@ cmd_rollback() {
   rollback_to_prev "$to" ""
 }
 
+# --------------------------------------------------------------------------------------- library
+LIB_DEFAULT_ROOTS='/mnt/jgo-library /srv/jgo-library'
+
+library_roots() {
+  local r
+  r=$(env_get LIBRARY_ROOTS)
+  [[ -n $r ]] && echo "$r" || echo "$LIB_DEFAULT_ROOTS"
+}
+
+# jgo library [status]: which folders JGO may import games from, and whether it can read them
+cmd_library() {
+  case ${1:-status} in
+  status) ;;
+  -h | --help)
+    info "usage: jgo library [status]   (share a host folder: tools/proxmox/jgo-library-mount.sh on the Proxmox host; choose it in Settings > Game library)"
+    return 0
+    ;;
+  *) die "usage: jgo library [status]" ;;
+  esac
+  local root n any=0 chosen
+  chosen=$(jq -r '.settings.libraryPath // empty' "$JGO_DATA/settings.json" 2>/dev/null || true)
+  for root in $(library_roots) "$JGO_DATA/import"; do
+    if [[ -d $root ]]; then
+      any=1
+      if runuser -u "$JGO_USER" -- test -r "$root" -a -x "$root" 2>/dev/null; then
+        n=$(find "$root" -type f \( -iname '*.jar' \) 2>/dev/null | wc -l)
+        ok "$root: readable by $JGO_USER, $n JAR file(s)$(mountpoint -q "$root" 2>/dev/null && printf ', mounted from the host')"
+        runuser -u "$JGO_USER" -- test -w "$root" 2>/dev/null && warn "$root is writable; JGO never writes there, a read-only mount (ro=1) is safer"
+      else
+        warn "$root exists but $JGO_USER cannot read it (unprivileged container: the host files must be readable by 'others', see docs/PROXMOX.md)"
+      fi
+    else
+      info "  $root: not present"
+    fi
+  done
+  ((any)) || info "No library folder is connected. On the Proxmox host: tools/proxmox/jgo-library-mount.sh <CTID> /path/to/games"
+  [[ -n $chosen ]] && info "selected in Settings: $chosen" || info "selected in Settings: none (uploads only)"
+}
+
 # --------------------------------------------------------------------------------------- doctor
 FAILS=0 WARNS=0
 pass() { printf '  %s✔%s %s\n' "$G" "$N" "$*"; }
@@ -584,6 +636,18 @@ cmd_doctor() {
   fi
   [[ -e /sys/fs/cgroup/cgroup.controllers ]] && pass "cgroup v2" || meh "cgroup v2 not detected"
 
+  info "library"
+  local lib
+  lib=$(jq -r '.settings.libraryPath // empty' "$JGO_DATA/settings.json" 2>/dev/null || true)
+  if [[ -z $lib ]]; then
+    pass "no library folder selected (uploads only)"
+  elif runuser -u "$JGO_USER" -- test -r "$lib" -a -x "$lib" 2>/dev/null; then
+    pass "library folder $lib is readable by $JGO_USER"
+  else
+    bad "library folder $lib is missing or not readable by $JGO_USER (is the host folder still mounted? jgo library)"
+  fi
+  [[ -f $JGO_DATA/secrets.json ]] && { [[ $(stat -c %a "$JGO_DATA/secrets.json") == 600 ]] && pass "secrets.json is mode 600" || bad "secrets.json must be mode 600"; }
+
   info "backups"
   local newest age
   newest=$(find "$JGO_BACKUPS" -maxdepth 1 -name 'jgo-*.tar.gz' -printf '%T@\n' 2>/dev/null | sort -rn | head -n1)
@@ -613,13 +677,14 @@ jgo $(version) - manage this JGO installation
   jgo update [--check] [--to vX] [--yes]
                                  verified update from a JGO release; backup first, health check, automatic rollback
   jgo backup [--out PATH] [--no-games] [--stop]
-                                 archive of the SQLite library, RMS saves, games and configuration
-  jgo restore FILE [--yes] [--with-config] [--only db,saves,games,config]
+                                 archive of the SQLite library, RMS saves, games, web settings (incl. the MobyGames key), MobyGames data and configuration
+  jgo restore FILE [--yes] [--with-config] [--only db,saves,games,settings,metadata,config]
   jgo rollback                   switch back to the previous release (kept after every update)
   jgo logs [-f] [-n N]           journal of jgo and jgo-xvfb
   jgo doctor [--online]          check the installation, sandbox, limits and access
   jgo token [--rotate]           show or replace the access token
   jgo network [deny|allow]       network access of games (default: none)
+  jgo library [status]           game library folders: mounted? readable by the service user?
 E
 }
 
@@ -636,6 +701,7 @@ main() {
   doctor) cmd_doctor "$@" ;;
   token) cmd_token "$@" ;;
   network) cmd_network "$@" ;;
+  library) cmd_library "$@" ;;
   version | --version) version ;;
   help | -h | --help) usage ;;
   *)

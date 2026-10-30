@@ -1,7 +1,7 @@
 import type { HealthStatus } from '@j2me-web/protocol';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { ThemeChoice } from '../theme';
-import { Icon } from './Icon';
+import { Icon, type IconName } from './Icon';
 import { Seg } from './ui';
 
 export function Link({ to, children, className, onNavigate, ...rest }: { to: string; children: ReactNode; className?: string; onNavigate: (to: string) => void } & Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, 'href' | 'onClick'>) {
@@ -38,7 +38,7 @@ export function Shell({ path, go, health, theme, setTheme, title, subtitle, sear
     return () => window.removeEventListener('keydown', k);
   }, [drawer]);
 
-  const item = (to: string, icon: 'library' | 'phone', label: string, active: boolean) => (
+  const item = (to: string, icon: IconName, label: string, active: boolean) => (
     <Link to={to} onNavigate={go} className={`nav-item ${active ? 'active' : ''}`} aria-current={active ? 'page' : undefined} title={label}>
       <Icon name={icon} />
       <span className="nav-label">{label}</span>
@@ -58,6 +58,7 @@ export function Shell({ path, go, health, theme, setTheme, title, subtitle, sear
           <div className="nav-title">Workspace</div>
           {item('/', 'library', 'Library', path === '/' || inPlayer)}
           {item('/phones', 'phone', 'Phone lab', path === '/phones')}
+          {item('/settings', 'sliders', 'Settings', path === '/settings')}
         </nav>
         <div className="sidebar-foot">
           <div className="runtime" title={health ? `KEmulator ${health.kemulator.commit?.slice(0, 9) ?? '?'} · Java ${health.java.version ?? 'missing'}` : 'Checking the server'}>

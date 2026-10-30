@@ -29,6 +29,8 @@ const server = spawn('node', [path.join(root, 'apps/api/dist/server.js')], {
   stdio: ['ignore', 'inherit', 'inherit'],
 });
 for (let i = 0; i < 100; i++) { try { if ((await fetch(base + '/api/health')).ok) break; } catch { /* starting */ } await sleep(100); }
+// a fresh data directory opens the first-run wizard (covered by setup.mjs); these tests are about something else
+await fetch(base + '/api/setup/skip', { method: 'POST' });
 
 const cfg = {};
 for (const id of IDS) cfg[id] = await (await fetch(`${base}/phones/${id}/config.json`)).json();
