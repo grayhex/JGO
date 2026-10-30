@@ -6,11 +6,14 @@ import {
   encodeFrameHeader,
   type GameMeta,
   type GameSettings,
+  KEY_LAYOUTS,
   type ServerEvent,
   type SessionState,
   type SessionStatus,
   WS_BIN_AUDIO,
 } from '@j2me-web/protocol';
+import { writeMidletsIni } from './appSettings.js';
+import { findPreset, loadDevicePresets } from './devices.js';
 import { KEmulatorAdapter, type ExitInfo, type FrameMsg } from './kemulator/adapter.js';
 import { newId, type Library } from './library.js';
 import type { Config } from './config.js';
@@ -348,11 +351,22 @@ export class SessionManager {
       throw new SessionError('unsupported_jar', `This JAR contains Java ${game.classVersion - 44}+ class files; KEmulator only runs J2ME-era classes (version <= 48).`, 422);
     }
     const paths = this.lib.paths(game.id);
+    let preset;
+    if (overrides.device) {
+      try {
+        preset = findPreset(loadDevicePresets(this.cfg.kemDir).presets, overrides.device);
+      } catch (e) {
+        throw new SessionError('devices_unavailable', `Cannot read KEmulator device presets: ${(e as Error).message}`, 503);
+      }
+      if (!preset) throw new SessionError('unknown_device', `Unknown device preset "${overrides.device}"`, 400);
+    }
     const sid = newId(12);
     const bridgeDir = path.join(this.cfg.runDir, sid);
     mkdirSync(bridgeDir, { recursive: true, mode: 0o700 });
     const userPath = this.lib.savesDir(owner, game.id);
     this.lib.pruneLogs();
+    // Per-app emulator settings (device preset, key codes of the chosen layout) go to midlets.ini
+    writeMidletsIni(userPath, { jarPath: paths.jar, width: overrides.width, height: overrides.height, keys: KEY_LAYOUTS[overrides.layout].keys, preset });
     const adapter = new KEmulatorAdapter({
       adapterBin: this.cfg.adapterBin,
       javaBin: this.cfg.javaBin,
