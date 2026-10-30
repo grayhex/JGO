@@ -56,6 +56,11 @@ install -m 644 /opt/jgo/share/systemd/jgo.service /opt/jgo/share/systemd/jgo-xvf
 ln -sf /opt/jgo/bin/jgo /usr/local/bin/jgo
 msg_ok "Configured JGO"
 
+if ! runuser -u jgo -- unshare --user --map-current-user --net true 2>/dev/null; then
+  sed -i "s|^KEM_LAUNCH_WRAPPER=.*|KEM_LAUNCH_WRAPPER=|" /etc/jgo/jgo.env
+  msg_warn "This container cannot create user namespaces (enable Options > Features > Nesting): games will have network access. Use the container firewall, or fix it and run 'jgo network deny'."
+fi
+
 msg_info "Creating Service"
 systemctl enable -q --now jgo-xvfb jgo
 msg_ok "Created Service"

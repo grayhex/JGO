@@ -164,8 +164,11 @@ jobs:
         run: |
           npm ci
           bash runtime/scripts/setup.sh
-      - name: Let the fake GitHub listen on 443 without root
-        run: sudo sysctl -w net.ipv4.ip_unprivileged_port_start=0
+      - name: Let the fake GitHub listen on 443 without root; allow user namespaces for the per-game network isolation
+        run: |
+          sudo sysctl -w net.ipv4.ip_unprivileged_port_start=0
+          # Ubuntu 24.04 runners forbid unprivileged user namespaces through AppArmor; a Proxmox kernel does not
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Run the scenarios (tests/lxc/run.sh)
         run: tests/lxc/run.sh
       - if: failure()

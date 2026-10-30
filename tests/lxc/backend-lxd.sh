@@ -44,6 +44,6 @@ be_exec() { local name=$1; shift; "$LXC" exec "$name" "${LXC_ENV[@]}" -- "$@"; }
 be_cp_to() { "$LXC" file push "$2" "$1$3"; }
 be_cp_from() { "$LXC" file pull "$1$2" "$3"; }
 be_restart() { "$LXC" restart "$1"; }
-be_snapshot() { "$LXC" stop "$1" >/dev/null && "$LXC" copy "$1" jgo-lxc-test-fresh --refresh >/dev/null 2>&1 || "$LXC" copy "$1" jgo-lxc-test-fresh >/dev/null; "$LXC" start "$1" >/dev/null; echo jgo-lxc-test-fresh; }
+be_snapshot() { "$LXC" delete -f jgo-lxc-test-fresh >/dev/null 2>&1 || true; "$LXC" stop "$1" >/dev/null && "$LXC" copy "$1" jgo-lxc-test-fresh >/dev/null && "$LXC" start "$1" >/dev/null && echo jgo-lxc-test-fresh; }
 be_rm() { local n; for n in "$@"; do "$LXC" delete -f "$n" >/dev/null 2>&1 || true; done; }
 be_describe() { echo "unprivileged LXC ($("$LXC" --version 2>/dev/null | head -n1), image $LXD_IMAGE)"; }
