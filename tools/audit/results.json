@@ -1,0 +1,340 @@
+{
+  "generatedAt": "2026-10-30T20:25:50.090Z",
+  "kemulator": "9ec1005af5448bca63a420e1dfa884ef53842d0f",
+  "inputs": {
+    "K down/up (implemented)": {
+      "sent": "K D 53",
+      "logs": [
+        "KEY_DOWN 53"
+      ],
+      "framesAfter": 20
+    },
+    "T pointer (implemented)": {
+      "sent": "T 0 D 100 100",
+      "logs": [
+        "KEY_UP 53",
+        "POINTER_DOWN 100,100"
+      ],
+      "framesAfter": 21
+    },
+    "X on": {
+      "sent": "X 1",
+      "logs": [
+        "POINTER_UP 100,100"
+      ],
+      "framesAfter": 20
+    },
+    "X off": {
+      "sent": "X 0",
+      "logs": [],
+      "framesAfter": 19
+    },
+    "X invalid value": {
+      "sent": "X 2",
+      "logs": [
+        "java.lang.IllegalArgumentException"
+      ],
+      "framesAfter": 21
+    },
+    "E (text input, \"WIP\" in the spec)": {
+      "sent": "E hello",
+      "logs": [
+        "java.lang.RuntimeException: Not implemented"
+      ],
+      "framesAfter": 20
+    },
+    "I (reserved)": {
+      "sent": "I",
+      "logs": [
+        "java.lang.RuntimeException: Not implemented"
+      ],
+      "framesAfter": 20
+    },
+    "unknown type Z": {
+      "sent": "Z 1",
+      "logs": [
+        "java.lang.IllegalArgumentException: Unknown event type: Z"
+      ],
+      "framesAfter": 21
+    },
+    "S speed (does not exist)": {
+      "sent": "S 2",
+      "logs": [
+        "java.lang.IllegalArgumentException: Unknown event type: S"
+      ],
+      "framesAfter": 20
+    },
+    "malformed K": {
+      "sent": "K D",
+      "logs": [
+        "java.lang.ArrayIndexOutOfBoundsException: Index 2 out of bounds for length 2"
+      ],
+      "framesAfter": 20
+    },
+    "K with a non-number": {
+      "sent": "K D abc",
+      "logs": [
+        "java.lang.NumberFormatException: For input string: \"abc\"",
+        "\tat java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67)"
+      ],
+      "framesAfter": 20
+    },
+    "C unknown command id": {
+      "sent": "C 999999",
+      "logs": [
+        "java.lang.IllegalArgumentException"
+      ],
+      "framesAfter": 21
+    },
+    "P unknown permission id": {
+      "sent": "P 12345 1",
+      "logs": [
+        "java.lang.IllegalArgumentException"
+      ],
+      "framesAfter": 20
+    },
+    "stillRunning": true,
+    "framesKeepComing": true
+  },
+  "packets": {
+    "kemtest (canvas)": {
+      "packetTypes": {
+        "D": 1,
+        "T": 1,
+        "C": 2
+      },
+      "displayableKinds": [
+        "B"
+      ],
+      "title": "",
+      "icon": null,
+      "textAreaPackets": 0,
+      "exceptions": [],
+      "framesReceived": 83
+    },
+    "form": {
+      "packetTypes": {
+        "D": 1,
+        "T": 1,
+        "C": 4
+      },
+      "displayableKinds": [
+        "B"
+      ],
+      "title": "Settings",
+      "icon": null,
+      "textAreaPackets": 0,
+      "exceptions": [],
+      "framesReceived": 6
+    },
+    "list": {
+      "packetTypes": {
+        "D": 1,
+        "T": 1,
+        "C": 2
+      },
+      "displayableKinds": [
+        "B"
+      ],
+      "title": "Pick one",
+      "icon": null,
+      "textAreaPackets": 0,
+      "exceptions": [],
+      "framesReceived": 1
+    },
+    "textbox": {
+      "packetTypes": {
+        "D": 1,
+        "T": 1,
+        "C": 2
+      },
+      "displayableKinds": [
+        "B"
+      ],
+      "title": "Name",
+      "icon": null,
+      "textAreaPackets": 0,
+      "exceptions": [],
+      "framesReceived": 1
+    },
+    "alert": {
+      "packetTypes": {
+        "D": 1,
+        "T": 1,
+        "C": 2
+      },
+      "displayableKinds": [
+        "B"
+      ],
+      "title": "Notice",
+      "icon": null,
+      "textAreaPackets": 0,
+      "exceptions": [],
+      "framesReceived": 1
+    },
+    "canvas with commands": {
+      "packetTypes": {
+        "D": 1,
+        "T": 1,
+        "C": 2,
+        "M": 1
+      },
+      "displayableKinds": [
+        "B"
+      ],
+      "title": "",
+      "icon": null,
+      "textAreaPackets": 0,
+      "exceptions": [],
+      "framesReceived": 1
+    },
+    "net (permission, url, vibrate)": {
+      "packetTypes": {
+        "D": 1,
+        "T": 1,
+        "C": 2,
+        "V": 1,
+        "P": 1,
+        "U": 1
+      },
+      "displayableKinds": [
+        "B"
+      ],
+      "title": "",
+      "icon": null,
+      "textAreaPackets": 0,
+      "exceptions": [
+        "NET_FAILED java.net.UnknownHostException: example.invalid"
+      ],
+      "framesReceived": 1
+    },
+    "form with TextField and MIDlet-Icon": {
+      "packetTypes": {
+        "I": 1,
+        "D": 1,
+        "T": 1,
+        "C": 4
+      },
+      "displayableKinds": [
+        "B"
+      ],
+      "title": "Probe",
+      "icon": {
+        "width": 16,
+        "height": 16,
+        "rgbaBytes": 1024
+      },
+      "textAreaPackets": 0,
+      "exceptions": [],
+      "framesReceived": 1
+    }
+  },
+  "textfield": {
+    "before": "LCDUI textfield=player caret=0",
+    "after": "LCDUI textfield=player caret=0",
+    "textAreaPackets": 0,
+    "itemStateChanged": false,
+    "exceptions": [
+      "java.lang.RuntimeException: Not implemented"
+    ]
+  },
+  "media": {
+    "supportedContentTypes": "audio/midi audio/x-midi audio/wav audio/x-wav audio/x-tone-seq audio/amr audio/x-amr audio/mpeg audio/mp3 ",
+    "supportedProtocols": "device://tone capture://video capture://image file http https ",
+    "items": {
+      "tone": {
+        "result": "OK",
+        "started": null,
+        "pcm": {
+          "seconds": 1.31,
+          "rms": 2122,
+          "hz": 424
+        }
+      },
+      "wav": {
+        "result": "OK",
+        "started": "duration_us=1500000 volume_control=true",
+        "pcm": {
+          "seconds": 1.79,
+          "rms": 2803,
+          "hz": 500
+        }
+      },
+      "mp3": {
+        "result": "OK",
+        "started": "duration_us=9223372036854775807 volume_control=true",
+        "pcm": {
+          "seconds": 1.96,
+          "rms": 4986,
+          "hz": 938
+        }
+      },
+      "amr": {
+        "result": "OK",
+        "started": "duration_us=1500000 volume_control=true",
+        "pcm": {
+          "seconds": 1.78,
+          "rms": 7558,
+          "hz": 1099
+        }
+      },
+      "midi": {
+        "result": "OK",
+        "started": "duration_us=500000 volume_control=true",
+        "pcm": {
+          "seconds": 1.59,
+          "rms": 1080,
+          "hz": 367
+        }
+      }
+    },
+    "otherLog": []
+  },
+  "apis": {
+    "canvas": "hasPointerEvents=true hasPointerMotionEvents=true hasRepeatEvents=true",
+    "properties": {
+      "microedition.platform": "Nokia6700c-1/13.10",
+      "microedition.profiles": "MIDP-2.0",
+      "microedition.configuration": "CLDC-1.1",
+      "microedition.locale": "en-US",
+      "microedition.encoding": "ISO-8859-1",
+      "microedition.io.file.FileConnection.version": "1.0",
+      "microedition.pim.version": "1.0",
+      "microedition.location.version": "null",
+      "microedition.sensor.version": "1.0",
+      "microedition.media.version": "1.0",
+      "supports.mixing": "true",
+      "supports.audio.capture": "false",
+      "supports.video.capture": "false",
+      "supports.recording": "false",
+      "video.snapshot.encodings": "null",
+      "fileconn.dir.photos": "file:///root/photos/",
+      "fileconn.dir.memorycard": "file:///root/e/",
+      "bluetooth.api.version": "1.0",
+      "microedition.m3g.version": "1.1",
+      "wireless.messaging.sms.smsc": "+8613800010000"
+    },
+    "results": {
+      "sms-send": "FAIL java.lang.NullPointerException: Cannot invoke \"emulator.ui.IMessage.send(javax.wireless.messaging.Message, String)\" because the return value of \"emulator.ui.IEmulatorFrontend.getMessage()\" is null",
+      "file-write": "OK size=1 url=file:///root1/audit.txt",
+      "file-roots": "OK root/ ",
+      "location": "OK com.nokia.mid.impl.isa.location.EmulatedLocationProvider@16cabdd7",
+      "sensor-acceleration": "OK found=2",
+      "bluetooth": "OK null",
+      "pim": "OK javax.microedition.pim.PIMImpl@5c04ee",
+      "camera": "FAIL com.github.sarxos.webcam.WebcamException: java.util.concurrent.ExecutionException: com.github.sarxos.webcam.WebcamException: Cannot execute task"
+    },
+    "permissionPromptsAnswered": []
+  },
+  "soundfont": {
+    "soundFontCopy": "jgo-audit-custom.sf2",
+    "withoutSetting": {
+      "midiPlayback": "OK",
+      "soundFontOpens": 0
+    },
+    "withPropertyTxt": {
+      "midiPlayback": "OK",
+      "soundFontOpens": 2
+    }
+  }
+}
