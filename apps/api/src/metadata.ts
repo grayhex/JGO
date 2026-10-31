@@ -187,6 +187,8 @@ export class MetadataService {
       data: { title: g.title, description: g.description, genres: g.genres, publishers: g.publishers, developers: g.developers, year: g.year, score: g.score, criticScore: g.criticScore, playerScore: g.playerScore, mobyUrl: g.mobyUrl, officialUrl: g.officialUrl, hasCover, screenshots: shots },
       candidates: [], error: warn.length ? warn.slice(0, 3).join('; ') : null,
     });
+    // a decisive or hand-confirmed match gives the game its genre, unless the user or a stronger source already set it
+    this.library.classes.applyMoby(groupKey, g.genres);
   }
 
   /** Looks one group up and stores the outcome. `query` overrides the library name (manual search). */

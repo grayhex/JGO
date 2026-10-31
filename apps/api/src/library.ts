@@ -5,6 +5,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { DEFAULT_SETTINGS, EMULATION_LIMITS, type EmulationTweaks, type GameInfoSummary, type GameMeta, type GameSettings, KEY_LAYOUTS, SCREEN_PRESETS, type LayoutId, type MetaStatus } from '@j2me-web/protocol';
 import { parseJad, parseJar, sanitizeText, UploadError } from './jar.js';
+import { Classifications } from './classification.js';
 
 interface Row {
   id: string;
@@ -125,6 +126,8 @@ export function validateSettings(input: unknown, base: GameSettings = DEFAULT_SE
 export class Library {
   readonly db: DatabaseSync;
   readonly gamesDir: string;
+  /** Genres and tags of the games (by group), see classification.ts. */
+  readonly classes: Classifications;
 
   constructor(readonly dataDir: string) {
     mkdirSync(dataDir, { recursive: true, mode: 0o700 });
@@ -141,6 +144,7 @@ export class Library {
       );
     `);
     this.migrate();
+    this.classes = new Classifications(this.db);
   }
 
   /**
@@ -250,7 +254,14 @@ export class Library {
     };
   }
 
-  list(): GameMeta[] {
+  /** The group (all versions of one game) of the file with this SHA-256, if the library has it. */
+  groupOfSha(sha: string): string | null {
+    const r = this.db.prepare('SELECT group_key FROM games WHERE sha256 = ?').get(sha) as unknown as { group_key: string } | undefined;
+    return r?.group_key ?? null;
+  }
+
+  /** `genre` keeps one genre ('unclassified' keeps the games without one). */
+  list(genre?: string): GameMeta[] {
     const rows = this.db.prepare('SELECT * FROM games ORDER BY name COLLATE NOCASE, created_at').all() as unknown as Row[];
     const src = new Map<string, { n: number; active: number }>();
     for (const r of this.db.prepare('SELECT game_id, COUNT(*) AS n, SUM(CASE WHEN missing = 0 THEN 1 ELSE 0 END) AS active FROM sources GROUP BY game_id').all() as unknown as { game_id: string; n: number; active: number }[]) {
@@ -261,14 +272,19 @@ export class Library {
       const d = JSON.parse(m.data_json) as { title?: string; year?: number | null; genres?: string[]; hasCover?: boolean };
       info.set(m.group_key, { status: m.status as MetaStatus, ...(d.title ? { title: d.title } : {}), year: d.year ?? null, genres: d.genres ?? [], hasCover: !!d.hasCover });
     }
-    return rows.map((r) => {
+    const cls = this.classes.all();
+    const all = rows.map((r) => {
       const g = this.toMeta(r);
       const s = src.get(r.id);
       if (s && r.origin === 'import' && s.active === 0) g.sourceMissing = true;
       const i = info.get(r.group_key);
       if (i) g.info = i;
+      const c = cls.get(r.group_key);
+      if (c) g.classification = c;
       return g;
     });
+    if (!genre) return all;
+    return all.filter((g) => (genre === 'unclassified' ? !g.classification : g.classification?.primaryGenre === genre || g.classification?.genres.includes(genre as never)));
   }
 
   get(id: string): GameMeta | null {
