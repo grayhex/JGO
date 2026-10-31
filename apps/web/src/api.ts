@@ -1,4 +1,4 @@
-import type { DevicePreset, EmulationTweaks, GameFileEntry, GameInfo, GameMeta, GameSettings, HealthStatus, LibraryCheck, LibraryRoot, MetadataJob, MobyCandidate, PublicSettings, ScanReport, SessionStatus, SettingsResponse, SystemStatus } from '@j2me-web/protocol';
+import type { CatalogReport, DevicePreset, GameClassification, Genre, GenreSummary, EmulationTweaks, GameFileEntry, GameInfo, GameMeta, GameSettings, HealthStatus, LibraryCheck, LibraryRoot, MetadataJob, MobyCandidate, PublicSettings, ScanReport, SessionStatus, SettingsResponse, SystemStatus } from '@j2me-web/protocol';
 
 export type GameSettingsPatch = Partial<Omit<GameSettings, 'device' | 'emulation'>> & { device?: string | null; emulation?: EmulationTweaks | null };
 
@@ -100,6 +100,13 @@ export const api = {
   scan: () => req<{ running: boolean; report: ScanReport | null }>('/api/library/scan'),
   scanStart: (mode: 'update' | 'full') => req<{ running: boolean; report: ScanReport }>('/api/library/scan', jsonInit('POST', { mode })),
   scanCancel: () => req<{ cancelled: boolean }>('/api/library/scan', { method: 'DELETE' }),
+
+  // genres
+  genres: () => req<GenreSummary>('/api/library/genres'),
+  catalogPreview: (file: unknown) => req<CatalogReport>('/api/library/catalog/preview', jsonInit('POST', file)),
+  catalogImport: (file: unknown) => req<CatalogReport>('/api/library/catalog/import', jsonInit('POST', file)),
+  setClassification: (groupKey: string, patch: { primaryGenre?: Genre; tags?: string[]; canonicalTitle?: string | null; locked?: false }) => req<GameClassification>(`/api/library/groups/${groupKey}/classification`, jsonInit('PATCH', patch)),
+  clearClassification: (groupKey: string) => req<void>(`/api/library/groups/${groupKey}/classification`, { method: 'DELETE' }),
 
   // MobyGames metadata
   metaJob: () => req<{ job: MetadataJob; stats: { matched: number; ambiguous: number; unmatched: number; bytes: number }; review: number }>('/api/metadata/job'),

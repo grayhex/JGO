@@ -66,3 +66,16 @@
 .phone-pick:disabled { cursor: progress; opacity: 0.7; }
 .phone-pick-skin { height: 300px; width: 100%; position: relative; }
 .phone-pick .skin-box { filter: none; }
+
+/* genres: chips over the library, a badge on every card */
+.genre-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--s-lg); }
+.genre-chip { cursor: pointer; font: inherit; font-size: 0.8125rem; height: 30px; padding: 0 12px; }
+.genre-chip .count { color: var(--muted); font-variant-numeric: tabular-nums; margin-left: 4px; }
+.genre-chip.on { border-color: var(--primary-warm); background: var(--primary-tint); color: var(--primary-strong); }
+.genre-chip:hover { border-color: var(--primary-warm); }
+button.genre-badge { cursor: pointer; border: 1px solid transparent; font: inherit; font-size: 0.75rem; font-weight: 600; }
+button.genre-badge:hover { border-color: var(--primary-warm); }
+button.genre-badge.unconfirmed { color: var(--muted); font-weight: 500; font-style: italic; }
+.plain-list { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 2px; }
+.catalog-panel { display: grid; gap: 10px; margin-bottom: var(--s-lg); }
+.lib-grid.list .genre-badge { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }

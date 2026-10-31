@@ -196,4 +196,19 @@ describe('library scan', () => {
     assert.equal(g.origin, 'upload');
     assert.equal(lib.count(), 1);
   });
+
+  it('pointing the library at another folder keeps every game already imported (and its genre)', async () => {
+    const t = setup();
+    put(t.root, 'old/Racer.jar', makeJar('Racer'));
+    await t.run();
+    const groupKey = t.library.list()[0]!.groupKey;
+    t.library.classes.setManual(groupKey, { primaryGenre: 'Racing' });
+    const other = tmpDir('jgo-lib2-');
+    t.cfg.libraryRoots.push(other);
+    put(other, 'new/Puzzle.jar', makeJar('Puzzle'));
+    t.store.update({ libraryPath: other });
+    await t.run('full');
+    assert.deepEqual(t.library.list().map((g) => g.name).sort(), ['Puzzle', 'Racer'], 'the old game is still there');
+    assert.equal(t.library.list().find((g) => g.name === 'Racer')!.classification?.primaryGenre, 'Racing');
+  });
 });

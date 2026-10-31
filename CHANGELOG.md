@@ -5,6 +5,10 @@ Formatted after [Keep a Changelog](https://keepachangelog.com/); versions follow
 
 ## [Unreleased]
 
+### Added
+- **Genres.** A game's genre is metadata of the game (all its versions), not of a folder: table `game_classifications`, 13 genres plus free tags, chips with counts over the library, a genre badge and dialog on every card.
+- **Genre catalog** (`jgo_catalog.json` in JGO's format or the J2ME Curator manifest, matched by SHA-256; file paths are stripped in the browser and never sent; curator confidence `heuristic`/`unclassified` is kept as an unconfirmed genre): preview, then import in one transaction, idempotent; export. Genres chosen by hand are locked; MobyGames outranks the catalog; no paths are sent to the API. See `docs/LIBRARY.md`.
+
 ### Fixed
 - **Games did not start in Docker** (beta.5): the emulator died at the game's icon with `NoClassDefFoundError ... swt.internal.gtk.OS`,
   because SWT's native library cannot be unpacked in a container. Images are now decoded with the JDK's ImageIO when SWT is unusable (patch `0014`).
@@ -12,7 +16,6 @@ Formatted after [Keep a Changelog](https://keepachangelog.com/); versions follow
 - Sony Ericsson phones use the Sony Ericsson key layout (was labelled Nokia).
 - Settings: wider page, the ten phones wrap instead of stretching the form.
 
-### Added
 - Sidebar item **Game** returns to the game opened last.
 - A button next to the screenshot shows the frame rate in green digits in the corner of the phone screen.
 

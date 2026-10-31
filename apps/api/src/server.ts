@@ -1,4 +1,4 @@
-import { resolvePhone } from '@j2me-web/protocol';
+import { isGenre, resolvePhone } from '@j2me-web/protocol';
 import { execFile } from 'node:child_process';
 import { createReadStream, readFileSync } from 'node:fs';
 import { createHmac, timingSafeEqual } from 'node:crypto';
@@ -178,7 +178,11 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
   });
 
   // --- games ---
-  app.get('/api/games', async () => library.list());
+  app.get<{ Querystring: { genre?: string } }>('/api/games', async (req) => {
+    const g = req.query.genre;
+    if (g !== undefined && g !== 'unclassified' && !isGenre(g)) throw new UploadError('bad_request', 'Unknown genre', 400);
+    return library.list(g);
+  });
 
   app.get<{ Params: { id: string } }>('/api/games/:id', async (req) => {
     const g = library.get(req.params.id);
