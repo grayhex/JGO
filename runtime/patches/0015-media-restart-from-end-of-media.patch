@@ -1,0 +1,20 @@
+diff --git a/src/media/javax/microedition/media/PlayerImpl.java b/src/media/javax/microedition/media/PlayerImpl.java
+index e7c24b91..cc05e82f 100644
+--- a/src/media/javax/microedition/media/PlayerImpl.java
++++ b/src/media/javax/microedition/media/PlayerImpl.java
+@@ -889,8 +889,13 @@ public class PlayerImpl implements Player, Runnable, LineListener, MetaEventList
+ 			System.err.println("Exception in player thread!");
+ 			e.printStackTrace();
+ 		} finally {
+-			playerThread = null;
+-			if (!Settings.enableMediaDump) players.remove(this);
++			// j2me-web: a game restarts its music from the END_OF_MEDIA listener, which runs on this very thread: start()
++			// has already put a NEW player thread into playerThread by now. Clearing it here made the new thread see
++			// "no thread" and end at once, so the music played one more time and then never again.
++			if (playerThread == Thread.currentThread()) {
++				playerThread = null;
++				if (!Settings.enableMediaDump) players.remove(this);
++			}
+ 		}
+ 	}
+ 

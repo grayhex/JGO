@@ -463,11 +463,15 @@ export class SessionManager {
   }
 
   async create(game: GameMeta, overrides: GameSettings, owner: string): Promise<Session> {
-    if (this.active().length >= this.cfg.maxSessions) {
-      throw new SessionError('session_limit', `Session limit reached (${this.cfg.maxSessions}). Stop the running session first.`, 429);
-    }
     if (game.classVersion >= 49) {
       throw new SessionError('unsupported_jar', `This JAR contains Java ${game.classVersion - 44}+ class files; KEmulator only runs J2ME-era classes (version <= 48).`, 422);
+    }
+    // Starting a game while the limit is reached ends the oldest running game first (its MIDlet gets destroyApp, RMS is
+    // written), instead of refusing with an error the viewer can do nothing about but click Stop and Start again.
+    while (this.active().length >= this.cfg.maxSessions) {
+      const oldest = this.active().sort((a, b) => a.createdAt - b.createdAt)[0];
+      if (!oldest) break;
+      await oldest.stop('replaced by the game that was started next');
     }
     const paths = this.lib.paths(game.id);
     let preset;

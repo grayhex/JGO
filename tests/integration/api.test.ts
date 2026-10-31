@@ -148,13 +148,17 @@ describe('J2ME Web API against a real KEmulator (Bridge)', () => {
     await expectClean();
   });
 
-  it('enforces the session limit', async () => {
+  it('at the session limit a new game replaces the running one (no error to click away)', async () => {
     const a = await startSession();
     assert.equal(a.status, 201);
     const b = await startSession();
-    assert.equal(b.status, 429);
-    assert.equal(b.body.error, 'session_limit');
-    await stopSession(a.body.id);
+    assert.equal(b.status, 201, JSON.stringify(b.body));
+    assert.notEqual(b.body.id, a.body.id);
+    const first = await fetch(`${env.base}/api/sessions/${a.body.id}`).then((r) => r.json() as Promise<any>);
+    assert.ok(first.state === 'exited' || first.state === 'stopping', `the first game ended (${first.state})`);
+    const running = (await (await fetch(`${env.base}/api/sessions`)).json() as any[]).filter((x) => x.state === 'running' || x.state === 'starting');
+    assert.deepEqual(running.map((x) => x.id), [b.body.id], 'exactly one game runs');
+    await stopSession(b.body.id);
     await expectClean();
   });
 
