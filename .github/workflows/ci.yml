@@ -280,7 +280,7 @@ jobs:
         run: node --test tests/scripts/docker-auth.test.cjs
       - name: NAS Compose keeps auth in a Docker-managed volume
         run: |
-          docker compose config --format json | python3 -c 'import json,sys; c=json.load(sys.stdin); s=c["services"]["app"]; assert s["environment"]["JGO_AUTH_DIR"] == "/jgo-auth"; assert any(m["target"] == "/jgo-auth" and m["type"] == "volume" for m in s["mounts"])'
+          docker compose config --format json | python3 -c 'import json,sys; c=json.load(sys.stdin); s=c["services"]["app"]; assert s["environment"]["JGO_AUTH_DIR"] == "/jgo-auth"; assert any(m["target"] == "/jgo-auth" and m["type"] == "volume" for m in s["volumes"])'
       - name: NAS style - a folder owned by another user (PUID/PGID), restart keeps the data
         run: |
           docker compose down -v
