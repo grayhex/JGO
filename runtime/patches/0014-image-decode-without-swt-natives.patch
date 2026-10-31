@@ -1,0 +1,24 @@
+diff --git a/src/main/emulator/graphics2D/awt/ImageAWT.java b/src/main/emulator/graphics2D/awt/ImageAWT.java
+index 3055a352..d3151ba6 100644
+--- a/src/main/emulator/graphics2D/awt/ImageAWT.java
++++ b/src/main/emulator/graphics2D/awt/ImageAWT.java
+@@ -27,11 +27,18 @@ public final class ImageAWT implements IImage {
+ 	private int[] data;
+ 	private boolean directAccess;
+ 
++	/** j2me-web: set once SWT's native library proved unusable (no GTK, no writable home): decode with ImageIO from then on. */
++	private static volatile boolean swtDecoderBroken;
++
+ 	public ImageAWT(final byte[] array) throws IOException {
+ 		super();
+ 		try {
++			if (swtDecoderBroken) throw new IllegalStateException("SWT decoder unavailable");
+ 			img = CopyUtils.toAwt(new ImageData(new ByteArrayInputStream(array)));
+-		} catch (Exception e) {
++		} catch (Exception | LinkageError e) {
++			// j2me-web: a missing SWT native library is a NoClassDefFoundError/UnsatisfiedLinkError (an Error, not an
++			// Exception), which used to abort the whole MIDlet at its first image, usually the icon, in containers
++			if (e instanceof LinkageError) swtDecoderBroken = true;
+ 			try {
+ 				img = ImageIO.read(new ByteArrayInputStream(array));
+ 			} catch (IOException e2) {
