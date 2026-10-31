@@ -64,3 +64,5 @@
 .phone-pick:hover:not(:disabled) { border-color: var(--primary-warm); }
 .phone-pick.on { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-tint-strong); background: var(--primary-tint); }
 .phone-pick:disabled { cursor: progress; opacity: 0.7; }
+.phone-pick-skin { height: 300px; width: 100%; position: relative; }
+.phone-pick .skin-box { filter: none; }

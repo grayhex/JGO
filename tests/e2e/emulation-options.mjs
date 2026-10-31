@@ -47,7 +47,7 @@ try {
 
   await p.reload();
   await p.getByText('Game compatibility options', { exact: true }).click();
-  assert.equal(await p.getByLabel('Language of the phone').inputValue(), 'ru-RU', 'saved options are shown after a reload');
+  await wait(async () => (await p.getByLabel('Language of the phone').inputValue()) === 'ru-RU', 'saved options are shown after a reload');
   await p.getByRole('button', { name: 'Back to the emulator defaults' }).click();
   await wait(async () => { const g = (await (await fetch(base + '/api/games')).json()).find((x) => x.id === props.id); return g.settings.emulation === undefined; }, 'defaults restored');
 

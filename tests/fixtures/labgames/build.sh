@@ -41,6 +41,7 @@ mk kemmidi.jar KemMidi KemMidi
 mk kemprops.jar KemProps KemProps
 mk kemfiles.jar KemFiles KemFiles "MIDlet-Permissions: javax.microedition.io.Connector.file.read, javax.microedition.io.Connector.file.write"
 mk kemm3gworld.jar KemM3gWorld KemM3gWorld
+for m in loop restart; do mk "kemmusic-$m.jar" "KemMusic-$m" KemMusic "KemLab-Music: $m"; done
 mk kemshutdown.jar KemShutdown KemShutdown
 
 mk kemshutdown-hang.jar KemShutdownHang KemShutdown "KemShutdown-Hang: true"

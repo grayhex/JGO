@@ -29,6 +29,8 @@ export interface PhoneSkinProps {
   onKey?: (e: { id: string; label: string; action: string | null; phase: 'down' | 'up' }) => void;
   /** Content shown inside the display window (start button, messages). */
   lcdOverlay?: ReactNode;
+  /** A small mark in the corner of the display (the frame rate); it never takes the pointer. */
+  lcdBadge?: ReactNode;
   debug?: SkinDebug;
   /** Fixed outer box in CSS pixels; without it the skin fills its parent. */
   size?: { w?: number; h?: number };
@@ -56,7 +58,7 @@ const centroid = (h: Hitbox): [number, number] => [h.points.reduce((a, p) => a +
  * Stacking (bottom to top): display backplate, Canvas (real KEmulator framebuffer), body (transparent window),
  * glass, hitboxes. The body ignores the pointer so the canvas keeps receiving game pointer events through the window.
  */
-export function PhoneSkin({ skin, view, frame, rotation = 0, canvasRef, canvasProps, integer = true, smooth = false, input, interactive = true, onKey, lcdOverlay, debug, size, className = '', glass = true }: PhoneSkinProps) {
+export function PhoneSkin({ skin, view, frame, rotation = 0, canvasRef, canvasProps, integer = true, smooth = false, input, interactive = true, onKey, lcdOverlay, lcdBadge, debug, size, className = '', glass = true }: PhoneSkinProps) {
   const fit = useRef<HTMLDivElement>(null);
   const box = useRef<HTMLDivElement>(null);
   const parent = useBox(fit, !size?.w || !size?.h);
@@ -177,6 +179,7 @@ export function PhoneSkin({ skin, view, frame, rotation = 0, canvasRef, canvasPr
               data-scale={place.scale.toFixed(3)}
             />
             {lcdOverlay && <div className="skin-lcd-overlay">{lcdOverlay}</div>}
+            {lcdBadge && <div className="skin-lcd-badge">{lcdBadge}</div>}
           </div>
           <img className="skin-body" src={url(v.body)} alt="" draggable={false} decoding="async" />
           {glass && v.glass && <img className="skin-glass" src={url(v.glass)} alt="" draggable={false} decoding="async" />}

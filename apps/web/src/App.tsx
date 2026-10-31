@@ -91,13 +91,16 @@ export function App() {
 
   const play = /^\/play\/([0-9a-f]{16})\/?$/.exec(path);
   const phones = path === '/phones' || path === '/phones/';
+  const phoneLab = path === '/phones/lab' && !!DevPhones && developer; // the QA view of every handset (developer build + developer mode)
   const settings = path === '/settings' || path === '/settings/';
   const page = play
     ? { title: 'Player', subtitle: 'Live emulator session', node: <Player key={play[1]} gameId={play[1]!} toast={toast} onExit={() => go('/')} health={health} /> }
     : settings
       ? { title: 'Settings', subtitle: 'Library, MobyGames, phone, sound, server', node: <SettingsPage toast={toast} onRunWizard={() => setWizard(true)} onLibraryChanged={() => window.dispatchEvent(new Event('j2me:library-changed'))} /> }
+    : phoneLab && DevPhones
+      ? { title: 'Phones', subtitle: 'Phone lab', node: <Suspense fallback={null}><DevPhones /></Suspense> }
     : phones
-      ? { title: 'Phones', subtitle: 'Classic phones', node: DevPhones && developer ? <Suspense fallback={null}><DevPhones /></Suspense> : <PhonesPage toast={toast} /> }
+      ? { title: 'Phones', subtitle: 'Classic phones', node: <PhonesPage toast={toast} /> }
       : { title: 'Library', subtitle: 'Your games on this server', node: <Library toast={toast} onPlay={(id) => go(`/play/${id}`)} health={health} query={query} /> };
 
   return (

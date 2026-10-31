@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { ThemeChoice } from '../theme';
 import { Icon, type IconName } from './Icon';
 import { Seg } from './ui';
+import { useLastGame } from '../lastGame';
 
 export function Link({ to, children, className, onNavigate, ...rest }: { to: string; children: ReactNode; className?: string; onNavigate: (to: string) => void } & Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, 'href' | 'onClick'>) {
   return (
@@ -30,6 +31,7 @@ export function Shell({ path, go, health, theme, setTheme, title, subtitle, sear
   title: string; subtitle?: string; search?: { value: string; onChange: (v: string) => void }; children: ReactNode;
 }) {
   const locale=useLocale();
+  const lastGame = useLastGame();
   const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem(COLLAPSE) === '1'; } catch { return false; } });
   const [drawer, setDrawer] = useState(false);
   useEffect(() => { try { localStorage.setItem(COLLAPSE, collapsed ? '1' : '0'); } catch { /* private mode */ } }, [collapsed]);
@@ -59,7 +61,8 @@ export function Shell({ path, go, health, theme, setTheme, title, subtitle, sear
         </Link>
         <nav className="nav">
           <div className="nav-title">{translateUI("Workspace")}</div>
-          {item('/', 'library', 'Library', path === '/' || inPlayer)}
+          {item('/', 'library', 'Library', path === '/')}
+          {lastGame && item(`/play/${lastGame.id}`, 'play', 'Game', inPlayer)}
           {item('/phones', 'phone', 'Phones', path === '/phones')}
           {item('/settings', 'sliders', 'Settings', path === '/settings')}
         </nav>
@@ -101,7 +104,7 @@ export function Shell({ path, go, health, theme, setTheme, title, subtitle, sear
         />
       </header>
       <main className="content" id="main">
-        <div className="container">{children}</div>
+        <div className={`container${inPlayer ? ' wide' : ''}`}>{children}</div>
       </main>
     </div>
   );

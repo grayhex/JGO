@@ -12,7 +12,18 @@ Formatted after [Keep a Changelog](https://keepachangelog.com/); versions follow
 - Sony Ericsson phones use the Sony Ericsson key layout (was labelled Nokia).
 - Settings: wider page, the ten phones wrap instead of stretching the form.
 
+### Added
+- Sidebar item **Game** returns to the game opened last.
+- A button next to the screenshot shows the frame rate in green digits in the corner of the phone screen.
+
+### Fixed (round 2)
+- **Music stopped after a minute** (e.g. Die Hard): a game restarting its track from `END_OF_MEDIA` on the player thread raced with the old thread's cleanup and lost the player (patch `0015`).
+- "Session limit reached" no longer appears: starting a game ends the running one first.
+
 ### Changed
+- The player: no phone picker below the phone, a larger phone, narrower top bars; the touch keys sit left of the screen (also in Lights Out) and no longer cover it; monoblocks (5800, S5230) have no *Screen* view.
+- `/phones` shows a switched-off (black) display, or the running game's current frame.
+- Help sentences became tooltips (i) so the right panel is shorter.
 - The emulation profile shows short icons instead of sentences; the manifest's screen size is applied automatically; rotation is one button that also moves the picture to the landscape phone.
 - `/phones`: a click on a phone sets it for the game opened last (or as the default for new games).
 - The library has a compact list view next to the tiles.

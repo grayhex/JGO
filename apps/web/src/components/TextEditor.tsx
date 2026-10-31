@@ -44,6 +44,7 @@ export function TextEditor({ area, onText }: { area: TextArea; onText: (text: st
     maxLength: area.maxSize > 0 ? area.maxSize : undefined,
     onBlur: flush,
     'aria-label': translateUI('Text input'),
+    title: translateUI('Type here; the game receives the text as you type.'),
     autoComplete: 'off',
     autoCapitalize: 'off',
     spellCheck: false,
@@ -68,7 +69,6 @@ export function TextEditor({ area, onText }: { area: TextArea; onText: (text: st
           onKeyDown={(e) => { if (e.key === 'Enter') { flush(); (e.target as HTMLInputElement).blur(); } }}
         />
       )}
-      <p className="muted text-editor-hint">{translateUI('Type here; the game receives the text as you type.')}</p>
     </div>
   );
 }

@@ -37,13 +37,20 @@ try {
   page.on('pageerror', e => errors.push(e.message));
   page.on('dialog', d => d.accept());
   await page.goto(base + '/play/' + game.id);
-  await page.locator('.skin-picker [role=radio]').last().waitFor();
-  assert.equal(await page.locator('.skin-picker [role=radio]').count(), 10);
+  // the phones are chosen on /phones (the player has no picker any more): a click sets the phone of the game opened last
+  assert.equal(await page.locator('.skin-picker').count(), 0, 'the player has no phone picker');
+  const pickPhone = async (model) => {
+    await page.getByRole('link', { name: 'Phones' }).click();
+    await page.locator('.phone-pick').nth(9).waitFor();
+    assert.equal(await page.locator('.phone-pick').count(), 10);
+    await page.getByRole('button', { name: model }).click();
+    await page.waitForURL('**/play/' + game.id);
+  };
 
   for (const id of ids) {
     const c = JSON.parse(readFileSync(`apps/web/public/phones/${id}/config.json`, 'utf8'));
-    await page.locator('.stage-bar').getByRole('radio', { name: 'Phone', exact: true }).click();
-    await page.locator('.skin-picker [role=radio]').filter({ hasText: c.model }).click();
+    if (await page.locator('.stage-bar').getByRole('radio', { name: 'Phone', exact: true }).count()) await page.locator('.stage-bar').getByRole('radio', { name: 'Phone', exact: true }).click();
+    await pickPhone(c.model);
     await page.locator(`.skin-box[data-skin="${id}"][data-view=full]`).waitFor();
     await wait(async () => {
       const settings = (await (await fetch(base + '/api/games/' + game.id)).json()).settings;
@@ -83,7 +90,17 @@ try {
       await wait(async () => (await logs()).includes(`POINTER_DOWN ${x},${y}`) && (await logs()).includes(`POINTER_UP ${x},${y}`), id + ' real touch coordinates');
       await page.getByTestId('keypad').getByRole('button', { name: '5 jkl', exact: true }).click();
       await wait(async () => (await logs()).includes('KEY_DOWN 53') && (await logs()).includes('KEY_UP 53'), id + ' external 5');
-      await page.locator('.stage-bar').getByRole('radio', { name: 'Screen', exact: true }).click();
+      // a monoblock is only a display: "screen only" has no meaning there, so there is no such view
+      assert.equal(await page.locator('.stage-bar').getByRole('radio', { name: 'Screen', exact: true }).count(), 0, id + ' has no Screen view');
+    }
+    if (c.input.kind === 'touchscreen') {
+      await page.reload();
+      await page.locator(`.skin-box[data-skin="${id}"][data-view=full]`).waitFor();
+      assert.equal((await (await fetch(base + '/api/sessions')).json()).find(s => s.state === 'running').id, running.id, 'reload attaches the same session');
+      await page.locator('.ctrl-col').getByRole('button', { name: 'Stop', exact: true }).click();
+      await page.waitForFunction(() => document.querySelector('[data-testid=state-badge]').textContent.includes('exited'));
+      console.log(`PASS ${id}: real ${c.screen.width}×${c.screen.height}, touchscreen monoblock (no Screen view).`);
+      continue;
     }
     await page.locator(`.skin-box[data-skin="${id}"][data-view=screen]`).waitFor();
     const still = await (await fetch(base + '/api/sessions/' + running.id)).json();
