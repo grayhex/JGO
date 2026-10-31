@@ -1,6 +1,7 @@
 import { createReadStream } from 'node:fs';
 import type { FastifyInstance } from 'fastify';
-import type { LibraryCheck, SettingsResponse } from '@j2me-web/protocol';
+import { isGenre, type LibraryCheck, type SettingsResponse } from '@j2me-web/protocol';
+import { CATALOG_MAX_BYTES, Classifications, cleanTags } from './classification.js';
 import type { Config } from './config.js';
 import { UploadError } from './jar.js';
 import type { Library } from './library.js';
@@ -128,6 +129,47 @@ export function registerAdminRoutes(app: FastifyInstance, c: AdminContext): void
     return reply.code(202).send({ running: true, report: scan.start(mode) });
   });
   app.delete('/api/library/scan', async () => ({ cancelled: scan.cancel() }));
+
+  // --- genres: a classification belongs to the game (all its versions), never to a folder or a path ---
+  const catalogOpts = { bodyLimit: CATALOG_MAX_BYTES };
+  const bySha = (sha: string) => library.groupOfSha(sha);
+  app.get('/api/library/genres', async () => library.classes.summary());
+  // A catalog file carries SHA-256 hashes, titles and genres only. Preview changes nothing; import writes what preview showed.
+  app.post<{ Body: unknown }>('/api/library/catalog/preview', catalogOpts, async (req) => library.classes.analyze(Classifications.parse(req.body), bySha).report);
+  app.post<{ Body: unknown }>('/api/library/catalog/import', catalogOpts, async (req) => library.classes.importCatalog(Classifications.parse(req.body), bySha));
+  app.get('/api/library/catalog/export', async (_req, reply) => {
+    const files = (library.db.prepare('SELECT sha256, group_key AS groupKey, name FROM games ORDER BY name COLLATE NOCASE').all() as unknown) as { sha256: string; groupKey: string; name: string }[];
+    return reply.header('content-disposition', 'attachment; filename="jgo_catalog.json"').send(library.classes.exportCatalog(files));
+  });
+  const groupExists = (groupKey: string): void => {
+    if (!/^[0-9a-f]{12}$/.test(groupKey) || library.gamesInGroup(groupKey).length === 0) throw new UploadError('not_found', 'No such game', 404);
+  };
+  app.patch<{ Params: { groupKey: string }; Body: Record<string, unknown> | null }>('/api/library/groups/:groupKey/classification', async (req) => {
+    const { groupKey } = req.params;
+    groupExists(groupKey);
+    const b = req.body;
+    if (typeof b !== 'object' || b === null || Array.isArray(b)) throw new UploadError('bad_request', 'Expected a JSON object', 400);
+    for (const k of Object.keys(b)) if (!['primaryGenre', 'genres', 'tags', 'canonicalTitle', 'locked'].includes(k)) throw new UploadError('bad_request', `Unknown field "${k}"`, 400);
+    if (b.locked === false) {
+      if (Object.keys(b).length > 1) throw new UploadError('bad_request', '"locked": false cannot be combined with other fields', 400);
+      return library.classes.unlock(groupKey);
+    }
+    const patch: Parameters<typeof library.classes.setManual>[1] = {};
+    if (b.primaryGenre !== undefined) { if (!isGenre(b.primaryGenre)) throw new UploadError('bad_request', 'Unknown genre', 400); patch.primaryGenre = b.primaryGenre; }
+    if (b.genres !== undefined) { if (!Array.isArray(b.genres) || !b.genres.every(isGenre)) throw new UploadError('bad_request', 'genres must be known genre names', 400); patch.genres = b.genres; }
+    if (b.tags !== undefined) patch.tags = cleanTags(b.tags);
+    if (b.canonicalTitle !== undefined) {
+      if (b.canonicalTitle !== null && (typeof b.canonicalTitle !== 'string' || b.canonicalTitle.length > 120)) throw new UploadError('bad_request', 'canonicalTitle must be a string up to 120 characters', 400);
+      patch.canonicalTitle = b.canonicalTitle === null ? null : b.canonicalTitle.replace(/[\u0000-\u001f\u007f]/g, ' ').trim() || null;
+    }
+    if (!Object.keys(patch).length) throw new UploadError('bad_request', 'Nothing to change', 400);
+    return library.classes.setManual(groupKey, patch);
+  });
+  app.delete<{ Params: { groupKey: string } }>('/api/library/groups/:groupKey/classification', async (req, reply) => {
+    groupExists(req.params.groupKey);
+    library.classes.clear(req.params.groupKey);
+    return reply.code(204).send();
+  });
 
   // --- MobyGames metadata ---
   const mobyKey = () => {

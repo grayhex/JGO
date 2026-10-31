@@ -15,7 +15,6 @@ import { PhonesPage } from './pages/PhonesPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { loadServerSettings } from './serverSettings';
 import { usePath } from './router';
-import { useTheme } from './theme';
 
 export type Toast = { id: number; kind: 'info' | 'error'; text: string };
 
@@ -53,7 +52,6 @@ function Login({ onDone }: { onDone: () => void }) {
 export function App() {
   useLocale();
   const developer=useDeveloperMode();
-  const [theme, setTheme] = useTheme();
   const [path, go] = usePath();
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const [needLogin, setNeedLogin] = useState(false);
@@ -105,7 +103,7 @@ export function App() {
 
   return (
     <>
-      <Shell path={path} go={go} health={health} theme={theme} setTheme={setTheme} title={translateUI(page.title)} subtitle={translateUI(page.subtitle)} search={!play && !phones && !settings ? { value: query, onChange: setQuery } : undefined}>
+      <Shell path={path} go={go} health={health} title={translateUI(page.title)} subtitle={translateUI(page.subtitle)} search={!play && !phones && !settings ? { value: query, onChange: setQuery } : undefined}>
         {page.node}
       </Shell>
       {wizard && (

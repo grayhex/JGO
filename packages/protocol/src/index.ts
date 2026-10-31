@@ -1,4 +1,5 @@
 export * from './phones.js';
+export * from './catalog.js';
 /**
  * Wire protocol shared by the API and the web client. It is provider-neutral:
  * nothing here knows about Docker, Cloudflare or KEmulator internals.
@@ -67,6 +68,8 @@ export interface GameMeta {
   favorite: boolean;
   createdAt: string;
   lastPlayedAt: string | null;
+  /** Time this version has been running, in seconds (counted while its session runs). */
+  playSeconds?: number;
   /** Other uploaded versions of the same (vendor, name). */
   groupKey: string;
   settings: GameSettings;
@@ -77,6 +80,70 @@ export interface GameMeta {
   sourceMissing?: boolean;
   /** Short MobyGames summary, when the game has been matched. */
   info?: GameInfoSummary;
+  /** Genre of the game (shared by all versions of the group), when it has been classified. */
+  classification?: GameClassification;
+}
+
+/** The genres of the library. Further detail goes into free-form tags, so a new subgenre needs no schema change. */
+export const GENRES = ['Action', 'Adventure', 'Arcade', 'Casual', 'Fighting', 'Other', 'Platformer', 'Puzzle', 'Racing', 'RPG', 'Simulation', 'Sports', 'Strategy'] as const;
+export type Genre = (typeof GENRES)[number];
+export const isGenre = (v: unknown): v is Genre => typeof v === 'string' && (GENRES as readonly string[]).includes(v);
+
+/** Where a classification came from, strongest first: the user's own choice, MobyGames, the curated catalog, a guess. */
+export type ClassificationSource = 'manual' | 'mobygames' | 'curator' | 'heuristic';
+export type ClassificationConfidence = 'manual' | 'verified' | 'curated' | 'heuristic' | 'unclassified';
+
+export interface GameClassification {
+  primaryGenre: Genre;
+  genres: Genre[];
+  tags: string[];
+  canonicalTitle: string | null;
+  source: ClassificationSource;
+  confidence: ClassificationConfidence;
+  /** A locked genre is never changed by a scan, a MobyGames lookup or a catalog import. */
+  locked: boolean;
+  /** True when the genre is not confirmed (Other, or a guess): the UI offers to change it. */
+  unconfirmed: boolean;
+}
+
+export interface GenreCount { genre: Genre; count: number }
+export interface GenreSummary {
+  genres: GenreCount[];
+  /** Games (groups) without any classification. */
+  unclassified: number;
+  total: number;
+}
+
+/** One entry of a genre catalog file (`jgo_catalog.json`). Files are matched by SHA-256 only; paths never travel. */
+export interface CatalogEntry {
+  sha256: string;
+  title?: string;
+  genre: string;
+  genres?: string[];
+  tags?: string[];
+  /** How sure the curator is: `manual` / `curated` (checked by hand), `heuristic` (a guess) or `unclassified`. Default: curated. */
+  confidence?: string;
+}
+export interface CatalogFile {
+  schema: 1;
+  generated?: string;
+  games: CatalogEntry[];
+}
+export type CatalogEntryState = 'ok' | 'missing' | 'conflict' | 'locked' | 'protected' | 'invalid';
+export interface CatalogReport {
+  entries: number;
+  /** Matched to exactly one group and writable. */
+  ok: number;
+  /** Written by an import (ok entries that changed something). */
+  applied: number;
+  unchanged: number;
+  missing: number;
+  conflict: number;
+  locked: number;
+  protected: number;
+  invalid: number;
+  /** The first findings of each kind, for the screen (the report is not a log of the whole file). */
+  items: { state: CatalogEntryState; sha256: string; title?: string; genre?: string; detail?: string }[];
 }
 
 export type MetaStatus = 'none' | 'matched' | 'ambiguous' | 'unmatched' | 'manual' | 'error';

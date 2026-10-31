@@ -5,6 +5,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { DEFAULT_SETTINGS, EMULATION_LIMITS, type EmulationTweaks, type GameInfoSummary, type GameMeta, type GameSettings, KEY_LAYOUTS, SCREEN_PRESETS, type LayoutId, type MetaStatus } from '@j2me-web/protocol';
 import { parseJad, parseJar, sanitizeText, UploadError } from './jar.js';
+import { Classifications } from './classification.js';
 
 interface Row {
   id: string;
@@ -21,6 +22,7 @@ interface Row {
   favorite: number;
   created_at: string;
   last_played_at: string | null;
+  play_seconds?: number;
   settings_json: string;
   warnings_json: string;
   origin?: string;
@@ -122,9 +124,16 @@ export function validateSettings(input: unknown, base: GameSettings = DEFAULT_SE
 }
 
 /** SQLite metadata + files on disk: <data>/games/<id>/{game.jar,game.jad,icon.png}. */
+function infoSummary(m: { status: string; data_json: string }): GameInfoSummary {
+  const d = JSON.parse(m.data_json) as { title?: string; year?: number | null; genres?: string[]; hasCover?: boolean };
+  return { status: m.status as MetaStatus, ...(d.title ? { title: d.title } : {}), year: d.year ?? null, genres: d.genres ?? [], hasCover: !!d.hasCover };
+}
+
 export class Library {
   readonly db: DatabaseSync;
   readonly gamesDir: string;
+  /** Genres and tags of the games (by group), see classification.ts. */
+  readonly classes: Classifications;
 
   constructor(readonly dataDir: string) {
     mkdirSync(dataDir, { recursive: true, mode: 0o700 });
@@ -141,6 +150,7 @@ export class Library {
       );
     `);
     this.migrate();
+    this.classes = new Classifications(this.db);
   }
 
   /**
@@ -150,6 +160,7 @@ export class Library {
   private migrate(): void {
     const cols = (this.db.prepare('PRAGMA table_info(games)').all() as unknown as { name: string }[]).map((c) => c.name);
     if (!cols.includes('origin')) this.db.exec(`ALTER TABLE games ADD COLUMN origin TEXT NOT NULL DEFAULT 'upload'`);
+    if (!cols.includes('play_seconds')) this.db.exec('ALTER TABLE games ADD COLUMN play_seconds INTEGER NOT NULL DEFAULT 0');
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS sources (
         rel_path TEXT PRIMARY KEY, jad_rel_path TEXT, game_id TEXT NOT NULL, size INTEGER NOT NULL, mtime_ms INTEGER NOT NULL,
@@ -243,6 +254,7 @@ export class Library {
       favorite: !!r.favorite,
       createdAt: r.created_at,
       lastPlayedAt: r.last_played_at,
+      playSeconds: r.play_seconds ?? 0,
       groupKey: r.group_key,
       settings: JSON.parse(r.settings_json),
       warnings: JSON.parse(r.warnings_json),
@@ -250,7 +262,14 @@ export class Library {
     };
   }
 
-  list(): GameMeta[] {
+  /** The group (all versions of one game) of the file with this SHA-256, if the library has it. */
+  groupOfSha(sha: string): string | null {
+    const r = this.db.prepare('SELECT group_key FROM games WHERE sha256 = ?').get(sha) as unknown as { group_key: string } | undefined;
+    return r?.group_key ?? null;
+  }
+
+  /** `genre` keeps one genre ('unclassified' keeps the games without one). */
+  list(genre?: string): GameMeta[] {
     const rows = this.db.prepare('SELECT * FROM games ORDER BY name COLLATE NOCASE, created_at').all() as unknown as Row[];
     const src = new Map<string, { n: number; active: number }>();
     for (const r of this.db.prepare('SELECT game_id, COUNT(*) AS n, SUM(CASE WHEN missing = 0 THEN 1 ELSE 0 END) AS active FROM sources GROUP BY game_id').all() as unknown as { game_id: string; n: number; active: number }[]) {
@@ -258,23 +277,38 @@ export class Library {
     }
     const info = new Map<string, GameInfoSummary>();
     for (const m of this.db.prepare('SELECT group_key, status, data_json FROM metadata').all() as unknown as { group_key: string; status: string; data_json: string }[]) {
-      const d = JSON.parse(m.data_json) as { title?: string; year?: number | null; genres?: string[]; hasCover?: boolean };
-      info.set(m.group_key, { status: m.status as MetaStatus, ...(d.title ? { title: d.title } : {}), year: d.year ?? null, genres: d.genres ?? [], hasCover: !!d.hasCover });
+      info.set(m.group_key, infoSummary(m));
     }
-    return rows.map((r) => {
+    const cls = this.classes.all();
+    const all = rows.map((r) => {
       const g = this.toMeta(r);
       const s = src.get(r.id);
       if (s && r.origin === 'import' && s.active === 0) g.sourceMissing = true;
       const i = info.get(r.group_key);
       if (i) g.info = i;
+      const c = cls.get(r.group_key);
+      if (c) g.classification = c;
       return g;
     });
+    if (!genre) return all;
+    return all.filter((g) => (genre === 'unclassified' ? !g.classification : g.classification?.primaryGenre === genre || g.classification?.genres.includes(genre as never)));
   }
 
   get(id: string): GameMeta | null {
     if (!/^[0-9a-f]{16}$/.test(id)) return null;
     const r = this.db.prepare('SELECT * FROM games WHERE id = ?').get(id) as unknown as Row | undefined;
-    return r ? this.toMeta(r) : null;
+    return r ? this.withExtras(this.toMeta(r), r.origin) : null;
+  }
+
+  /** What `list()` adds to every game (MobyGames summary, genre, "file gone"), for one game: single-game answers must carry it too. */
+  private withExtras(g: GameMeta, origin: string | undefined): GameMeta {
+    const s = this.db.prepare('SELECT COUNT(*) AS n, SUM(CASE WHEN missing = 0 THEN 1 ELSE 0 END) AS active FROM sources WHERE game_id = ?').get(g.id) as unknown as { n: number; active: number | null };
+    if (s.n > 0 && origin === 'import' && !s.active) g.sourceMissing = true;
+    const m = this.db.prepare('SELECT status, data_json FROM metadata WHERE group_key = ?').get(g.groupKey) as unknown as { status: string; data_json: string } | undefined;
+    if (m) g.info = infoSummary(m);
+    const c = this.classes.get(g.groupKey);
+    if (c) g.classification = c;
+    return g;
   }
 
   totalBytes(): number {
@@ -337,6 +371,12 @@ export class Library {
 
   touchPlayed(id: string): void {
     this.db.prepare('UPDATE games SET last_played_at = ? WHERE id = ?').run(new Date().toISOString(), id);
+  }
+
+  /** Adds time a game has been running; whole seconds, never negative. */
+  addPlayTime(id: string, seconds: number): void {
+    if (!Number.isFinite(seconds) || seconds <= 0) return;
+    this.db.prepare('UPDATE games SET play_seconds = play_seconds + ? WHERE id = ?').run(Math.round(seconds), id);
   }
 
   remove(id: string): boolean {

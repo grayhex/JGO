@@ -1,24 +1,37 @@
 import { t as translateUI } from '../i18n';
-import type { GameMeta, HealthStatus, ScanReport } from '@j2me-web/protocol';
+import { GENRES, type GameMeta, type HealthStatus, type ScanReport } from '@j2me-web/protocol';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../api';
 import type { Toast } from '../App';
 import { navigate } from '../router';
 import { useServerSettings } from '../serverSettings';
 import { GameInfoDialog } from './GameInfoDialog';
+import { GenreDialog } from './GenreDialog';
+import { splitPlayTime } from '../playTime';
 import { GameSettingsDialog } from './GameSettingsDialog';
 import { Icon } from './Icon';
 import { Seg } from './ui';
 
 type Filter = 'all' | 'favorites' | 'recent';
+type GenreFilter = 'all' | 'unclassified' | (typeof GENRES)[number];
+const GENRE_KEY = 'j2me-web.library.genre';
+const loadGenre = (): GenreFilter => { try { const v = localStorage.getItem(GENRE_KEY); return v === 'unclassified' || (GENRES as readonly string[]).includes(v ?? '') ? (v as GenreFilter) : 'all'; } catch { return 'all'; } };
 type View = 'tiles' | 'list';
 const VIEW_KEY = 'j2me-web.library.view';
 const loadView = (): View => { try { return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'tiles'; } catch { return 'tiles'; } };
 
+/** "2 h 05 min", "35 min", "< 1 min"; nothing before the first launch. */
+function playTime(seconds: number): string | null {
+  const t = splitPlayTime(seconds);
+  if (t.kind === 'none') return null;
+  if (t.kind === 'short') return translateUI('< 1 min');
+  return t.h > 0 ? translateUI('{h} h {m} min', { h: t.h, m: String(t.m).padStart(2, '0') }) : translateUI('{m} min', { m: t.m });
+}
+
 function Cover({ g }: { g: GameMeta }) {
   const [broken, setBroken] = useState(false);
   const art = !!g.info?.hasCover && !broken; // a MobyGames cover, served by this server
-  const hue = 18 + (parseInt(g.groupKey.slice(0, 4), 16) % 34); // warm range only: the palette has one signal colour
+  const hue = 170 + (parseInt(g.groupKey.slice(0, 4), 16) % 46); // teal to blue: the palette has one signal colour, cyan
   return (
     <div className={`cover ${art ? 'art' : ''}`} style={{ ['--hue' as string]: hue }}>
       {art ? <img src={api.coverUrl(g.id)} alt="" loading="lazy" onError={() => setBroken(true)} /> : g.hasIcon && !broken ? <img src={api.iconUrl(g.id)} alt="" onError={() => setBroken(true)} /> : <span className="initials">{g.name.slice(0, 2).toUpperCase()}</span>}
@@ -35,6 +48,9 @@ export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['ki
   const [uploading, setUploading] = useState(0);
   const [editing, setEditing] = useState<GameMeta | null>(null);
   const [infoFor, setInfoFor] = useState<GameMeta | null>(null);
+  const [genreFor, setGenreFor] = useState<GameMeta | null>(null);
+  const [genre, setGenreState] = useState<GenreFilter>(loadGenre);
+  const setGenre = (g: GenreFilter) => { setGenreState(g); try { localStorage.setItem(GENRE_KEY, g); } catch { /* storage unavailable */ } };
   const [scan, setScan] = useState<ScanReport | null>(null);
   const server = useServerSettings();
   const libraryPath = server?.settings.libraryPath ?? null;
@@ -122,10 +138,21 @@ export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['ki
     const needle = query.trim().toLowerCase();
     return [...m.values()]
       .map((vs) => vs.sort((a, b) => b.createdAt.localeCompare(a.createdAt)))
-      .filter((vs) => !needle || vs.some((g) => `${g.name} ${g.vendor}`.toLowerCase().includes(needle)))
+      .filter((vs) => !needle || vs.some((g) => `${g.name} ${g.vendor} ${g.classification?.canonicalTitle ?? ''} ${g.classification?.primaryGenre ?? ''} ${(g.classification?.tags ?? []).join(' ')}`.toLowerCase().includes(needle)))
+      .filter((vs) => genre === 'all' || (genre === 'unclassified' ? !vs[0]!.classification : vs[0]!.classification?.primaryGenre === genre || !!vs[0]!.classification?.genres.includes(genre)))
       .filter((vs) => (filter === 'favorites' ? vs.some((g) => g.favorite) : filter === 'recent' ? vs.some((g) => g.lastPlayedAt) : true))
       .sort((a, b) => (filter === 'recent' ? (b[0]!.lastPlayedAt ?? '').localeCompare(a[0]!.lastPlayedAt ?? '') : a[0]!.name.localeCompare(b[0]!.name)));
-  }, [games, query, filter]);
+  }, [games, query, filter, genre]);
+
+  // games per genre (one per group, so the versions of a game count once), from what is already loaded
+  const genreCounts = useMemo(() => {
+    const seen = new Map<string, GameMeta>();
+    for (const g of games ?? []) if (!seen.has(g.groupKey)) seen.set(g.groupKey, g);
+    const n = new Map<string, number>();
+    let none = 0;
+    for (const g of seen.values()) { const c = g.classification; if (!c) { none++; continue; } for (const x of new Set([c.primaryGenre, ...c.genres])) n.set(x, (n.get(x) ?? 0) + 1); }
+    return { n, none, total: seen.size };
+  }, [games]);
 
   const toggleFav = async (g: GameMeta) => {
     try { const u = await api.patchGame(g.id, { favorite: !g.favorite }); setGames((gs) => gs!.map((x) => (x.id === u.id ? u : x))); } catch (e) { toast('error', (e as Error).message); }
@@ -149,6 +176,16 @@ export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['ki
 
       {scanning && scan && <div className="note info" role="status" data-testid="scan-banner">{translateUI("Importing from the library folder…")} {scan.added + scan.updated + scan.unchanged}/{scan.jars} {translateUI("files ·")} {scan.added} {translateUI("new")}{translateUI(scan.current ? ` · ${scan.current}` : '')}</div>}
       {reviewGroups > 0 && <div className="note warn" role="status">{reviewGroups} {translateUI("game")}{translateUI(reviewGroups === 1 ? '' : 's')} {translateUI("could be matched to several MobyGames entries.")} <a href="/settings#mobygames" onClick={(e) => { e.preventDefault(); navigate('/settings#mobygames'); }}>{translateUI("Choose the right ones")}</a>.</div>}
+
+      {games && games.length > 0 && (genreCounts.total - genreCounts.none > 0 || genre !== 'all') && (
+        <div className="genre-bar" role="group" aria-label={translateUI("Filter by genre")} data-testid="genre-bar">
+          <button className={`chip genre-chip${genre === 'all' ? ' on' : ''}`} aria-pressed={genre === 'all'} onClick={() => setGenre('all')}>{translateUI("All genres")} <span className="count">{genreCounts.total}</span></button>
+          {GENRES.filter((x) => (genreCounts.n.get(x) ?? 0) > 0 || genre === x).map((x) => (
+            <button key={x} className={`chip genre-chip${genre === x ? ' on' : ''}`} aria-pressed={genre === x} onClick={() => setGenre(genre === x ? 'all' : x)}>{translateUI(x)} <span className="count">{genreCounts.n.get(x) ?? 0}</span></button>
+          ))}
+          {(genreCounts.none > 0 || genre === 'unclassified') && <button className={`chip genre-chip${genre === 'unclassified' ? ' on' : ''}`} aria-pressed={genre === 'unclassified'} onClick={() => setGenre(genre === 'unclassified' ? 'all' : 'unclassified')}>{translateUI("No genre")} <span className="count">{genreCounts.none}</span></button>}
+        </div>
+      )}
 
       {games && games.length === 0 && (
         <div className="empty">
@@ -176,6 +213,7 @@ export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['ki
                 <div className="meta">
                   <h3>{sel.name}</h3>
                   <p className="muted">{translateUI(sel.info?.year ? `${sel.vendor} · ${sel.info.year}` : sel.vendor)}</p>
+                  <p className={`playtime${vs.some((v) => v.playSeconds) ? '' : ' none'}`} data-testid="playtime" title={translateUI("Time spent in this game, all versions together")}>{playTime(vs.reduce((n, v) => n + (v.playSeconds ?? 0), 0)) ?? translateUI('not played yet')}</p>
                 </div>
               </button>
               <div className="card-foot">
@@ -189,6 +227,10 @@ export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['ki
                 {sel.warnings.length > 0 && <span className="badge mock" title={translateUI(sel.warnings.join('\n'))}>!</span>}
                 {sel.sourceMissing && <span className="badge plain" title={translateUI("The file is no longer in the library folder; the game stays here with its saves")}>{translateUI("file gone")}</span>}
                 {sel.info?.status === 'ambiguous' && <span className="badge mock" title={translateUI("Several MobyGames matches: open the info to choose")}>{translateUI("review")}</span>}
+                <button className={`badge plain genre-badge${!sel.classification || sel.classification.unconfirmed ? ' unconfirmed' : ''}`} onClick={() => setGenreFor(sel)} data-testid="genre-badge"
+                  title={translateUI(!sel.classification || sel.classification.unconfirmed ? 'The genre is not confirmed: click to choose it' : 'Change the genre')}>
+                  {translateUI(!sel.classification || sel.classification.unconfirmed ? 'Genre not confirmed' : sel.classification.primaryGenre)}
+                </button>
                 <span className="spacer" />
                 <button className={`icon-btn ${sel.favorite ? 'fav' : ''}`} onClick={() => toggleFav(sel)} aria-label={translateUI(sel.favorite ? 'Remove from favorites' : 'Add to favorites')} aria-pressed={sel.favorite}><Icon name="star" /></button>
                 <button className="icon-btn" onClick={() => setInfoFor(sel)} aria-label={translateUI("Game information")}><Icon name="info" /></button>
@@ -201,6 +243,7 @@ export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['ki
       {games && games.length > 0 && groups.length === 0 && <p className="muted center">{translateUI("No games match.")}</p>}
       {uploading > 0 && <div className="uploading">{translateUI("Uploading")} {uploading}…</div>}
       {dragging && <div className="dropzone"><div><strong>{translateUI("Drop to add")}</strong><br />{translateUI(".jar and .jad files")}</div></div>}
+      {genreFor && <GenreDialog game={genreFor} toast={toast} onClose={() => setGenreFor(null)} onChanged={() => { setGenreFor(null); void reload(); }} />}
       {infoFor && <GameInfoDialog game={infoFor} toast={toast} onClose={() => setInfoFor(null)} onChanged={() => void reload()} />}
       {editing && <GameSettingsDialog game={editing} toast={toast} onClose={() => setEditing(null)} onChanged={() => { setEditing(null); void reload(); }} />}
     </div>

@@ -162,6 +162,17 @@ describe('J2ME Web API against a real KEmulator (Bridge)', () => {
     await expectClean();
   });
 
+  it('counts the time a game has been running', async () => {
+    const before = (await json(await api(`/api/games/${gameId}`))).playSeconds ?? 0;
+    const s = await startSession();
+    assert.equal(s.status, 201);
+    await sleep(3500);
+    await stopSession(s.body.id);
+    await expectClean();
+    const after = (await json(await api(`/api/games/${gameId}`))).playSeconds;
+    assert.ok(after - before >= 3 && after - before <= 12, `play time grew by ${after - before} s`);
+  });
+
   it('applies the requested screen size', async () => {
     const s = await startSession({ width: 176, height: 220 });
     const ws = await openStream(env.base, s.body.id);

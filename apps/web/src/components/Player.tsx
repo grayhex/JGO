@@ -36,23 +36,6 @@ type Conn = 'connecting' | 'open' | 'reconnecting' | 'closed' | 'idle';
 
 const STATE_BADGE: Record<string, string> = { running: 'prod', starting: 'dev', stopping: 'dev', failed: 'danger', exited: '', idle: '' };
 
-function SoftKeys({ input, left, right, live }: { input: InputController; left: string; right: string; live: boolean }) {
-  const held = useHeld(input);
-  const key = (id: string, action: 'softLeft' | 'softRight', text: string, cls: string) => (
-    <button
-      className={`softkey ${cls} ${held.has(action) ? 'held' : ''}`}
-      disabled={!live}
-      onPointerDown={(e) => { try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* ignore */ } input.press(`ui:${id}:${e.pointerId}`, action); }}
-      onPointerUp={(e) => input.release(`ui:${id}:${e.pointerId}`)}
-      onPointerCancel={(e) => input.release(`ui:${id}:${e.pointerId}`)}
-      onLostPointerCapture={(e) => input.release(`ui:${id}:${e.pointerId}`)}
-    >
-      {text || '—'}
-    </button>
-  );
-  return <div className="softkeys">{key('sl', 'softLeft', left, '')}{key('sr', 'softRight', right, 'right')}</div>;
-}
-
 export function Player({ gameId, toast, onExit, health }: { gameId: string; toast: (k: Toast['kind'], t: string) => void; onExit: () => void; health: HealthStatus | null }) {
   const developer=useDeveloperMode();
   const [game, setGame] = useState<GameMeta | null>(null);
@@ -480,7 +463,6 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
         <div className={`stage-row${external ? ' with-keypad' : ''}`}>
           {external && (
             <div className="stage-foot side">
-              <SoftKeys input={input} left={softkeys.left} right={softkeys.right} live={live} />
               <Keypad input={input} softLeft={softkeys.left} softRight={softkeys.right} />
             </div>
           )}

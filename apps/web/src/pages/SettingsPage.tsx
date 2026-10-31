@@ -4,6 +4,7 @@ import type { SystemStatus } from '@j2me-web/protocol';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { api } from '../api';
 import { Icon, type IconName } from '../components/Icon';
+import { CatalogPanel } from '../components/CatalogPanel';
 import { LibrarySource, ScanPanel } from '../components/LibrarySource';
 import { MobyPanel } from '../components/Moby';
 import { PhoneDefaultsForm, ServerForm, SoundControlsForm, SystemChecks } from '../components/SettingsForms';
@@ -62,6 +63,8 @@ export function SettingsPage({ toast, onRunWizard, onLibraryChanged }: { toast: 
         <LibrarySource toast={toast} onSaved={(p) => { loadStatus(); if (p) void api.scanStart('update').then(() => setScanKey((k) => k + 1), () => undefined); }} />
         <h3>{translateUI("Import")}</h3>
         <ScanPanel key={scanKey} toast={toast} canScan={!!server?.settings.libraryPath} onDone={() => { onLibraryChanged(); loadStatus(); }} />
+        <h3>{translateUI("Genres")}</h3>
+        <CatalogPanel toast={toast} onChanged={onLibraryChanged} />
         <label className="switch-line">
           <input type="checkbox" checked={server?.settings.autoScan ?? false} onChange={(e) => void api.patchSettings({ autoScan: e.target.checked }).then((r) => { import('../serverSettings').then((m) => m.setServerSettings(r)); }, (x) => toast('error', (x as Error).message))} />
           <span>{translateUI("Scan for changes every time JGO starts")}</span>

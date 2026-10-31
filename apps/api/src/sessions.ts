@@ -515,6 +515,7 @@ export class SessionManager {
     try {
       await adapter.start();
       session.state = 'running';
+      this.countPlayTime(session, game.id);
       return session;
     } catch (e) {
       session.state = 'failed';
@@ -524,7 +525,24 @@ export class SessionManager {
     }
   }
 
+  /** The time a game runs is added to its play time every 30 s and when the session ends, so a crash loses at most half a minute. */
+  private playClocks = new Map<string, () => void>();
+  private countPlayTime(session: Session, gameId: string): void {
+    let last = Date.now();
+    const flush = () => {
+      const dt = Math.floor((Date.now() - last) / 1000);
+      if (dt <= 0) return;
+      last += dt * 1000;
+      this.lib.addPlayTime(gameId, dt);
+    };
+    const iv = setInterval(flush, 30_000);
+    iv.unref();
+    this.playClocks.set(session.id, () => { clearInterval(iv); flush(); });
+  }
+
   private onEnded(s: Session): void {
+    this.playClocks.get(s.id)?.();
+    this.playClocks.delete(s.id);
     // keep finished sessions queryable for a while, then forget them
     const t = setTimeout(() => this.sessions.delete(s.id), 10 * 60_000);
     t.unref();

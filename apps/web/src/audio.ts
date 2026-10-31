@@ -10,6 +10,13 @@ export interface AudioStats { state: AudioContextState | 'off'; rms: number; buf
  * normally opened as http://<LAN IP>:8080, which is not one, so there the same jitter buffer
  * runs on the main thread behind a ScriptProcessorNode (deprecated, but available everywhere).
  */
+/**
+ * The emulator mixes game sound with little headroom, so at "100 %" it was
+ * much quieter than a video in another tab. The volume curve now reaches +9.5 dB, and a limiter after it keeps loud
+ * passages from clipping instead of turning the volume down for the quiet ones.
+ */
+export const LOUDNESS = 3;
+
 class PcmRing {
   private cap = AUDIO_RATE * 2;
   private l = new Float32Array(this.cap);
@@ -83,11 +90,14 @@ export class PcmAudio {
       const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       const ctx = new Ctx({ sampleRate: AUDIO_RATE, latencyHint: 'interactive' });
       const gain = ctx.createGain();
+      const limiter = ctx.createDynamicsCompressor();
+      limiter.threshold.value = -3; limiter.knee.value = 3; limiter.ratio.value = 20; limiter.attack.value = 0.002; limiter.release.value = 0.12;
+      gain.connect(limiter).connect(ctx.destination);
       let node: AudioWorkletNode | null = null;
       if (ctx.audioWorklet) {
         await ctx.audioWorklet.addModule('/audio-worklet.js');
         node = new AudioWorkletNode(ctx, 'pcm-player', { numberOfInputs: 0, outputChannelCount: [2] });
-        node.connect(gain).connect(ctx.destination);
+        node.connect(gain);
         node.port.onmessage = (e: MessageEvent<{ rms: number; buffered: number }>) => {
           this.stats.rms = e.data.rms;
           this.stats.bufferedMs = Math.round(e.data.buffered * 1000);
@@ -104,7 +114,7 @@ export class PcmAudio {
             this.stats.bufferedMs = Math.round(t.buffered * 1000);
           }
         };
-        proc.connect(gain).connect(ctx.destination);
+        proc.connect(gain);
         this.ring = ring; this.proc = proc;
       }
       ctx.onstatechange = () => { this.stats.state = ctx.state; };
@@ -135,7 +145,7 @@ export class PcmAudio {
 
   setVolume(v: number): void { this.volume = Math.max(0, Math.min(1, v)); this.apply(); }
   setMuted(m: boolean): void { this.muted = m; this.apply(); }
-  private apply(): void { if (this.gain) this.gain.gain.value = this.muted ? 0 : this.volume * this.volume; }
+  private apply(): void { if (this.gain) this.gain.gain.value = this.muted ? 0 : this.volume * this.volume * LOUDNESS; }
 
   close(): void {
     void this.ctx?.close();
