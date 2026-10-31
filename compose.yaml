@@ -16,7 +16,7 @@ services:
     restart: unless-stopped
     init: true
     environment:
-      # Optional override: an existing JGO_TOKEN still works. Empty = auto-generate once in /data.
+      # Optional override: an existing JGO_TOKEN still works. Empty = auto-generate once in jgo-auth.
       AUTH_TOKEN: ${JGO_TOKEN:-}
       JGO_AUTH_DIR: /jgo-auth
       # The app listens on the private compose network only; the gateway below publishes it.
