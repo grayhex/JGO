@@ -41,9 +41,11 @@ Needs Docker with Compose v2 and an x86-64 CPU. The images are pulled ready-made
 
 ```bash
 mkdir jgo && cd jgo
-curl -fsSLO https://github.com/grayhex/JGO/releases/latest/download/compose.yaml
-curl -fsSL https://github.com/grayhex/JGO/releases/latest/download/env.example -o .env
+curl -fsSLO https://raw.githubusercontent.com/grayhex/JGO/main/compose.yaml
+curl -fsSL https://raw.githubusercontent.com/grayhex/JGO/main/.env.example -o .env
 ```
+The install files are also attached to each [tagged release](https://github.com/grayhex/JGO/releases). GitHub's `/releases/latest` URL **excludes prereleases**, so the quick start uses the public repository files. The beta GHCR image must be published first; for reproducible deployments set `JGO_VERSION` to that release tag (without an optional `v`).
+
 
 Put an access token into `.env` (`JGO_TOKEN`, at least 16 characters; for example `openssl rand -hex 16`) and start it:
 

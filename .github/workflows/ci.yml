@@ -246,8 +246,11 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+      - name: Published Compose must work without a source tree or local build
+        run: |
+          docker compose config --format json | python3 -c 'import json,sys; c=json.load(sys.stdin); assert all("build" not in s for s in c["services"].values()); assert all(s.get("image", "").startswith("ghcr.io/grayhex/jgo") for s in c["services"].values())'
       - name: Build and start the stack
-        run: docker compose up -d --build
+        run: docker compose -f compose.yaml -f compose.build.yaml up -d --build
       - name: Wait for health
         run: |
           for i in $(seq 1 60); do curl -fsS localhost:8080/api/health | grep -q '"ok":true' && exit 0; sleep 2; done

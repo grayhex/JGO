@@ -5,18 +5,12 @@
 #   3. open http://<address of the host>:8080 and sign in with the token
 #
 # Details, NAS walkthroughs, updates and backups: docs/DOCKER.md
-# Developers: `docker compose up -d --build` builds the images from this checkout instead of pulling them.
+# Source builds use the separate compose.build.yaml override; this file needs NO local source tree.
 name: jgo
 
 services:
   app:
     image: ghcr.io/grayhex/jgo:${JGO_VERSION:-latest}
-    build:
-      context: .
-      dockerfile: runtime/Dockerfile
-      args:
-        BASE_REGISTRY: ${BASE_REGISTRY:-docker.io/library}
-        JGO_VERSION: ${JGO_VERSION:-dev}
     restart: unless-stopped
     init: true
     environment:
@@ -53,12 +47,6 @@ services:
 
   gateway:
     image: ghcr.io/grayhex/jgo-gateway:${JGO_VERSION:-latest}
-    build:
-      context: .
-      dockerfile: runtime/Dockerfile
-      target: gateway
-      args:
-        BASE_REGISTRY: ${BASE_REGISTRY:-docker.io/library}
     restart: unless-stopped
     depends_on:
       app:

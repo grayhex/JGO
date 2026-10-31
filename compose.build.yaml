@@ -1,0 +1,18 @@
+# Developer-only override: compose.yaml intentionally pulls published GHCR images.
+# Build from this checkout (with Dockerfile, upstream KEmulator sources, Rust, etc.):
+#   docker compose -f compose.yaml -f compose.build.yaml up -d --build
+services:
+  app:
+    build:
+      context: .
+      dockerfile: runtime/Dockerfile
+      args:
+        BASE_REGISTRY: ${BASE_REGISTRY:-docker.io/library}
+        JGO_VERSION: ${JGO_VERSION:-dev}
+  gateway:
+    build:
+      context: .
+      dockerfile: runtime/Dockerfile
+      target: gateway
+      args:
+        BASE_REGISTRY: ${BASE_REGISTRY:-docker.io/library}
