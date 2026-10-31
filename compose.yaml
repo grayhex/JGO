@@ -3,7 +3,7 @@
 #   1. paste this YAML into NAS/Portainer or save it as compose.yaml
 #   2. edit the game library path below, then Deploy / docker compose up -d
 #   3. open http://<NAS IP>:8080 and sign in with the token from app container logs
-# No .env and no manual token generation needed. A random credential is saved in /data.
+# No .env or manual token needed. The credential lives in the private jgo-auth volume.
 # Optional: set JGO_TOKEN / JGO_VERSION / other variables using .env for advanced deployments.
 #
 # Details, NAS walkthroughs, updates and backups: docs/DOCKER.md
@@ -16,8 +16,9 @@ services:
     restart: unless-stopped
     init: true
     environment:
-      # Optional override: an existing JGO_TOKEN still works. Empty = auto-generate once in /data.
+      # Optional override: an existing JGO_TOKEN still works. Empty = auto-generate once in jgo-auth.
       AUTH_TOKEN: ${JGO_TOKEN:-}
+      JGO_AUTH_DIR: /jgo-auth
       # The app listens on the private compose network only; the gateway below publishes it.
       MAX_SESSIONS: ${MAX_SESSIONS:-1}
       SESSION_MAX_MINUTES: ${SESSION_MAX_MINUTES:-120}
@@ -30,8 +31,11 @@ services:
     volumes:
       # JGO_DATA defaults to a persistent Docker volume. To use a NAS folder instead,
       # replace the left-hand side with /volume1/docker/jgo/data and adjust PUID/PGID.
-      # Never delete /data during upgrades: it contains saves, settings, and the login token.
+      # Never delete /data during upgrades: it contains saves and settings.
       - ${JGO_DATA:-jgo-data}:/data
+      # Private Docker-managed credentials volume, independent of NAS folder ACLs.
+      # Do not mount this from a NAS shared folder or delete it on upgrade.
+      - jgo-auth:/jgo-auth
       # EDIT THE LEFT-HAND PATH for your NAS: e.g. /volume1/games/j2me:/mnt/jgo-library:ro
       # The default ./games is relative to this compose project; JGO only reads it.
       # After deployment select /mnt/jgo-library in Settings > Game library.
@@ -76,3 +80,4 @@ networks:
 
 volumes:
   jgo-data:
+  jgo-auth:
