@@ -1,6 +1,6 @@
 <div align="center">
 
-# JGO
+# Java (ME) Games Online
 
 **Self-hosted веб-плеер для игр Java ME (J2ME).**
 Игры работают в настоящем эмуляторе [KEmulator nnmod](https://github.com/shinovon/KEmulator) на вашем сервере и открываются в любом браузере.
