@@ -239,12 +239,14 @@ export class MetadataService {
   unlink(groupKey: string): GameInfo {
     rmSync(this.groupDir(groupKey), { recursive: true, force: true });
     this.save(groupKey, { status: 'none', locked: true });
+    this.library.classes.removeMoby(groupKey); // its genre came from the match that was just rejected
     return this.info(groupKey);
   }
 
   /** Removes all MobyGames data and images from this server. */
   clear(): void {
     this.library.db.exec('DELETE FROM metadata');
+    this.library.classes.removeMoby();
     rmSync(this.dir, { recursive: true, force: true });
   }
 

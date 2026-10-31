@@ -184,6 +184,12 @@ export class Classifications {
     return true;
   }
 
+  /** The match a MobyGames genre came from is gone: forget that genre (yours and the catalog's stay). One group, or all of them. */
+  removeMoby(groupKey?: string): void {
+    if (groupKey) this.db.prepare(`DELETE FROM game_classifications WHERE source = 'mobygames' AND group_key = ?`).run(groupKey);
+    else this.db.exec(`DELETE FROM game_classifications WHERE source = 'mobygames'`);
+  }
+
   summary(): GenreSummary {
     const counts = new Map<string, number>();
     for (const r of this.db

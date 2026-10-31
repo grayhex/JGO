@@ -123,6 +123,11 @@ export function validateSettings(input: unknown, base: GameSettings = DEFAULT_SE
 }
 
 /** SQLite metadata + files on disk: <data>/games/<id>/{game.jar,game.jad,icon.png}. */
+function infoSummary(m: { status: string; data_json: string }): GameInfoSummary {
+  const d = JSON.parse(m.data_json) as { title?: string; year?: number | null; genres?: string[]; hasCover?: boolean };
+  return { status: m.status as MetaStatus, ...(d.title ? { title: d.title } : {}), year: d.year ?? null, genres: d.genres ?? [], hasCover: !!d.hasCover };
+}
+
 export class Library {
   readonly db: DatabaseSync;
   readonly gamesDir: string;
@@ -269,8 +274,7 @@ export class Library {
     }
     const info = new Map<string, GameInfoSummary>();
     for (const m of this.db.prepare('SELECT group_key, status, data_json FROM metadata').all() as unknown as { group_key: string; status: string; data_json: string }[]) {
-      const d = JSON.parse(m.data_json) as { title?: string; year?: number | null; genres?: string[]; hasCover?: boolean };
-      info.set(m.group_key, { status: m.status as MetaStatus, ...(d.title ? { title: d.title } : {}), year: d.year ?? null, genres: d.genres ?? [], hasCover: !!d.hasCover });
+      info.set(m.group_key, infoSummary(m));
     }
     const cls = this.classes.all();
     const all = rows.map((r) => {
@@ -290,7 +294,18 @@ export class Library {
   get(id: string): GameMeta | null {
     if (!/^[0-9a-f]{16}$/.test(id)) return null;
     const r = this.db.prepare('SELECT * FROM games WHERE id = ?').get(id) as unknown as Row | undefined;
-    return r ? this.toMeta(r) : null;
+    return r ? this.withExtras(this.toMeta(r), r.origin) : null;
+  }
+
+  /** What `list()` adds to every game (MobyGames summary, genre, "file gone"), for one game: single-game answers must carry it too. */
+  private withExtras(g: GameMeta, origin: string | undefined): GameMeta {
+    const s = this.db.prepare('SELECT COUNT(*) AS n, SUM(CASE WHEN missing = 0 THEN 1 ELSE 0 END) AS active FROM sources WHERE game_id = ?').get(g.id) as unknown as { n: number; active: number | null };
+    if (s.n > 0 && origin === 'import' && !s.active) g.sourceMissing = true;
+    const m = this.db.prepare('SELECT status, data_json FROM metadata WHERE group_key = ?').get(g.groupKey) as unknown as { status: string; data_json: string } | undefined;
+    if (m) g.info = infoSummary(m);
+    const c = this.classes.get(g.groupKey);
+    if (c) g.classification = c;
+    return g;
   }
 
   totalBytes(): number {

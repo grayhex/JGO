@@ -211,6 +211,29 @@ describe('genres: classifications by game, a catalog imported by SHA-256', () =>
     assert.equal(genreOf('checked').primaryGenre, 'Sports');
   });
 
+  it('removing the MobyGames match removes its genre, but not a genre from the user or the catalog', async () => {
+    // "Blocks" got Strategy from MobyGames above; "Rally" is the user's, "Checked" the catalog's
+    assert.equal(genreOf('puzzle').source, 'mobygames');
+    assert.equal((await call('DELETE', `/api/games/${ids.puzzle}/info`)).status, 200);
+    assert.equal(genreOf('puzzle'), undefined, 'the rejected match took its genre with it');
+    assert.equal((await call('DELETE', `/api/games/${ids.checked}/info`)).status, 200);
+    assert.equal(genreOf('checked').primaryGenre, 'Sports', 'a catalog genre stays');
+    fake.games = [{ game_id: 12, title: 'Blocks', platforms: [{ platform_id: 64, name: 'J2ME', release_date: '2005-01-01' }], genres: [{ name: 'Puzzle' }] }];
+    await call('POST', `/api/games/${ids.puzzle}/info/refresh`);
+    assert.equal(genreOf('puzzle').source === 'mobygames' || genreOf('puzzle') === undefined, true);
+    app.library.classes.setManual(group.puzzle!, { primaryGenre: 'Casual' });
+    assert.equal((await call('DELETE', '/api/metadata')).status, 204);
+    assert.equal(genreOf('puzzle').primaryGenre, 'Casual', 'deleting all MobyGames data keeps a genre the user chose');
+  });
+
+  it('single-game answers carry the genre, so a favourite toggle does not lose it', async () => {
+    const before = genreOf('checked');
+    const patched = (await call('PATCH', `/api/games/${ids.checked}`, { favorite: true })).json;
+    assert.equal(patched.favorite, true);
+    assert.deepEqual(patched.classification, before);
+    assert.deepEqual((await call('GET', `/api/games/${ids.checked}`)).json.classification, before);
+  });
+
   it('an older database without the table is upgraded in place, and no game is lost', () => {
     const dir = tmpDir('jgo-old-');
     const old = new Library(dir);
