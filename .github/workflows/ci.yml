@@ -272,10 +272,12 @@ jobs:
         run: |
           test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080/api/games)" = 401
           test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer ci-token-0123456789abcdef' localhost:8080/api/games)" = 200
-      - name: Compose refuses to start without a token
+      - name: One-file Compose accepts missing .env / JGO_TOKEN
         run: |
-          if env -u JGO_TOKEN docker compose config >/dev/null 2>/tmp/cfg.err; then echo "compose accepted a missing token"; exit 1; fi
-          grep -q JGO_TOKEN /tmp/cfg.err
+          test ! -f .env
+          env -u JGO_TOKEN docker compose config --format json | python3 -c 'import json,sys; c=json.load(sys.stdin); assert c["services"]["app"]["environment"]["AUTH_TOKEN"] == ""'
+      - name: First-boot token provisioning and persistence
+        run: node --test tests/scripts/docker-auth.test.cjs
       - name: NAS style - a folder owned by another user (PUID/PGID), restart keeps the data
         run: |
           docker compose down -v
@@ -290,5 +292,17 @@ jobs:
           for i in $(seq 1 60); do curl -fsS localhost:8080/api/health | grep -q '"ok":true' && break; sleep 2; done
           test "$(curl -fsS -H 'Authorization: Bearer ci-token-0123456789abcdef' localhost:8080/api/games | grep -o '"sha256"' | wc -l)" = 1
           sudo test -n "$(sudo ls /srv/jgo-nas/data)"
+      - name: Boot without JGO_TOKEN, verify auth and persist after restart
+        run: |
+          docker compose down -v
+          env -u JGO_TOKEN docker compose up -d
+          for i in $(seq 1 60); do curl -fsS localhost:8080/api/health | grep -q '"ok":true' && break; sleep 2; done
+          secret="$(docker compose exec -T app cat /data/.jgo-auth-token | tr -d '\\r\\n')"
+          test "${#secret}" -eq 64
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080/api/games)" = 401
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $secret" localhost:8080/api/games)" = 200
+          docker compose restart app
+          for i in $(seq 1 60); do curl -fsS localhost:8080/api/health | grep -q '"ok":true' && break; sleep 2; done
+          test "$secret" = "$(docker compose exec -T app cat /data/.jgo-auth-token | tr -d '\\r\\n')"
       - if: always()
         run: docker compose down -v
