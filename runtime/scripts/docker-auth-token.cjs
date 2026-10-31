@@ -17,36 +17,36 @@ try {
     process.stdout.write(process.env.AUTH_TOKEN);
   } else {
     fs.mkdirSync(dataDir, { recursive: true });
-  let created = false;
-  try {
-    // O_EXCL avoids clobbering an existing credential on concurrent starts.
-    const fd = fs.openSync(file, 'wx', 0o600);
-    created = true;
+    let created = false;
     try {
-      fs.writeSync(fd, crypto.randomBytes(32).toString('hex') + '\n');
-      fs.fsyncSync(fd);
-    } finally {
-      fs.closeSync(fd);
+      // O_EXCL avoids clobbering an existing credential on concurrent starts.
+      const fd = fs.openSync(file, 'wx', 0o600);
+      created = true;
+      try {
+        fs.writeSync(fd, crypto.randomBytes(32).toString('hex') + '\n');
+        fs.fsyncSync(fd);
+      } finally {
+        fs.closeSync(fd);
+      }
+    } catch (e) {
+      if (e.code !== 'EEXIST') throw e;
     }
-  } catch (e) {
-    if (e.code !== 'EEXIST') throw e;
-  }
 
-  const st = fs.lstatSync(file);
-  if (!st.isFile() || (st.mode & 0o077) !== 0) {
-    throw new Error(`Unsafe token file at ${file}: expected a regular file readable only by its owner`);
-  }
-  const token = fs.readFileSync(file, 'utf8').trim();
-  if (!/^[a-f0-9]{64}$/.test(token)) {
-    throw new Error(`Invalid token file at ${file}: do not delete it while an installation is in use`);
-  }
+    const st = fs.lstatSync(file);
+    if (!st.isFile() || (st.mode & 0o077) !== 0) {
+      throw new Error(`Unsafe token file at ${file}: expected a regular file readable only by its owner`);
+    }
+    const token = fs.readFileSync(file, 'utf8').trim();
+    if (!/^[a-f0-9]{64}$/.test(token)) {
+      throw new Error(`Invalid token file at ${file}: do not delete it while an installation is in use`);
+    }
 
-  if (created) {
-    // Only the initial startup logs the token. Keep Docker logs private.
-    process.stderr.write(`[JGO] First-run login token: ${token}\n[JGO] Token saved at ${file} (0600). Keep container logs private.\n`);
-  } else {
-    process.stderr.write(`[JGO] Using persistent login token from ${file}. To retrieve it: docker compose exec app cat ${file}\n`);
-  }
+    if (created) {
+      // Only the initial startup logs the token. Keep Docker logs private.
+      process.stderr.write(`[JGO] First-run login token: ${token}\n[JGO] Token saved at ${file} (0600). Keep container logs private.\n`);
+    } else {
+      process.stderr.write(`[JGO] Using persistent login token from ${file}. To retrieve it: docker compose exec app cat ${file}\n`);
+    }
     process.stdout.write(token);
   }
 } catch (e) {
