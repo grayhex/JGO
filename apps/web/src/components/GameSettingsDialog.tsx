@@ -10,6 +10,11 @@ import { Switch } from './ui';
 export function GameSettingsDialog({ game, toast, onClose, onChanged }: { game: GameMeta; toast: (k: Toast['kind'], t: string) => void; onClose: () => void; onChanged: () => void }) {
   const [s, setS] = useState<GameSettings>(game.settings);
   const [delSaves, setDelSaves] = useState(false);
+  const [title, setTitleText] = useState(game.name);
+  const renamed = title.trim() !== game.name;
+  const saveTitle = async (value: string | null) => {
+    try { await api.setTitle(game.groupKey, value); toast('info', value === null ? 'Title reset' : 'Title saved'); onChanged(); } catch (e) { toast('error', (e as Error).message); }
+  };
   const preset = SCREEN_PRESETS.find((p) => p.width === s.width && p.height === s.height);
   const save = async () => {
     try { await api.patchGame(game.id, { settings: s }); toast('info', 'Settings saved'); onChanged(); } catch (e) { toast('error', (e as Error).message); }
@@ -20,6 +25,15 @@ export function GameSettingsDialog({ game, toast, onClose, onChanged }: { game: 
   };
   return (
     <Modal title={translateUI(game.name)} onClose={onClose}>
+      <div className="field title-edit">
+        <span className="label-caps">{translateUI("Title")}</span>
+        <div className="btn-row">
+          <input className="input" value={title} maxLength={120} onChange={(e) => setTitleText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && renamed && title.trim()) void saveTitle(title.trim()); }} aria-label={translateUI("Title of the game")} data-testid="title-input" />
+          <button className="btn sm primary" disabled={!renamed || !title.trim()} onClick={() => void saveTitle(title.trim())} data-testid="title-save">{translateUI("Rename")}</button>
+          <button className="btn sm ghost" onClick={() => void saveTitle(null)} title={translateUI("Back to the automatic title")} data-testid="title-reset">{translateUI("Reset")}</button>
+        </div>
+        <span className="hint">{translateUI("The title applies to every version of the game.")}</span>
+      </div>
       <dl className="facts">
         <dt>{translateUI("Vendor")}</dt><dd>{game.vendor}</dd>
         <dt>{translateUI("Version")}</dt><dd>{game.version || '—'}</dd>

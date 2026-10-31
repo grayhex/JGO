@@ -51,8 +51,8 @@ try {
   await p.locator('.skin-box').waitFor();
   assert.equal(await p.locator('.skin-picker').count(), 0);
   await sleep(500);
-  const m = await p.evaluate(() => ({ box: document.querySelector('.skin-box').getBoundingClientRect().height, win: window.innerHeight, header: 64 }));
-  assert.ok(m.box >= (m.win - m.header) * 0.82, `phone height ${m.box}px of ${m.win - m.header}px available`);
+  const m = await p.evaluate(() => ({ box: document.querySelector('.skin-box').getBoundingClientRect().height, win: window.innerHeight, header: 0 }));
+  assert.ok(m.box >= (m.win - m.header) * 0.88, `phone height ${m.box}px of ${m.win - m.header}px available`);
   const sh = await p.evaluate(() => { const r = document.querySelector('.stage-card').getBoundingClientRect(); return [r.top, r.bottom, window.innerHeight]; }); assert.ok(sh[0] >= 0 && sh[1] <= sh[2] + 2, 'the game card fits the window: ' + sh);
   console.log(`✔ the phone is ${Math.round(m.box)}px tall in a ${m.win}px window (was about 520px), game card fits the window`);
 

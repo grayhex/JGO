@@ -46,7 +46,7 @@
 
   --r-xs: 4px; --r-sm: 8px; --r-md: 8px; --r-lg: 16px; --r-pill: 9999px;
   --s-xs: 4px; --s-sm: 8px; --s-md: 16px; --s-lg: 16px; --s-xl: 24px; --s-2xl: 32px; --s-3xl: 40px; --s-4xl: 64px;
-  --container: 1400px; --header-h: 64px; --sidebar-w: 256px; --sidebar-w-collapsed: 64px;
+  --container: 1400px; --header-h: 0px; /* the top bar exists only on a phone-sized screen, as a menu button */ --sidebar-w: 256px; --sidebar-w-collapsed: 64px;
   --t-fast: 150ms; --t-normal: 200ms; --t-slow: 300ms; --t-panel: 500ms; --ease: cubic-bezier(0.4, 0, 0.2, 1);
 
   --shadow-subtle: none;

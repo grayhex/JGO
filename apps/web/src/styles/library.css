@@ -46,18 +46,6 @@
 .library > .note { margin-bottom: var(--s-xl); }
 
 /* compact list view: one line per game */
-.lib-grid.list { grid-template-columns: 1fr; gap: 6px; }
-.lib-grid.list .game-card { flex-direction: row; align-items: center; border-radius: var(--r-md); }
-.lib-grid.list .game-card:hover { transform: none; }
-.lib-grid.list .card-main { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; padding: 6px 12px; }
-.lib-grid.list .cover, .lib-grid.list .cover.art { width: 40px; height: 40px; aspect-ratio: 1; flex: none; border-radius: var(--r-sm); }
-.lib-grid.list .cover img, .lib-grid.list .cover.art img { width: 30px; height: 30px; filter: none; }
-.lib-grid.list .cover.art img { width: 100%; height: 100%; }
-.lib-grid.list .meta { padding: 0; min-width: 0; display: flex; align-items: baseline; gap: 12px; flex: 1; }
-.lib-grid.list .meta h3 { font-size: 0.9375rem; flex: 0 1 auto; }
-.lib-grid.list .meta p { flex: 1 1 0; min-width: 0; }
-.lib-grid.list .card-foot { padding: 4px 8px; flex-wrap: nowrap; flex: none; }
-@media (max-width: 640px) { .lib-grid.list .meta { flex-direction: column; gap: 0; } .lib-grid.list .card-foot .select { max-width: 110px; } }
 
 /* /phones: the phones are buttons */
 .phone-pick { cursor: pointer; text-align: center; font: inherit; color: inherit; display: grid; justify-items: center; gap: 6px; padding: 12px; transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease); }
@@ -78,13 +66,55 @@ button.genre-badge:hover { border-color: var(--primary-warm); }
 button.genre-badge.unconfirmed { color: var(--muted); font-weight: 500; font-style: italic; }
 .plain-list { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 2px; }
 .catalog-panel { display: grid; gap: 10px; margin-bottom: var(--s-lg); }
-.lib-grid.list .genre-badge { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
 
 /* time spent in a game */
 .playtime { margin-top: 4px; font: 600 0.75rem/1rem var(--mono); color: var(--primary); letter-spacing: 0.02em; }
 .playtime:empty { display: none; }
-.lib-grid.list .playtime { flex: none; margin: 0; min-width: 84px; text-align: right; }
 .playtime.none { color: var(--muted); font-weight: 400; }
 
 .playtime { display: flex; align-items: center; gap: 5px; }
 .playtime .icon-svg { width: 13px; height: 13px; }
+
+
+/* toolbar over the library: search, sort, state, filter, view */
+.lib-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: var(--s-lg); }
+.lib-search { flex: 1 1 240px; min-width: 180px; max-width: 420px; height: 32px; padding-left: 34px;
+  background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2398989d' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3.5-3.5'/%3E%3C/svg%3E") no-repeat 10px center; }
+.lib-toolbar .seg { height: 32px; }
+.lib-toolbar .seg button { height: 24px; padding: 0 10px; }
+.page-head { align-items: center; margin-bottom: var(--s-lg); }
+.page-head .btn.sm { height: 30px; padding: 0 12px; }
+
+/* list view: a table. Every row has the same columns, so the publisher, genre, version and time line up */
+.lib-table-head, .lib-grid.list .game-row {
+  --cols: 40px minmax(180px, 2.4fr) minmax(110px, 1.3fr) 168px 118px 92px 108px;
+  display: grid; grid-template-columns: var(--cols); align-items: center; column-gap: 12px;
+}
+.lib-table-head { padding: 0 12px 6px; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.lib-table-head .c-time { text-align: right; }
+.lib-grid.list { grid-template-columns: 1fr; gap: 6px; }
+.lib-grid.list .game-row { padding: 6px 12px; border-radius: var(--r-md); min-height: 52px; }
+.lib-grid.list .game-row:hover { transform: none; }
+.lib-grid.list .row-cover { all: unset; cursor: pointer; display: block; width: 40px; height: 40px; }
+.lib-grid.list .row-cover .cover, .lib-grid.list .row-cover .cover.art { width: 40px; height: 40px; aspect-ratio: 1; border-radius: var(--r-sm); }
+.lib-grid.list .row-cover .cover img { width: 28px; height: 28px; }
+.lib-grid.list .row-cover .cover.art img { width: 100%; height: 100%; }
+.lib-grid.list .row-cover .initials { font-size: 0.875rem; }
+.lib-grid.list .row-title { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 0; }
+.lib-grid.list .row-title h3 { font-size: 0.9375rem; line-height: 1.25rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.lib-grid.list .row-flags { display: inline-flex; gap: 4px; flex: none; }
+.lib-grid.list .cell { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8125rem; }
+.lib-grid.list .cell.c-time { text-align: right; justify-self: end; }
+.lib-grid.list .cell.c-time .playtime { margin: 0; justify-content: flex-end; min-width: 0; font-variant-numeric: tabular-nums; }
+.lib-grid.list .cell.actions { display: flex; justify-content: flex-end; gap: 2px; overflow: visible; }
+.lib-grid.list .genre-badge { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.lib-grid.list .cell .select.compact { max-width: 100%; }
+@media (max-width: 980px) {
+  .lib-table-head, .lib-grid.list .game-row { --cols: 40px minmax(140px, 1fr) 150px 80px 96px; }
+  .c-vendor, .c-version { display: none !important; }
+}
+@media (max-width: 640px) {
+  .lib-table-head { display: none; }
+  .lib-grid.list .game-row { --cols: 40px minmax(0, 1fr) auto; }
+  .lib-grid.list .game-row .c-time, .lib-grid.list .game-row .c-genre { display: none; }
+}

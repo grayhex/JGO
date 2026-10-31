@@ -167,6 +167,14 @@ export function registerAdminRoutes(app: FastifyInstance, c: AdminContext): void
     if (!Object.keys(patch).length) throw new UploadError('bad_request', 'Nothing to change', 400);
     return library.classes.setManual(groupKey, patch);
   });
+  // the title of a game, typed by hand (all versions); `{ "title": null }` returns to the automatic one
+  app.put<{ Params: { groupKey: string }; Body: { title?: unknown } | null }>('/api/library/groups/:groupKey/title', async (req) => {
+    const { groupKey } = req.params;
+    groupExists(groupKey);
+    const t = req.body?.title;
+    if (t !== null && typeof t !== 'string') throw new UploadError('bad_request', '"title" must be a string or null', 400);
+    return { title: library.setTitle(groupKey, t) };
+  });
   app.delete<{ Params: { groupKey: string } }>('/api/library/groups/:groupKey/classification', async (req, reply) => {
     groupExists(req.params.groupKey);
     library.classes.clear(req.params.groupKey);

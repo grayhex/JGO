@@ -172,6 +172,9 @@ export class Library {
       CREATE TABLE IF NOT EXISTS scans (
         id TEXT PRIMARY KEY, started_at TEXT NOT NULL, finished_at TEXT, report_json TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS game_titles (
+        group_key TEXT PRIMARY KEY, title TEXT NOT NULL, updated_at TEXT NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS metadata (
         group_key TEXT PRIMARY KEY, status TEXT NOT NULL, moby_id INTEGER, data_json TEXT NOT NULL,
         candidates_json TEXT NOT NULL DEFAULT '[]', fetched_at TEXT, locked INTEGER NOT NULL DEFAULT 0, error TEXT
@@ -287,6 +290,7 @@ export class Library {
       info.set(m.group_key, infoSummary(m));
     }
     const cls = this.classes.all();
+    const titles = this.titleOverrides();
     const all = rows.map((r) => {
       const g = this.toMeta(r);
       const s = src.get(r.id);
@@ -295,6 +299,8 @@ export class Library {
       if (i) g.info = i;
       const c = cls.get(r.group_key);
       if (c) { g.classification = c; if (c.canonicalTitle) g.name = c.canonicalTitle; }
+      const t = titles.get(r.group_key);
+      if (t) g.name = t; // the title you typed beats every other
       return g;
     });
     if (!genre) return all;
@@ -315,7 +321,23 @@ export class Library {
     if (m) g.info = infoSummary(m);
     const c = this.classes.get(g.groupKey);
     if (c) { g.classification = c; if (c.canonicalTitle) g.name = c.canonicalTitle; }
+    const t = this.db.prepare('SELECT title FROM game_titles WHERE group_key = ?').get(g.groupKey) as unknown as { title: string } | undefined;
+    if (t) g.name = t.title;
     return g;
+  }
+
+  private titleOverrides(): Map<string, string> {
+    return new Map((this.db.prepare('SELECT group_key, title FROM game_titles').all() as unknown as { group_key: string; title: string }[]).map((r) => [r.group_key, r.title]));
+  }
+
+  /** The title a person typed for a game (all its versions). `null` goes back to the automatic title. Returns the title now shown. */
+  setTitle(groupKey: string, title: string | null): string | null {
+    const clean = title === null ? '' : sanitizeText(title, 120).replace(/\s+/g, ' ');
+    if (title !== null && !clean) throw new UploadError('bad_request', 'The title cannot be empty', 400);
+    if (clean) this.db.prepare('INSERT INTO game_titles (group_key, title, updated_at) VALUES (?,?,?) ON CONFLICT(group_key) DO UPDATE SET title=excluded.title, updated_at=excluded.updated_at').run(groupKey, clean, new Date().toISOString());
+    else this.db.prepare('DELETE FROM game_titles WHERE group_key = ?').run(groupKey);
+    const any = this.gamesInGroup(groupKey)[0];
+    return any ? this.get(any.id)?.name ?? null : null;
   }
 
   totalBytes(): number {

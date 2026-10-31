@@ -561,5 +561,12 @@
   "Genres from folder names": "Жанры по названиям папок",
   "A game in a folder named like a genre (Racing, Action…) gets that genre. Genres from a catalog, MobyGames or your own choice are kept.": "Игра в папке с названием жанра (Racing, Action…) получает этот жанр. Жанры из каталога, MobyGames и ваш собственный выбор сохраняются.",
   "Genres set from folders: {n}": "Жанров по папкам назначено: {n}",
-  "left as they were: {n}": "оставлено как было: {n}"
+  "left as they were: {n}": "оставлено как было: {n}",
+  "Title": "Название",
+  "Time": "Время",
+  "Rename": "Переименовать",
+  "Title saved": "Название сохранено",
+  "Title reset": "Название сброшено",
+  "Back to the automatic title": "Вернуть автоматическое название",
+  "The title applies to every version of the game.": "Название относится ко всем версиям игры."
 }

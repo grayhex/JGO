@@ -108,6 +108,7 @@ export const api = {
   setClassification: (groupKey: string, patch: { primaryGenre?: Genre; tags?: string[]; canonicalTitle?: string | null; locked?: false }) => req<GameClassification>(`/api/library/groups/${groupKey}/classification`, jsonInit('PATCH', patch)),
   clearClassification: (groupKey: string) => req<void>(`/api/library/groups/${groupKey}/classification`, { method: 'DELETE' }),
 
+  setTitle: (groupKey: string, title: string | null) => req<{ title: string | null }>(`/api/library/groups/${groupKey}/title`, jsonInit('PUT', { title })),
   genresFromFolders: () => req<{ assigned: number; unchanged: number; skipped: number }>('/api/library/genres/from-folders', { method: 'POST' }),
   cleanup: (what: 'missing' | 'all', deleteSaves: boolean, confirm?: string) => req<{ removed: number; skipped: number; deletedSaves: boolean }>('/api/library/cleanup', jsonInit('POST', { what, deleteSaves, ...(confirm ? { confirm } : {}) })),
 

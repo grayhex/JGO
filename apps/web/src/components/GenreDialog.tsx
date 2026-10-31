@@ -10,14 +10,12 @@ export function GenreDialog({ game, toast, onClose, onChanged }: { game: GameMet
   const c = game.classification;
   const [genre, setGenre] = useState<Genre>(c?.primaryGenre ?? 'Other');
   const [tags, setTags] = useState((c?.tags ?? []).join(', '));
-  const [title, setTitle] = useState(c?.canonicalTitle ?? '');
   const run = async (fn: () => Promise<unknown>, done: string) => {
     try { await fn(); toast('info', done); onChanged(); } catch (e) { toast('error', (e as Error).message); }
   };
   const save = () => run(() => api.setClassification(game.groupKey, {
     primaryGenre: genre,
     tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
-    canonicalTitle: title.trim() || null,
   }), 'Genre saved');
   return (
     <Modal title={translateUI(game.name)} onClose={onClose}>
@@ -31,10 +29,6 @@ export function GenreDialog({ game, toast, onClose, onChanged }: { game: GameMet
       <label className="field">
         <span className="label-caps">{translateUI("Tags")}</span>
         <input className="input" value={tags} maxLength={400} onChange={(e) => setTags(e.target.value)} placeholder={translateUI("3D, licensed, two players")} aria-label={translateUI("Tags")} />
-      </label>
-      <label className="field">
-        <span className="label-caps">{translateUI("Title of the game")}</span>
-        <input className="input" value={title} maxLength={120} onChange={(e) => setTitle(e.target.value)} aria-label={translateUI("Title of the game")} />
       </label>
       <p className="hint">{translateUI("Applies to every version of this game. A genre you choose here is never changed by scans, MobyGames or catalog imports.")}</p>
       {c && <p className="muted small">{translateUI("Source")}: {translateUI(c.source === 'manual' ? 'you' : c.source === 'mobygames' ? 'MobyGames' : c.source === 'curator' ? 'catalog' : 'guess')}{c.locked ? ` · ${translateUI('locked')}` : ''}</p>}

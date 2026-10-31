@@ -99,11 +99,11 @@ export function App() {
       ? { title: 'Phones', subtitle: 'Phone lab', node: <Suspense fallback={null}><DevPhones /></Suspense> }
     : phones
       ? { title: 'Phones', subtitle: 'Classic phones', node: <PhonesPage toast={toast} /> }
-      : { title: 'Library', subtitle: 'Your games on this server', node: <Library toast={toast} onPlay={(id) => go(`/play/${id}`)} health={health} query={query} /> };
+      : { title: 'Library', subtitle: 'Your games on this server', node: <Library toast={toast} onPlay={(id) => go(`/play/${id}`)} health={health} query={query} onQuery={setQuery} /> };
 
   return (
     <>
-      <Shell path={path} go={go} health={health} title={translateUI(page.title)} subtitle={translateUI(page.subtitle)} search={!play && !phones && !settings ? { value: query, onChange: setQuery } : undefined}>
+      <Shell path={path} go={go} health={health} title={translateUI(page.title)} subtitle={translateUI(page.subtitle)}>
         {page.node}
       </Shell>
       {wizard && (
