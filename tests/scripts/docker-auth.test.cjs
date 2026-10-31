@@ -8,9 +8,9 @@ const { spawnSync } = require('node:child_process');
 
 const script = path.resolve(__dirname, '../../runtime/scripts/docker-auth-token.cjs');
 
-function run(dir, authToken = '') {
+function run(dir, authToken = '', authDir = '') {
   return spawnSync(process.execPath, [script], {
-    env: { ...process.env, DATA_DIR: dir, AUTH_TOKEN: authToken },
+    env: { ...process.env, DATA_DIR: dir, JGO_AUTH_DIR: authDir || dir, AUTH_TOKEN: authToken },
     encoding: 'utf8',
   });
 }
@@ -56,4 +56,25 @@ test('rejects unsafe or corrupted token files instead of disabling authenticatio
   const unsafe = run(dir);
   assert.notEqual(unsafe.status, 0);
   assert.match(unsafe.stderr, /Unsafe token file/);
+});
+
+
+test('dedicated credential volume avoids NAS folders with incompatible ACLs and retains the same token', (t) => {
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'jgo-docker-auth-volume-'));
+  t.after(() => fs.rmSync(parent, { recursive: true, force: true }));
+  const data = path.join(parent, 'data');
+  const secrets = path.join(parent, 'auth');
+  fs.mkdirSync(data);
+  fs.mkdirSync(secrets, { mode: 0o1777 });
+  // An unsafe pre-existing token in the NAS folder must never be adopted.
+  fs.writeFileSync(path.join(data, '.jgo-auth-token'), 'b'.repeat(64) + '\n', { mode: 0o644 });
+  const first = run(data, '', secrets);
+  assert.equal(first.status, 0, first.stderr);
+  assert.match(first.stdout, /^[a-f0-9]{64}$/);
+  assert.notEqual(first.stdout, 'b'.repeat(64));
+  assert.equal(fs.statSync(path.join(secrets, '.jgo-auth-token')).mode & 0o777, 0o600);
+  const second = run(data, '', secrets);
+  assert.equal(second.status, 0, second.stderr);
+  assert.equal(first.stdout, second.stdout);
+  assert.equal(fs.readFileSync(path.join(data, '.jgo-auth-token'), 'utf8').trim(), 'b'.repeat(64));
 });
