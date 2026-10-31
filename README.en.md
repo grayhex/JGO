@@ -26,8 +26,8 @@ English · [Русский](README.md)
 - **Text input** in `TextField`/`TextBox`, **pause**, game **speed**, screenshots, **input recording and playback**, **game files** (JSR-75), a custom MIDI **SoundFont**.
 - **Display:** picture rotation, landscape mode, full screen, light and dark themes, English and Russian UI.
 - **Library:** drag-and-drop JAR/JAD or import a whole folder; duplicate detection; optional [MobyGames](https://www.mobygames.com) metadata.
-- **One-step install** into a Proxmox VE LXC container, the `jgo` command for updates and backups. Docker Compose as a fallback.
-- **Security:** game code is untrusted — separate user, systemd sandbox, resource limits, no network access.
+- **Easy install:** a ready-made Docker image for NAS (Synology, UGREEN, QNAP) and servers; additionally a Proxmox VE LXC container with the `jgo` command for updates and backups.
+- **Security:** game code is untrusted — separate user, container isolation, resource limits, no network access.
 
 <div align="center">
 <img src="docs/img/player-portrait.gif" alt="A portrait game in a Nokia N95" width="320">
@@ -35,7 +35,29 @@ English · [Русский](README.md)
 
 ## Quick start
 
-### Proxmox VE (recommended)
+### Docker (recommended: Synology / UGREEN / QNAP NAS, Linux server)
+
+Needs Docker with Compose v2 and an x86-64 CPU. The images are pulled ready-made; nothing is built.
+
+```bash
+mkdir jgo && cd jgo
+curl -fsSLO https://github.com/grayhex/JGO/releases/latest/download/compose.yaml
+curl -fsSL https://github.com/grayhex/JGO/releases/latest/download/env.example -o .env
+```
+
+Put an access token into `.env` (`JGO_TOKEN`, at least 16 characters; for example `openssl rand -hex 16`) and start it:
+
+```bash
+docker compose up -d
+```
+
+Open `http://<NAS address>:8080`, sign in with the token and go through the first-run wizard. To update: `docker compose pull && docker compose up -d`.
+
+Step-by-step guides for Synology and UGREEN, folder permissions, backups, HTTPS and troubleshooting: [docs/DOCKER.md](docs/DOCKER.md) (Russian).
+
+> Do not expose port 8080 to the internet without a VPN or a TLS proxy.
+
+### Proxmox VE (additional)
 
 Run in the Proxmox VE host shell:
 
@@ -43,9 +65,7 @@ Run in the Proxmox VE host shell:
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/grayhex/JGO/main/ct/jgo.sh)"
 ```
 
-This creates an unprivileged Debian 13 LXC (4 CPU, 4 GB RAM, 20 GB disk). The access token is printed at the end of the install; `jgo token` shows it later. Open `http://<container IP>:8080`, sign in with the token and go through the first-run wizard.
-
-> Do not expose port 8080 to the internet without a VPN or a TLS proxy.
+This creates an unprivileged Debian 13 LXC (4 CPU, 4 GB RAM, 20 GB disk), without Docker. The access token is printed at the end of the install; `jgo token` shows it later. Open `http://<container IP>:8080`.
 
 | Path | Purpose |
 |---|---|
@@ -54,14 +74,6 @@ This creates an unprivileged Debian 13 LXC (4 CPU, 4 GB RAM, 20 GB disk). The ac
 | `/etc/jgo/jgo.env` | configuration and token |
 
 Details: [docs/PROXMOX.md](docs/PROXMOX.md), backups — [docs/BACKUP.md](docs/BACKUP.md).
-
-### Docker Compose
-
-```bash
-docker compose up --build
-```
-
-Open <http://localhost:8080>. The port is bound to `127.0.0.1` only; set `AUTH_TOKEN` (at least 16 characters) before exposing it.
 
 ### From source
 
@@ -95,22 +107,24 @@ The full feature matrix is in [docs/EMULATOR_FEATURE_MATRIX.md](docs/EMULATOR_FE
 
 ## Configuration
 
-Most options are set in *Settings*. Low-level values live in `/etc/jgo/jgo.env` (after editing: `systemctl restart jgo`):
+Most options are set in *Settings*. Low-level values: with Docker in the `.env` file (variable list: [docs/DOCKER.md](docs/DOCKER.md)), on Proxmox in `/etc/jgo/jgo.env` (after editing: `systemctl restart jgo`). The application variables (in Docker `compose.yaml` passes some of them on):
 
 | Variable | Default | Purpose |
 |---|---|---|
 | `HOST`, `PORT` | `0.0.0.0`, `8080` | listen address and port |
-| `AUTH_TOKEN` | generated | access token (≥ 16 characters) |
+| `AUTH_TOKEN` | generated (Docker: `JGO_TOKEN`) | access token (≥ 16 characters) |
 | `ALLOWED_ORIGINS` | — | extra origins behind a reverse proxy |
 | `MAX_SESSIONS` | `1` | concurrent games |
 | `SESSION_MAX_MINUTES`, `SESSION_IDLE_MINUTES` | `120`, `5` | session length cap and idle timeout |
-| `MAX_UPLOAD_MB`, `LIBRARY_QUOTA_MB` | `32`, `4096` | file size and library quota |
+| `MAX_UPLOAD_MB`, `LIBRARY_QUOTA_MB` | `32`, `2048` (Docker and Proxmox set `4096`) | file size and library quota |
 | `LIBRARY_ROOTS` | `/mnt/jgo-library /srv/jgo-library` | folders games can be imported from |
 | `MOBYGAMES_API_KEY` | — | MobyGames key (usually entered in Settings) |
 
 The full list is in `packaging/jgo.env.example`.
 
-## The `jgo` command
+## The `jgo` command (Proxmox)
+
+Only available in the Proxmox container. With Docker, update with `docker compose pull && docker compose up -d` and back up by copying the data folder ([docs/DOCKER.md](docs/DOCKER.md)).
 
 | Command | Action |
 |---|---|
@@ -164,7 +178,8 @@ cargo test --manifest-path bridge/kemulator-adapter/Cargo.toml
 
 | Document | Contents |
 |---|---|
-| [PROXMOX.md](docs/PROXMOX.md), [BACKUP.md](docs/BACKUP.md) | install, update, backups |
+| [DOCKER.md](docs/DOCKER.md) | Docker (NAS) install, update, backups (Russian) |
+| [PROXMOX.md](docs/PROXMOX.md), [BACKUP.md](docs/BACKUP.md) | Proxmox container: install, update, backups |
 | [LIBRARY.md](docs/LIBRARY.md) | wizard, settings, import, MobyGames |
 | [UI.md](docs/UI.md), [PLAYER_CONTROLS.md](docs/PLAYER_CONTROLS.md) | interface, handsets, controls |
 | [SESSION_RECOVERY.md](docs/SESSION_RECOVERY.md) | session recovery, RMS saves |

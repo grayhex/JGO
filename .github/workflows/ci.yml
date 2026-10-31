@@ -81,6 +81,7 @@ jobs:
       - run: shellcheck -S warning runtime/scripts/*.sh tests/fixtures/*/build.sh tests/scripts/*.sh tools/proxmox/*.sh
       - run: bash tests/scripts/build-scripts.test.sh
       - run: bash tests/scripts/library-mount.test.sh
+      - run: bash tests/scripts/version-order.test.sh
 
   integration:
     name: Integration + e2e on the real KEmulator
@@ -233,7 +234,9 @@ jobs:
   docker:
     name: Docker image + container smoke test
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 40
+    env:
+      JGO_TOKEN: ci-token-0123456789abcdef
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -257,10 +260,32 @@ jobs:
           bash tests/fixtures/testmidlet3d/build.sh runtime/build/kemulator/KEmulator.jar
           bash tests/fixtures/labgames/build.sh runtime/build/kemulator/KEmulator.jar
       - name: Container smoke (2D + audio, M3G on llvmpipe)
-        run: node tests/e2e/container-smoke.mjs
+        run: TOKEN=ci-token-0123456789abcdef node tests/e2e/container-smoke.mjs
       - name: Hardening is in effect
         run: |
           docker compose exec -T app sh -c 'test "$(id -u)" = 10001 && ! touch /x 2>/dev/null && grep -q "CapEff:.0000000000000000" /proc/self/status'
           ! docker compose exec -T app node -e "require('net').connect(80,'1.1.1.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"
+      - name: The web UI wants the token
+        run: |
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080/api/games)" = 401
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer ci-token-0123456789abcdef' localhost:8080/api/games)" = 200
+      - name: Compose refuses to start without a token
+        run: |
+          if env -u JGO_TOKEN docker compose config >/dev/null 2>/tmp/cfg.err; then echo "compose accepted a missing token"; exit 1; fi
+          grep -q JGO_TOKEN /tmp/cfg.err
+      - name: NAS style - a folder owned by another user (PUID/PGID), restart keeps the data
+        run: |
+          docker compose down -v
+          sudo mkdir -p /srv/jgo-nas/data && sudo chown 1026:100 /srv/jgo-nas/data
+          export JGO_DATA=/srv/jgo-nas/data PUID=1026 PGID=100
+          docker compose up -d
+          for i in $(seq 1 60); do curl -fsS localhost:8080/api/health | grep -q '"ok":true' && break; sleep 2; done
+          curl -fsS localhost:8080/api/health | grep -q '"ok":true'
+          curl -fsS -H 'Authorization: Bearer ci-token-0123456789abcdef' -F "jar=@tests/fixtures/testmidlet/build/kemtest.jar" localhost:8080/api/games | grep -q '"game"'
+          docker compose exec -T app sh -c 'test "$(id -u)" = 1026'
+          docker compose restart app
+          for i in $(seq 1 60); do curl -fsS localhost:8080/api/health | grep -q '"ok":true' && break; sleep 2; done
+          test "$(curl -fsS -H 'Authorization: Bearer ci-token-0123456789abcdef' localhost:8080/api/games | grep -o '"sha256"' | wc -l)" = 1
+          sudo test -n "$(sudo ls /srv/jgo-nas/data)"
       - if: always()
         run: docker compose down -v

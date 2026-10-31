@@ -1,33 +1,46 @@
-# One command:   docker compose up --build        then open http://localhost:8080
-name: j2me-web
+# JGO in Docker: the main way to run it (NAS: Synology, UGREEN, QNAP, TrueNAS; any Linux host).
+#
+#   1. copy .env.example to .env and set JGO_TOKEN (at least 16 characters)
+#   2. docker compose up -d
+#   3. open http://<address of the host>:8080 and sign in with the token
+#
+# Details, NAS walkthroughs, updates and backups: docs/DOCKER.md
+# Developers: `docker compose up -d --build` builds the images from this checkout instead of pulling them.
+name: jgo
 
 services:
   app:
+    image: ghcr.io/grayhex/jgo:${JGO_VERSION:-latest}
     build:
       context: .
       dockerfile: runtime/Dockerfile
       args:
         BASE_REGISTRY: ${BASE_REGISTRY:-docker.io/library}
-    image: j2me-web:local
+        JGO_VERSION: ${JGO_VERSION:-dev}
     restart: unless-stopped
     init: true
     environment:
-      # Set a real token before exposing this anywhere but your own machine.
-      AUTH_TOKEN: ${AUTH_TOKEN:-}
-      # The app listens on the private compose network only; nginx publishes it on 127.0.0.1.
+      # Required: the web UI is reachable from your network, the games run code of unknown origin.
+      AUTH_TOKEN: ${JGO_TOKEN:?Set JGO_TOKEN (at least 16 characters) in .env, see .env.example}
+      # The app listens on the private compose network only; the gateway below publishes it.
       ALLOW_INSECURE_PUBLIC: "1"
       MAX_SESSIONS: ${MAX_SESSIONS:-1}
       SESSION_MAX_MINUTES: ${SESSION_MAX_MINUTES:-120}
+      SESSION_IDLE_MINUTES: ${SESSION_IDLE_MINUTES:-5}
+      LIBRARY_QUOTA_MB: ${LIBRARY_QUOTA_MB:-4096}
       FRAME_ENCODING: ${FRAME_ENCODING:-deflate}
       KEM_CPU_SECONDS: ${KEM_CPU_SECONDS:-0}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+      MOBYGAMES_API_KEY: ${MOBYGAMES_API_KEY:-}
     volumes:
-      - j2me-data:/data
-      # An existing collection of .jar/.jad files, read-only (then choose /mnt/jgo-library in Settings > Game library):
-      # - ${JGO_LIBRARY:-./games}:/mnt/jgo-library:ro
+      # JGO_DATA is a volume name (default) or an absolute folder, e.g. /volume1/docker/jgo/data on Synology.
+      # With a folder, set PUID and PGID to its owner (see docs/DOCKER.md).
+      - ${JGO_DATA:-jgo-data}:/data
+      # Your collection of .jar/.jad files, read-only; then choose /mnt/jgo-library in Settings > Game library.
+      - ${JGO_LIBRARY:-./games}:/mnt/jgo-library:ro
     networks: [internal]
     # --- hardening: the JAR is untrusted code ---
-    user: "10001:10001"
+    user: "${PUID:-10001}:${PGID:-10001}"
     read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
@@ -39,13 +52,20 @@ services:
       - /tmp:size=128m,mode=1777,exec
 
   gateway:
-    image: ${BASE_REGISTRY:-docker.io/library}/nginx:1.27-alpine
+    image: ghcr.io/grayhex/jgo-gateway:${JGO_VERSION:-latest}
+    build:
+      context: .
+      dockerfile: runtime/Dockerfile
+      target: gateway
+      args:
+        BASE_REGISTRY: ${BASE_REGISTRY:-docker.io/library}
     restart: unless-stopped
-    depends_on: [app]
+    depends_on:
+      app:
+        condition: service_healthy
     ports:
-      - "127.0.0.1:${PORT:-8080}:8080"
-    volumes:
-      - ./infrastructure/local/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # JGO_BIND=127.0.0.1 keeps it on the host itself (when a reverse proxy or a TLS terminator sits in front).
+      - "${JGO_BIND:-0.0.0.0}:${JGO_PORT:-8080}:8080"
     networks: [internal, edge]
     read_only: true
     cap_drop: [ALL]
@@ -59,4 +79,4 @@ networks:
   edge: {}
 
 volumes:
-  j2me-data:
+  jgo-data:

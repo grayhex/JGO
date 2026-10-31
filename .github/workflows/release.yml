@@ -1,10 +1,13 @@
 name: Release
 
-# Builds the artifacts that `jgo update` and install/jgo-install.sh deploy:
-#   jgo-<version>-linux-amd64.tar.gz, SHA256SUMS, jgo-kemulator-source-<commit>.tar.gz
-# A pushed tag v<version> publishes a GitHub release (tags with a "-" are marked pre-release and are
-# ignored by the Community Scripts update check). Run by hand (workflow_dispatch) it only builds and uploads
-# the artifacts, which is how to look at a release before tagging.
+# Docker is the main way to run JGO, Proxmox VE (LXC) the additional one. A pushed tag v<version> publishes:
+#   * the images ghcr.io/grayhex/jgo:<version> and ghcr.io/grayhex/jgo-gateway:<version> (":latest" too for a normal
+#     or beta release), built from runtime/Dockerfile;
+#   * a GitHub release with compose.yaml, env.example (= .env.example), compose.egress.yaml and the files the Proxmox installer and
+#     `jgo update` deploy: jgo-<version>-linux-amd64.tar.gz, SHA256SUMS, jgo-kemulator-source-<commit>.tar.gz.
+# Only -alpha / -rc / -dev tags are marked pre-release (the Community Scripts update check ignores those); a
+# -beta tag is a normal release so that `latest` points at it. Run by hand (workflow_dispatch) it builds the
+# artifacts and the images but pushes nothing, which is how to look at a release before tagging.
 on:
   push:
     tags: ['v*']
@@ -52,7 +55,9 @@ jobs:
           git init -q kem-src && git -C kem-src remote add origin https://github.com/shinovon/KEmulator
           git -C kem-src fetch -q --depth 1 origin "$commit" && git -C kem-src checkout -q FETCH_HEAD
           git -C kem-src archive --prefix="kemulator-$commit/" -o "dist-release/jgo-kemulator-source-$commit.tar.gz" HEAD
-          (cd dist-release && sha256sum jgo-kemulator-source-*.tar.gz >> SHA256SUMS && cat SHA256SUMS)
+          cp compose.yaml compose.egress.yaml dist-release/
+          cp .env.example dist-release/env.example   # GitHub renames release assets that start with a dot
+          (cd dist-release && sha256sum jgo-kemulator-source-*.tar.gz compose.yaml compose.egress.yaml env.example >> SHA256SUMS && cat SHA256SUMS)
       - uses: actions/upload-artifact@v4
         with:
           name: jgo-${{ steps.v.outputs.version }}
@@ -62,8 +67,63 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          pre=""; case "${{ steps.v.outputs.version }}" in *-*) pre="--prerelease";; esac
-          gh release create "$GITHUB_REF_NAME" dist-release/* $pre --verify-tag --title "JGO ${{ steps.v.outputs.version }}" \
-            --notes "Install on Proxmox VE: see docs/PROXMOX.md. Update inside the container: \`jgo update\` (or the Community Scripts \`update\`).
+          pre=""; case "${{ steps.v.outputs.version }}" in *-alpha*|*-rc*|*-dev*) pre="--prerelease";; esac
+          v="${{ steps.v.outputs.version }}"
+          gh release create "$GITHUB_REF_NAME" dist-release/* $pre --verify-tag --title "JGO $v" \
+            --notes "**Docker (recommended; NAS, Linux):** download compose.yaml and env.example from this release (save it as .env), set JGO_TOKEN, run \`docker compose up -d\`. Image: \`ghcr.io/grayhex/jgo:$v\`. Guide: docs/DOCKER.md.
+
+          **Proxmox VE (additional):** see docs/PROXMOX.md. Update inside the container: \`jgo update\`.
 
           KEmulator (GPL/Apache/EPL) is built from the pinned upstream commit plus the patches in share/source/; the matching upstream tree is the asset jgo-kemulator-source-*.tar.gz."
+
+  docker:
+    name: Build and publish the Docker images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Version and tags
+        id: v
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = tag ]; then v="${GITHUB_REF_NAME#v}"; else v="${{ inputs.version }}"; fi
+          [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.]+)?$ ]] || { echo "bad version: $v"; exit 1; }
+          owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          tags_app="ghcr.io/$owner/jgo:$v"; tags_gw="ghcr.io/$owner/jgo-gateway:$v"
+          case "$v" in *-alpha*|*-rc*|*-dev*) ;; *) tags_app="$tags_app,ghcr.io/$owner/jgo:latest"; tags_gw="$tags_gw,ghcr.io/$owner/jgo-gateway:latest";; esac
+          { echo "version=$v"; echo "app=$tags_app"; echo "gateway=$tags_gw"; } >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: github.ref_type == 'tag'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: JGO image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: runtime/Dockerfile
+          build-args: |
+            JGO_VERSION=${{ steps.v.outputs.version }}
+          push: ${{ github.ref_type == 'tag' }}
+          tags: ${{ steps.v.outputs.app }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ steps.v.outputs.version }}
+            org.opencontainers.image.licenses=MIT
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Gateway image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: runtime/Dockerfile
+          target: gateway
+          push: ${{ github.ref_type == 'tag' }}
+          tags: ${{ steps.v.outputs.gateway }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ steps.v.outputs.version }}

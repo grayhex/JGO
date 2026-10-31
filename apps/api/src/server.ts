@@ -26,7 +26,7 @@ import { SoundfontStore } from './soundfont.js';
 import { SessionError, SessionManager, type StreamClient } from './sessions.js';
 
 /** The release being run: JGO_VERSION (set by the systemd unit), else the VERSION file of the release tree, else the dev default. */
-const VERSION = process.env.JGO_VERSION?.trim() || readReleaseVersion() || '0.1.0';
+const VERSION = process.env.JGO_VERSION?.trim() || readReleaseVersion() || '0.1.0-beta.1';
 
 function readReleaseVersion(): string | null {
   try {

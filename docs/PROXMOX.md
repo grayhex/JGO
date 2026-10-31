@@ -1,8 +1,8 @@
-# JGO в Proxmox VE (LXC, без Docker)
+# JGO в Proxmox VE (LXC, без Docker) — дополнительный способ
 
-Основной способ установки JGO — непривилегированный LXC-контейнер Debian 13 на Proxmox VE, созданный скриптом в формате
-[Community Scripts](https://community-scripts.org/). Всё работает нативно: `systemd`, пользователь `jgo`, без Docker.
-Docker Compose остаётся запасным вариантом (см. [README](../README.md#запасной-вариант-docker-compose)).
+Основной способ запуска JGO — Docker ([DOCKER.md](DOCKER.md)): готовый образ, подходит для NAS и серверов. Этот документ — для тех, у кого есть Proxmox VE
+и кто хочет отдельный непривилегированный LXC-контейнер Debian 13, созданный скриптом в формате [Community Scripts](https://community-scripts.org/).
+Всё работает нативно: `systemd`, пользователь `jgo`, без Docker; обновления и резервные копии делает команда `jgo`.
 
 ## Установка одной командой
 
@@ -27,7 +27,7 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/grayhex/JGO/main/ct/jgo.
 KEmulator nnmod (собран в CI из закреплённого коммита с патчами из `runtime/patches`), CLI `jgo`.
 
 > Релиз появляется, когда в репозитории поставлен тег `v<версия>` (workflow `Release`). Пока релизов нет, скрипт установки остановится
-> на шаге загрузки: сначала нужно выпустить релиз (`git tag v0.2.0 && git push origin v0.2.0`).
+> на шаге загрузки: сначала нужно выпустить релиз (`git tag v0.1.0-beta.1 && git push origin v0.1.0-beta.1`).
 
 ## Раскладка
 

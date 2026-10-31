@@ -1,5 +1,5 @@
 // Smoke test against a RUNNING stack (docker compose up): real KEmulator inside the container.
-// Usage: BASE=http://127.0.0.1:8080 node tests/e2e/container-smoke.mjs
+// Usage: BASE=http://127.0.0.1:8080 [TOKEN=<JGO_TOKEN>] node tests/e2e/container-smoke.mjs
 import { readFileSync } from 'node:fs';
 import { inflateRawSync } from 'node:zlib';
 import path from 'node:path';
@@ -7,6 +7,11 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const base = process.env.BASE ?? 'http://127.0.0.1:8080';
+// compose.yaml requires a token: every request carries it as a bearer token
+const token = process.env.TOKEN;
+const authHeaders = token ? { authorization: `Bearer ${token}` } : {};
+const realFetch = globalThis.fetch;
+globalThis.fetch = (url, init = {}) => realFetch(url, { ...init, headers: { ...authHeaders, ...init.headers } });
 const jars = {
   '2d': path.join(root, 'tests/fixtures/testmidlet/build/kemtest.jar'),
   '3d': path.join(root, 'tests/fixtures/testmidlet3d/build/kemtest3d.jar'),
@@ -28,7 +33,7 @@ async function run(kind) {
   const s = await r.json();
   ok(`${kind}: session started`, r.status === 201, s.message ?? s.id);
   if (r.status !== 201) return;
-  const ws = new WebSocket(base.replace('http', 'ws') + `/api/sessions/${s.id}/stream`);
+  const ws = new WebSocket(base.replace('http', 'ws') + `/api/sessions/${s.id}/stream`, token ? { headers: authHeaders } : undefined);
   ws.binaryType = 'arraybuffer';
   const frames = [];
   ws.onmessage = (m) => { if (typeof m.data !== 'string') { const u = new Uint8Array(m.data); if (u[0] !== 1) return; const px = u[5] === 1 ? new Uint8Array(inflateRawSync(u.subarray(14))) : u.subarray(14); frames.push({ t: Date.now(), px }); } };
