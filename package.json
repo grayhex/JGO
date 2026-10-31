@@ -1,7 +1,7 @@
 {
   "name": "j2me-web",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.0-beta.1",
   "description": "Self-hosted web player for Java ME games, powered by KEmulator nnmod (Bridge frontend)",
   "type": "module",
   "engines": {

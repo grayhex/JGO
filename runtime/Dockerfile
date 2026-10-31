@@ -37,10 +37,17 @@ COPY apps apps
 COPY tools/release/prune.mjs /tmp/jgo-release-prune.mjs
 RUN npm ci && npm run build && npm prune --omit=dev && node /tmp/jgo-release-prune.mjs /app && rm /tmp/jgo-release-prune.mjs
 
-# ---- 4. Runtime --------------------------------------------------------------------------
+# ---- Gateway (optional image): the only container with a published port ---------------
+# The app container sits on an internal Docker network without a route out, so a MIDlet cannot call the
+# internet or the LAN; this nginx forwards the browser's HTTP and WebSocket traffic to it.
+#   docker build -f runtime/Dockerfile --target gateway -t jgo-gateway .
+FROM ${BASE_REGISTRY}/nginx:1.27-alpine AS gateway
+COPY infrastructure/local/nginx.conf /etc/nginx/conf.d/default.conf
+
+# ---- 4. Runtime (the default target: keep it the last stage) --------------------------------------------------------------------------
 FROM ${BASE_REGISTRY}/ubuntu:24.04 AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      openjdk-21-jre-headless \
+      openjdk-21-jdk-headless \
       xvfb libgl1 libglx-mesa0 libgl1-mesa-dri libegl1 libxext6 libxrender1 libxtst6 libxi6 libxrandr2 libxcursor1 libxinerama1 \
       fontconfig fonts-dejavu-core ca-certificates libharfbuzz0b libfreetype6 libfontconfig1 liblcms2-2 \
     && rm -rf /var/lib/apt/lists/*
@@ -52,7 +59,10 @@ COPY --from=adapter-build /src/target/release/kem-adapter /usr/local/bin/kem-ada
 COPY --from=app-build /app /app
 COPY runtime/scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
 
-ENV NODE_ENV=production \
+# jdk-headless (not only the JRE) so that the diagnostics report can ask the emulator's JVM for heap and threads (jcmd)
+ARG JGO_VERSION=dev
+ENV JGO_VERSION=${JGO_VERSION} \
+    NODE_ENV=production \
     HOST=0.0.0.0 PORT=8080 \
     DATA_DIR=/data KEM_DIR=/opt/kemulator ADAPTER_BIN=/usr/local/bin/kem-adapter \
     WEB_DIR=/app/apps/web/dist RUN_DIR=/dev/shm/j2me-web \
