@@ -34,7 +34,7 @@ try {
   await p.getByText(/too small to be a SoundFont/i).waitFor();
   assert.equal((await (await fetch(base + '/api/settings')).json()).soundfont.name, 'room.sf2', 'a rejected file keeps the installed bank');
 
-  await p.getByRole('button', { name: 'Remove' }).click();
+  await p.getByRole('button', { name: 'Remove', exact: true }).click();
   await p.getByText('Built-in bank', { exact: true }).waitFor();
   assert.equal((await (await fetch(base + '/api/settings')).json()).soundfont, null);
   assert.deepEqual(errors, []);

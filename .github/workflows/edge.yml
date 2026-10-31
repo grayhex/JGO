@@ -1,0 +1,81 @@
+name: Edge image
+
+# Publishes ghcr.io/<owner>/jgo:edge and jgo-gateway:edge after the CI of a push to main has PASSED.
+#  - edge moves with every successful merge to main (a NAS that follows :edge can update after each PR);
+#  - latest is moved only by Release (an official, non-prerelease version);
+#  - version tags (x.y.z) are never touched here; the immutable sha-<commit> tag is added for rollbacks.
+# A failed CI never reaches this workflow's build: the job only runs when the CI run succeeded.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: edge-image
+  cancel-in-progress: true
+
+jobs:
+  edge:
+    name: Build and publish :edge
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - name: Tags
+        id: v
+        run: |
+          sha="${{ github.event.workflow_run.head_sha }}"
+          short="${sha:0:7}"
+          base="$(node -p "require('./package.json').version")"
+          owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          {
+            echo "version=${base}+edge.${short}"
+            echo "app=ghcr.io/$owner/jgo:edge,ghcr.io/$owner/jgo:sha-${short}"
+            echo "gateway=ghcr.io/$owner/jgo-gateway:edge,ghcr.io/$owner/jgo-gateway:sha-${short}"
+          } >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: JGO image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: runtime/Dockerfile
+          build-args: |
+            JGO_VERSION=${{ steps.v.outputs.version }}
+          push: true
+          tags: ${{ steps.v.outputs.app }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ steps.v.outputs.version }}
+            org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha }}
+            org.opencontainers.image.licenses=MIT
+          cache-from: type=gha,scope=edge-app
+          cache-to: type=gha,mode=max,scope=edge-app
+      - name: Gateway image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: runtime/Dockerfile
+          target: gateway
+          push: true
+          tags: ${{ steps.v.outputs.gateway }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ steps.v.outputs.version }}
+            org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha }}
+          cache-from: type=gha,scope=edge-gateway
+          cache-to: type=gha,mode=max,scope=edge-gateway

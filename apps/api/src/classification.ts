@@ -21,8 +21,8 @@ const MAX_TAG_LEN = 32;
 const REPORT_ITEMS_PER_KIND = 25;
 
 /** A stronger source is never replaced by a weaker one; a locked row is never replaced by anything but the user. */
-const RANK: Record<ClassificationSource, number> = { manual: 4, mobygames: 3, curator: 2, heuristic: 1 };
-const CONFIDENCE: Record<ClassificationSource, ClassificationConfidence> = { manual: 'manual', mobygames: 'verified', curator: 'curated', heuristic: 'heuristic' };
+const RANK: Record<ClassificationSource, number> = { manual: 5, mobygames: 4, curator: 3, folder: 2, heuristic: 1 };
+const CONFIDENCE: Record<ClassificationSource, ClassificationConfidence> = { manual: 'manual', mobygames: 'verified', curator: 'curated', folder: 'curated', heuristic: 'heuristic' };
 
 interface Row {
   group_key: string;
@@ -188,6 +188,41 @@ export class Classifications {
   removeMoby(groupKey?: string): void {
     if (groupKey) this.db.prepare(`DELETE FROM game_classifications WHERE source = 'mobygames' AND group_key = ?`).run(groupKey);
     else this.db.exec(`DELETE FROM game_classifications WHERE source = 'mobygames'`);
+  }
+
+  /**
+   * Genres from folder names: a file in `.../Racing/Asphalt.jar` is a racing game. The deepest folder that is named like a genre
+   * decides; two versions of one game in different genre folders are left alone. It is the weakest source apart from a guess,
+   * so the catalog, MobyGames and the user all outrank it, and a game that already has a genre of its own is not touched.
+   */
+  assignFromFolders(files: { groupKey: string; relPath: string }[]): { assigned: number; unchanged: number; skipped: number } {
+    const wanted = new Map<string, Set<Genre>>();
+    for (const f of files) {
+      const dirs = f.relPath.split(/[\\/]+/).slice(0, -1);
+      let genre: Genre | null = null;
+      for (const d of dirs) {
+        const g = GENRES.find((x) => x.toLowerCase() === d.trim().toLowerCase());
+        if (g) genre = g;
+      }
+      if (genre) (wanted.get(f.groupKey) ?? wanted.set(f.groupKey, new Set()).get(f.groupKey)!).add(genre);
+    }
+    const out = { assigned: 0, unchanged: 0, skipped: 0 };
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      for (const [groupKey, genres] of wanted) {
+        if (genres.size !== 1 || this.refusal(groupKey, 'folder')) { out.skipped++; continue; }
+        const genre = [...genres][0]!;
+        const cur = this.get(groupKey);
+        if (cur && cur.source === 'folder' && cur.primaryGenre === genre) { out.unchanged++; continue; }
+        this.write(groupKey, { primaryGenre: genre, genres: [genre], tags: cur?.tags ?? [], canonicalTitle: cur?.canonicalTitle ?? null }, 'folder', false);
+        out.assigned++;
+      }
+      this.db.exec('COMMIT');
+    } catch (e) {
+      this.db.exec('ROLLBACK');
+      throw e;
+    }
+    return out;
   }
 
   summary(): GenreSummary {

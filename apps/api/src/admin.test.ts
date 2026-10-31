@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync, statSync, symlinkSync } from 'node:fs';
+import { readdirSync, readFileSync, rmSync, statSync, symlinkSync } from 'node:fs';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { FakeMoby, PNG } from './dev/fakeMoby.js';
@@ -202,6 +202,44 @@ describe('setup, settings, library and MobyGames over the API', () => {
     assert.equal(s.checks.find((c: any) => c.id === 'library').state, 'ok');
     assert.ok(s.storage.freeBytes > 0);
     assert.ok(!JSON.stringify(s).includes(app.cfg.dataDir), 'no host paths in the status');
+  });
+
+  it('games whose files are gone can be removed in one go, and the whole library can be emptied (only with confirmation)', async () => {
+    const lib = tmpDir('jgo-cleanup-');
+    for (const n of ['Keep One', 'Gone One', 'Gone Two']) put(lib, `${n}.jar`, makeJar(n, { vendor: 'Cleanup' }));
+    const original = app.cfg.libraryRoots;
+    app.cfg.libraryRoots.push(lib);
+    try {
+      assert.equal((await call('PATCH', '/api/settings', { libraryPath: lib })).status, 200);
+      await call('POST', '/api/library/scan', { mode: 'full' });
+      await waitScan();
+      const before = (await call('GET', '/api/games')).json.length;
+      rmSync(path.join(lib, 'Gone One.jar'));
+      rmSync(path.join(lib, 'Gone Two.jar'));
+      await call('POST', '/api/library/scan', { mode: 'update' });
+      await waitScan();
+      const gone = (await call('GET', '/api/games')).json.filter((g: any) => g.sourceMissing).map((g: any) => g.name).sort();
+      // the games imported earlier from another folder are "file gone" too: that is the situation after moving to a new collection
+      assert.ok(['Gone One', 'Gone Two', 'Racer', 'Snake'].every((n) => gone.includes(n)), gone.join());
+      assert.ok(!gone.includes('Keep One'));
+      assert.equal((await call('POST', '/api/library/cleanup', { what: 'nonsense' })).status, 400);
+      const r = await call('POST', '/api/library/cleanup', { what: 'missing' });
+      assert.deepEqual([r.json.removed, r.json.skipped], [gone.length, 0]);
+      const after = (await call('GET', '/api/games')).json;
+      assert.equal(after.length, before - gone.length);
+      assert.ok(after.some((g: any) => g.name === 'Keep One'), 'a game whose file is still there is kept');
+      assert.equal((await call('POST', '/api/library/cleanup', { what: 'all' })).status, 400, 'the whole library needs a confirmation');
+      assert.equal((await call('GET', '/api/games')).json.length, before - gone.length, 'nothing was removed without it');
+      const all = await call('POST', '/api/library/cleanup', { what: 'all', confirm: 'DELETE', deleteSaves: true });
+      assert.equal(all.json.removed, before - gone.length);
+      assert.deepEqual((await call('GET', '/api/games')).json, []);
+      // the folder is still connected: a scan brings the file back
+      await call('POST', '/api/library/scan', { mode: 'update' });
+      await waitScan();
+      assert.deepEqual((await call('GET', '/api/games')).json.map((g: any) => g.name), ['Keep One']);
+    } finally {
+      original.splice(original.indexOf(lib), 1);
+    }
   });
 });
 

@@ -33,6 +33,14 @@ export function CatalogPanel({ toast, onChanged }: { toast: Toaster; onChanged: 
     setBusy(true);
     try { setReport(await api.catalogImport(file.json)); setApplied(true); loadStats(); onChanged(); toast('info', 'Genres imported'); } catch (e) { toast('error', (e as Error).message); } finally { setBusy(false); }
   };
+  const fromFolders = async () => {
+    setBusy(true);
+    try {
+      const r = await api.genresFromFolders();
+      toast('info', translateUI('Genres set from folders: {n}', { n: r.assigned }) + (r.skipped ? ` · ${translateUI('left as they were: {n}', { n: r.skipped })}` : ''));
+      loadStats(); onChanged();
+    } catch (e) { toast('error', (e as Error).message); } finally { setBusy(false); }
+  };
   const shown = (stats?.genres ?? []).filter((g) => g.count > 0);
 
   return (
@@ -42,6 +50,7 @@ export function CatalogPanel({ toast, onChanged }: { toast: Toaster; onChanged: 
         <button className="btn" disabled={busy} onClick={() => input.current?.click()}>{translateUI("Choose catalog file…")}</button>
         <input ref={input} type="file" accept=".json,application/json" hidden data-testid="catalog-file" onChange={(e) => { void pick(e.target.files?.[0]); e.target.value = ''; }} />
         {report && !applied && file && <button className="btn primary" disabled={busy || report.ok === 0} onClick={() => void confirm()} data-testid="catalog-confirm">{translateUI("Import {n} games", { n: report.ok })}</button>}
+        <button className="btn" disabled={busy} onClick={() => void fromFolders()} title={translateUI("A game in a folder named like a genre (Racing, Action…) gets that genre. Genres from a catalog, MobyGames or your own choice are kept.")} data-testid="genres-from-folders">{translateUI("Genres from folder names")}</button>
         <a className="btn ghost" href="/api/library/catalog/export" download="jgo_catalog.json">{translateUI("Export genres")}</a>
       </div>
       {report && (

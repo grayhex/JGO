@@ -8,12 +8,19 @@ import { useServerSettings } from '../serverSettings';
 import { GameInfoDialog } from './GameInfoDialog';
 import { GenreDialog } from './GenreDialog';
 import { splitPlayTime } from '../playTime';
+import { compareGroups, matchesStatus, SORT_KEYS, STATUS_FILTERS, totalPlaySeconds, type SortKey, type StatusFilter } from '../libraryView';
 import { GameSettingsDialog } from './GameSettingsDialog';
 import { Icon } from './Icon';
 import { Seg } from './ui';
 
 type Filter = 'all' | 'favorites' | 'recent';
 type GenreFilter = 'all' | 'unclassified' | (typeof GENRES)[number];
+const SORT_STORE = 'j2me-web.library.sort';
+const STATUS_STORE = 'j2me-web.library.status';
+const loadSort = (): SortKey => { try { const v = localStorage.getItem(SORT_STORE) as SortKey; return SORT_KEYS.includes(v) ? v : 'name'; } catch { return 'name'; } };
+const loadStatus = (): StatusFilter => { try { const v = localStorage.getItem(STATUS_STORE) as StatusFilter; return STATUS_FILTERS.includes(v) ? v : 'all'; } catch { return 'all'; } };
+const SORT_LABEL: Record<SortKey, string> = { name: 'Name A–Z', 'name-desc': 'Name Z–A', added: 'Recently added', played: 'Recently played', time: 'Most played', genre: 'Genre' };
+const STATUS_LABEL: Record<StatusFilter, string> = { all: 'Any status', unplayed: 'Not played', played: 'Played', gone: 'File gone', unconfirmed: 'Genre not confirmed' };
 const GENRE_KEY = 'j2me-web.library.genre';
 const loadGenre = (): GenreFilter => { try { const v = localStorage.getItem(GENRE_KEY); return v === 'unclassified' || (GENRES as readonly string[]).includes(v ?? '') ? (v as GenreFilter) : 'all'; } catch { return 'all'; } };
 type View = 'tiles' | 'list';
@@ -49,6 +56,10 @@ export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['ki
   const [editing, setEditing] = useState<GameMeta | null>(null);
   const [infoFor, setInfoFor] = useState<GameMeta | null>(null);
   const [genreFor, setGenreFor] = useState<GameMeta | null>(null);
+  const [sort, setSortState] = useState<SortKey>(loadSort);
+  const setSort = (v: SortKey) => { setSortState(v); try { localStorage.setItem(SORT_STORE, v); } catch { /* storage unavailable */ } };
+  const [status, setStatusState] = useState<StatusFilter>(loadStatus);
+  const setStatus = (v: StatusFilter) => { setStatusState(v); try { localStorage.setItem(STATUS_STORE, v); } catch { /* storage unavailable */ } };
   const [genre, setGenreState] = useState<GenreFilter>(loadGenre);
   const setGenre = (g: GenreFilter) => { setGenreState(g); try { localStorage.setItem(GENRE_KEY, g); } catch { /* storage unavailable */ } };
   const [scan, setScan] = useState<ScanReport | null>(null);
@@ -141,8 +152,9 @@ export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['ki
       .filter((vs) => !needle || vs.some((g) => `${g.name} ${g.vendor} ${g.classification?.canonicalTitle ?? ''} ${g.classification?.primaryGenre ?? ''} ${(g.classification?.tags ?? []).join(' ')}`.toLowerCase().includes(needle)))
       .filter((vs) => genre === 'all' || (genre === 'unclassified' ? !vs[0]!.classification : vs[0]!.classification?.primaryGenre === genre || !!vs[0]!.classification?.genres.includes(genre)))
       .filter((vs) => (filter === 'favorites' ? vs.some((g) => g.favorite) : filter === 'recent' ? vs.some((g) => g.lastPlayedAt) : true))
-      .sort((a, b) => (filter === 'recent' ? (b[0]!.lastPlayedAt ?? '').localeCompare(a[0]!.lastPlayedAt ?? '') : a[0]!.name.localeCompare(b[0]!.name)));
-  }, [games, query, filter, genre]);
+      .filter((vs) => matchesStatus(vs, status))
+      .sort((a, b) => compareGroups(a, b, filter === 'recent' && sort === 'name' ? 'played' : sort)); // "Recent" keeps its order unless another one is chosen
+  }, [games, query, filter, genre, status, sort]);
 
   // games per genre (one per group, so the versions of a game count once), from what is already loaded
   const genreCounts = useMemo(() => {
@@ -168,6 +180,12 @@ export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['ki
         </div>
         <span className="spacer" />
         <Seg<View> label={translateUI("View")} value={view} onChange={setView} options={[{ value: 'tiles', label: 'Tiles', title: 'Large tiles with covers' }, { value: 'list', label: 'List', title: 'Compact list, one game per line' }]} />
+        <select className="select compact" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} aria-label={translateUI("Sort by")} data-testid="sort">
+          {SORT_KEYS.map((k) => <option key={k} value={k}>{translateUI(SORT_LABEL[k])}</option>)}
+        </select>
+        <select className="select compact" value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)} aria-label={translateUI("Show games")} data-testid="status-filter">
+          {STATUS_FILTERS.map((k) => <option key={k} value={k}>{translateUI(STATUS_LABEL[k])}</option>)}
+        </select>
         <Seg<Filter> label={translateUI("Filter")} value={filter} onChange={setFilter} options={[{ value: 'all', label: 'All' }, { value: 'favorites', label: 'Favorites' }, { value: 'recent', label: 'Recent' }]} />
         {libraryPath && <button className="btn" disabled={scanning} onClick={() => void api.scanStart('update').then((r) => setScan(r.report), (e) => toast('error', (e as Error).message))} title={translateUI("Look for new and changed files in the library folder")}><Icon name="restart" /> {translateUI(scanning ? 'Importing…' : 'Scan folder')}</button>}
         <button className="btn primary" onClick={() => fileInput.current?.click()}><Icon name="upload" /> {translateUI("Add games")}</button>
@@ -213,7 +231,7 @@ export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['ki
                 <div className="meta">
                   <h3>{sel.name}</h3>
                   <p className="muted">{translateUI(sel.info?.year ? `${sel.vendor} · ${sel.info.year}` : sel.vendor)}</p>
-                  <p className={`playtime${vs.some((v) => v.playSeconds) ? '' : ' none'}`} data-testid="playtime" title={translateUI("Time spent in this game, all versions together")}>{playTime(vs.reduce((n, v) => n + (v.playSeconds ?? 0), 0)) ?? translateUI('not played yet')}</p>
+                  <p className={`playtime${totalPlaySeconds(vs) ? '' : ' none'}`} data-testid="playtime" title={translateUI("Time spent in this game, all versions together")}><Icon name="clock" /> {playTime(totalPlaySeconds(vs)) ?? '0'}</p>
                 </div>
               </button>
               <div className="card-foot">

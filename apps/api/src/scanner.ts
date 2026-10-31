@@ -224,6 +224,7 @@ export class ScanManager {
     r.state = state;
     r.current = null;
     r.finishedAt = new Date().toISOString();
+    try { this.library.assignGenresFromFolders(); } catch { /* genres are a convenience: a failure here must not fail the import */ }
     this.library.saveScan(r.id, r.startedAt, r.finishedAt, r);
     try { this.hooks.onFinished?.(r); } catch { /* a hook must not break the scan */ }
   }

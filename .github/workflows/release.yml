@@ -3,7 +3,9 @@ name: Release
 # Publishing a GitHub Release starts the release archive and GHCR Docker-image builds.
 # Actions -> Run workflow: leave release_tag empty for a build-only check; supply an
 # EXISTING Release tag to publish/re-publish assets and images for that tag.
-# Beta images keep the :latest alias while the project is in public beta.
+# Tags: x.y.z is immutable (a version that is already in GHCR is never rebuilt or overwritten: cut a new version instead);
+# :latest moves ONLY for an official release (a version without a -beta/-rc suffix, not marked as a pre-release);
+# :edge is published by edge.yml after every green CI on main.
 on:
   release:
     types: [published]
@@ -39,6 +41,7 @@ jobs:
         id: v
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag || '' }}
+          IS_PRERELEASE: ${{ github.event.release.prerelease || 'false' }}
           PREVIEW_VERSION: ${{ inputs.version || '0.0.0-dev' }}
         run: |
           if [[ -n "$RELEASE_TAG" ]]; then
@@ -112,7 +115,11 @@ jobs:
           [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.]+)?$ ]] || { echo "bad version: $v"; exit 1; }
           owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
           tags_app="ghcr.io/$owner/jgo:$v"; tags_gw="ghcr.io/$owner/jgo-gateway:$v"
-          case "$v" in *-alpha*|*-rc*|*-dev*) ;; *) tags_app="$tags_app,ghcr.io/$owner/jgo:latest"; tags_gw="$tags_gw,ghcr.io/$owner/jgo-gateway:latest";; esac
+          # official = no pre-release suffix in the version and the GitHub Release is not marked as a pre-release
+          if [[ "$v" != *-* && "$IS_PRERELEASE" != "true" ]]; then
+            tags_app="$tags_app,ghcr.io/$owner/jgo:latest"; tags_gw="$tags_gw,ghcr.io/$owner/jgo-gateway:latest"
+          fi
+          echo "owner=$owner" >> "$GITHUB_OUTPUT"
           { echo "version=$v"; echo "app=$tags_app"; echo "gateway=$tags_gw"; } >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -121,6 +128,17 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Version tags are immutable
+        id: exists
+        if: steps.v.outputs.publish == 'true'
+        run: |
+          v="${{ steps.v.outputs.version }}"; owner="${{ steps.v.outputs.owner }}"
+          for img in jgo jgo-gateway; do
+            if docker buildx imagetools inspect "ghcr.io/$owner/$img:$v" >/dev/null 2>&1; then
+              echo "::warning::ghcr.io/$owner/$img:$v already exists and is never overwritten (publish a new version instead)"
+              echo "${img//-/_}=true" >> "$GITHUB_OUTPUT"
+            fi
+          done
       - name: JGO image
         uses: docker/build-push-action@v6
         with:
@@ -128,7 +146,7 @@ jobs:
           file: runtime/Dockerfile
           build-args: |
             JGO_VERSION=${{ steps.v.outputs.version }}
-          push: ${{ steps.v.outputs.publish == 'true' }}
+          push: ${{ steps.v.outputs.publish == 'true' && steps.exists.outputs.jgo != 'true' }}
           tags: ${{ steps.v.outputs.app }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
@@ -142,7 +160,7 @@ jobs:
           context: .
           file: runtime/Dockerfile
           target: gateway
-          push: ${{ steps.v.outputs.publish == 'true' }}
+          push: ${{ steps.v.outputs.publish == 'true' && steps.exists.outputs.jgo_gateway != 'true' }}
           tags: ${{ steps.v.outputs.gateway }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}

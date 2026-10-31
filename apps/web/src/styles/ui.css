@@ -128,3 +128,7 @@ input[type='range'] { width: 100%; accent-color: var(--primary); height: 20px; }
 
 .hint-mark { display: inline-grid; place-items: center; width: 15px; height: 15px; margin-left: 4px; border-radius: 50%; border: 1px solid var(--outline-strong); color: var(--muted); font: 700 0.625rem/1 var(--sans, inherit); cursor: help; vertical-align: middle; text-transform: none; letter-spacing: 0; }
 .hint-mark:hover, .hint-mark:focus-visible { border-color: var(--primary); color: var(--primary); outline: none; }
+
+/* a button inside a panel never grows past it: long labels wrap */
+.panel-body > .btn, .panel-body > .btn-row > .btn { max-width: 100%; min-width: 0; }
+.btn.wrap { white-space: normal; height: auto; min-height: 40px; padding-block: 8px; line-height: 1.25; text-align: center; }

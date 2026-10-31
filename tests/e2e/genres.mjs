@@ -47,7 +47,7 @@ try {
   const catalog = { schema: 'jgo-curator-manifest-v1', generated_by: 'J2ME Curator', report_source_root: '\\\\192.168.1.5\\Games', target: 500, items: [
     item(jars.Turbo, { title: 'Turbo Race', genre: 'Racing' }),
     item(jars.Blocks, { title: 'Blocks', genre: 'Puzzle' }),
-    item(jars.Evil, { title: 'Evil', genre: 'Action' }),
+    item(jars.Evil, { title: '<img src=x onerror=alert(1)>', genre: 'Action' }),
     item(jars.Turbo, { sha256: 'f'.repeat(64), title: 'Not here', genre: 'Sports' }),
     item(jars.Mystery, { title: 'Mystery', genre: 'Space opera' }),
   ] };

@@ -134,6 +134,8 @@ export function registerAdminRoutes(app: FastifyInstance, c: AdminContext): void
   const catalogOpts = { bodyLimit: CATALOG_MAX_BYTES };
   const bySha = (sha: string) => library.groupOfSha(sha);
   app.get('/api/library/genres', async () => library.classes.summary());
+  // the folder a file was imported from names its genre (…/Racing/Asphalt.jar); weaker than the catalog, MobyGames and your own choice
+  app.post('/api/library/genres/from-folders', async () => library.assignGenresFromFolders());
   // A catalog file carries SHA-256 hashes, titles and genres only. Preview changes nothing; import writes what preview showed.
   app.post<{ Body: unknown }>('/api/library/catalog/preview', catalogOpts, async (req) => library.classes.analyze(Classifications.parse(req.body), bySha).report);
   app.post<{ Body: unknown }>('/api/library/catalog/import', catalogOpts, async (req) => library.classes.importCatalog(Classifications.parse(req.body), bySha));

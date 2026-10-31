@@ -162,7 +162,7 @@ describe('genres: classifications by game, a catalog imported by SHA-256', () =>
     assert.equal(c.canonicalTitle, '<script>alert(1)</script>');
     assert.deepEqual(c.tags, ['<b>x</b>']);
     const game = (await call('GET', `/api/games/${ids.nasty}`)).json;
-    assert.equal(game.name, '<img src=x onerror=alert(1)>', 'text, not markup: React escapes it when rendering');
+    assert.equal(game.name, '<script>alert(1)</script>', 'the catalog title is shown, as plain text (React escapes it when rendering)');
   });
 
   it('the export can be imported again, and the classifications are in library.sqlite (a backup keeps them)', async () => {
@@ -232,6 +232,53 @@ describe('genres: classifications by game, a catalog imported by SHA-256', () =>
     assert.equal(patched.favorite, true);
     assert.deepEqual(patched.classification, before);
     assert.deepEqual((await call('GET', `/api/games/${ids.checked}`)).json.classification, before);
+  });
+
+  it('a genre can come from the folder a file sits in, and is the weakest source after a guess', async () => {
+    const dir = tmpDir('jgo-folders-');
+    const lib = new Library(dir);
+    const add = (name: string) => lib.add(makeJar(name, { vendor: 'ACME' }), null, 1 << 30).game.groupKey;
+    const racer = add('Racer'), shooter = add('Shooter'), twin = add('Twin'), curated = add('Curated'), mine = add('Mine'), nofolder = add('Plain');
+    lib.classes.importCatalog({ schema: 1, games: [] }, () => null);
+    lib.classes.setManual(mine, { primaryGenre: 'Puzzle' });
+    const r1 = lib.classes.assignFromFolders([
+      { groupKey: racer, relPath: 'JGO-Top500/Racing/Racer.jar' },
+      { groupKey: shooter, relPath: 'top/action/sub/Shooter.jar' },
+      { groupKey: twin, relPath: 'Racing/Twin.jar' },
+      { groupKey: twin, relPath: 'Sports/Twin v2.jar' },
+      { groupKey: mine, relPath: 'Racing/Mine.jar' },
+      { groupKey: nofolder, relPath: 'misc/Plain.jar' },
+    ]);
+    assert.deepEqual(r1, { assigned: 2, unchanged: 0, skipped: 2 }, 'twin (two genres) and mine (hand-picked) are left alone');
+    assert.deepEqual([lib.classes.get(racer)?.primaryGenre, lib.classes.get(racer)?.source, lib.classes.get(racer)?.unconfirmed], ['Racing', 'folder', false]);
+    assert.equal(lib.classes.get(shooter)?.primaryGenre, 'Action', 'folder names match without regard to case, at any depth');
+    assert.equal(lib.classes.get(twin), null);
+    assert.equal(lib.classes.get(mine)?.primaryGenre, 'Puzzle');
+    assert.equal(lib.classes.get(nofolder), null);
+    assert.deepEqual(lib.classes.assignFromFolders([{ groupKey: racer, relPath: 'JGO-Top500/Racing/Racer.jar' }]), { assigned: 0, unchanged: 1, skipped: 0 }, 'idempotent');
+    // a catalog entry outranks the folder; a folder outranks a guess
+    const sha = createHash('sha256').update(makeJar('Curated', { vendor: 'ACME' })).digest('hex');
+    lib.classes.importCatalog({ schema: 1, games: [{ sha256: sha, genre: 'Strategy' }] }, (x) => (x === sha ? curated : null));
+    assert.equal(lib.classes.assignFromFolders([{ groupKey: curated, relPath: 'Sports/Curated.jar' }]).skipped, 1);
+    assert.equal(lib.classes.get(curated)?.primaryGenre, 'Strategy');
+    lib.classes.importCatalog({ schema: 1, games: [{ sha256: createHash('sha256').update(makeJar('Racer', { vendor: 'ACME' })).digest('hex'), genre: 'Other', confidence: 'unclassified' }] }, () => racer);
+    assert.equal(lib.classes.get(racer)?.primaryGenre, 'Racing', 'a guess does not replace a folder genre');
+    lib.close();
+  });
+
+  it('shows clean titles: release-group tags and file-name style words are fixed, a catalog title wins', async () => {
+    const a = app.library.add(makeJar('Asphalt 3 **MASYAKA**', { vendor: 'Gameloft SA by dedomil.net' }), null, 1 << 30).game;
+    const b = app.library.add(makeJar('ExtremeAirSnowboarding3D', { vendor: 'Sefan' }), null, 1 << 30).game;
+    const c = app.library.add(makeJar('ewjim', { vendor: 'Shiny' }), null, 1 << 30).game;
+    assert.deepEqual([a.name, a.vendor, b.name], ['Asphalt 3', 'Gameloft SA', 'Extreme Air Snowboarding 3D']);
+    assert.equal((await call('GET', `/api/games/${c.id}`)).json.name, 'Ewjim');
+    const sha2 = createHash('sha256').update(makeJar('ewjim', { vendor: 'Shiny' })).digest('hex');
+    await call('POST', '/api/library/catalog/import', catalog([{ sha256: sha2, title: 'Earthworm Jim', genre: 'Platformer' }]));
+    assert.equal((await call('GET', `/api/games/${c.id}`)).json.name, 'Earthworm Jim', 'the title from the catalog');
+    assert.equal(app.library.list().find((g) => g.id === c.id)!.name, 'Earthworm Jim');
+    // the same game with and without tags is one game
+    const a2 = app.library.add(makeJar('Asphalt 3', { vendor: 'Gameloft SA', version: '9.9' }), null, 1 << 30).game;
+    assert.equal(a2.groupKey, a.groupKey);
   });
 
   it('an older database without the table is upgraded in place, and no game is lost', () => {

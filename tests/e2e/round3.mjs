@@ -28,7 +28,7 @@ try {
   // ---- play time: none before the first launch, counted afterwards ----
   await p.goto(base + '/');
   await p.locator('.game-card').first().waitFor();
-  assert.equal(await p.getByTestId('playtime').innerText(), 'not played yet');
+  assert.equal(await p.getByTestId('playtime').innerText(), '0');
   const s = await (await fetch(base + '/api/sessions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ gameId: game.id }) })).json();
   await wait(async () => (await (await fetch(base + '/api/sessions/' + s.id)).json()).state === 'running', 'running');
   await sleep(3200);

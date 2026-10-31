@@ -90,7 +90,8 @@ export type Genre = (typeof GENRES)[number];
 export const isGenre = (v: unknown): v is Genre => typeof v === 'string' && (GENRES as readonly string[]).includes(v);
 
 /** Where a classification came from, strongest first: the user's own choice, MobyGames, the curated catalog, a guess. */
-export type ClassificationSource = 'manual' | 'mobygames' | 'curator' | 'heuristic';
+/** `folder`: the genre is the name of a folder the file sits in (JGO-Top500/Racing/...). */
+export type ClassificationSource = 'manual' | 'mobygames' | 'curator' | 'folder' | 'heuristic';
 export type ClassificationConfidence = 'manual' | 'verified' | 'curated' | 'heuristic' | 'unclassified';
 
 export interface GameClassification {
