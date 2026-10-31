@@ -22,9 +22,11 @@
 
 ```bash
 mkdir jgo && cd jgo
-curl -fsSLO https://github.com/grayhex/JGO/releases/latest/download/compose.yaml
-curl -fsSL https://github.com/grayhex/JGO/releases/latest/download/env.example -o .env
+curl -fsSLO https://raw.githubusercontent.com/grayhex/JGO/main/compose.yaml
+curl -fsSL https://raw.githubusercontent.com/grayhex/JGO/main/.env.example -o .env
 ```
+Эти же файлы прикрепляются к каждому [релизу](https://github.com/grayhex/JGO/releases). Ссылка GitHub `/releases/latest` **не показывает prerelease**, поэтому быстрый старт скачивает конфигурацию из `main`. Для воспроизводимой установки укажите в `.env` `JGO_VERSION` опубликованного образа (номер тега без необязательной `v`).
+
 
 Откройте `.env` и впишите токен доступа (не короче 16 символов). Сгенерировать:
 
@@ -166,7 +168,7 @@ docker compose -f compose.yaml -f compose.egress.yaml up -d
 ```bash
 git clone https://github.com/grayhex/JGO && cd JGO
 cp .env.example .env    # впишите JGO_TOKEN
-docker compose up -d --build
+docker compose -f compose.yaml -f compose.build.yaml up -d --build
 ```
 
-Первая сборка занимает 10–20 минут (клонируется и собирается KEmulator, компилируется Rust-адаптер). Образ использует закреплённый коммит KEmulator и патчи из `runtime/patches`; других внешних исходников в репозитории нет.
+Только `compose.build.yaml` включает сборку из исходников; обычный `compose.yaml` использует готовые GHCR-образы. Первая сборка занимает 10–20 минут (клонируется и собирается KEmulator, компилируется Rust-адаптер). Образ использует закреплённый коммит KEmulator и патчи из `runtime/patches`; других внешних исходников в репозитории нет.
