@@ -498,7 +498,6 @@
   "Genre removed": "Жанр убран",
   "Genres": "Жанры",
   "Genres imported": "Жанры импортированы",
-  "A genre catalog (jgo_catalog.json) lists games by SHA-256 hash and genre. Only games already in the library are changed; nothing is added or deleted, and genres you set by hand are kept.": "Каталог жанров (jgo_catalog.json) перечисляет игры по хэшу SHA-256 и жанру. Меняются только игры, которые уже есть в библиотеке: ничего не добавляется и не удаляется, а жанры, выбранные вручную, сохраняются.",
   "Choose catalog file…": "Выбрать файл каталога…",
   "Import {n} games": "Импортировать игр: {n}",
   "Export genres": "Экспортировать жанры",
@@ -528,5 +527,6 @@
   "Simulation": "Симулятор",
   "Sports": "Спорт",
   "Strategy": "Стратегия",
-  "Filter by genre": "Фильтр по жанру"
+  "Filter by genre": "Фильтр по жанру",
+  "A genre catalog (jgo_catalog.json) lists games by SHA-256 hash and genre. Only the hash, title and genre are sent to the server, never file paths. Only games already in the library are changed; nothing is added or deleted, and genres you set by hand are kept.": "Каталог жанров (jgo_catalog.json) перечисляет игры по хэшу SHA-256 и жанру. На сервер уходят только хэш, название и жанр, пути к файлам не передаются. Меняются только игры, которые уже есть в библиотеке: ничего не добавляется и не удаляется, а жанры, выбранные вручную, сохраняются."
 }

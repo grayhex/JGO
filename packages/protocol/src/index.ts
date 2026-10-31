@@ -1,4 +1,5 @@
 export * from './phones.js';
+export * from './catalog.js';
 /**
  * Wire protocol shared by the API and the web client. It is provider-neutral:
  * nothing here knows about Docker, Cloudflare or KEmulator internals.
@@ -118,6 +119,8 @@ export interface CatalogEntry {
   genre: string;
   genres?: string[];
   tags?: string[];
+  /** How sure the curator is: `manual` / `curated` (checked by hand), `heuristic` (a guess) or `unclassified`. Default: curated. */
+  confidence?: string;
 }
 export interface CatalogFile {
   schema: 1;

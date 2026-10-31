@@ -1,5 +1,5 @@
 import { t as translateUI } from '../i18n';
-import type { CatalogReport, GenreSummary } from '@j2me-web/protocol';
+import { normalizeCatalog, type CatalogReport, type GenreSummary } from '@j2me-web/protocol';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 
@@ -23,6 +23,8 @@ export function CatalogPanel({ toast, onChanged }: { toast: Toaster; onChanged: 
     if (f.size > MAX_BYTES) { toast('error', 'The catalog file is larger than 2 MB'); return; }
     let json: unknown;
     try { json = JSON.parse(await f.text()); } catch { toast('error', 'That file is not valid JSON'); return; }
+    // only the hash, title, genre and confidence are sent; file names and paths of the collection stay in the browser
+    try { json = normalizeCatalog(json); } catch (e) { toast('error', (e as Error).message); return; }
     setBusy(true);
     try { setReport(await api.catalogPreview(json)); setFile({ name: f.name, json }); } catch (e) { toast('error', (e as Error).message); } finally { setBusy(false); }
   };
@@ -35,7 +37,7 @@ export function CatalogPanel({ toast, onChanged }: { toast: Toaster; onChanged: 
 
   return (
     <div className="catalog-panel" data-testid="catalog-panel">
-      <p className="hint">{translateUI("A genre catalog (jgo_catalog.json) lists games by SHA-256 hash and genre. Only games already in the library are changed; nothing is added or deleted, and genres you set by hand are kept.")}</p>
+      <p className="hint">{translateUI("A genre catalog (jgo_catalog.json) lists games by SHA-256 hash and genre. Only the hash, title and genre are sent to the server, never file paths. Only games already in the library are changed; nothing is added or deleted, and genres you set by hand are kept.")}</p>
       <div className="btn-row">
         <button className="btn" disabled={busy} onClick={() => input.current?.click()}>{translateUI("Choose catalog file…")}</button>
         <input ref={input} type="file" accept=".json,application/json" hidden data-testid="catalog-file" onChange={(e) => { void pick(e.target.files?.[0]); e.target.value = ''; }} />

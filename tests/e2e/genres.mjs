@@ -42,16 +42,22 @@ try {
   console.log('✔ without genres the cards offer to choose one');
 
   // ---- Settings: preview shows what would happen and changes nothing; confirm writes ----
-  const catalog = { schema: 1, games: [
-    { sha256: sha(jars.Turbo), title: 'Turbo Race', genre: 'Racing', tags: ['cars'] },
-    { sha256: sha(jars.Blocks), title: 'Blocks', genre: 'Puzzle' },
-    { sha256: sha(jars.Evil), genre: 'Action' },
-    { sha256: 'f'.repeat(64), title: 'Not here', genre: 'Sports' },
-    { sha256: sha(jars.Mystery), genre: 'Space opera' },
+  // the curator's own format, with the paths of its collection: they must stay in the browser
+  const item = (jar, over) => ({ rank: 1, title_key: 'x', genre_confidence: 'manual', source_relative: 'Gameloft (Nokia N81)\\Secret Path.jar', file: 'Secret Path.jar', resolution: '', vendor: 'ACME', version: '1', sha256: sha(jar), ...over });
+  const catalog = { schema: 'jgo-curator-manifest-v1', generated_by: 'J2ME Curator', report_source_root: '\\\\192.168.1.5\\Games', target: 500, items: [
+    item(jars.Turbo, { title: 'Turbo Race', genre: 'Racing' }),
+    item(jars.Blocks, { title: 'Blocks', genre: 'Puzzle' }),
+    item(jars.Evil, { title: 'Evil', genre: 'Action' }),
+    item(jars.Turbo, { sha256: 'f'.repeat(64), title: 'Not here', genre: 'Sports' }),
+    item(jars.Mystery, { title: 'Mystery', genre: 'Space opera' }),
   ] };
+  const sent = [];
+  p.on('request', (r) => { if (r.url().includes('/api/library/catalog/')) sent.push(r.postData() ?? ''); });
   await p.goto(base + '/settings#library');
   await p.getByTestId('catalog-file').setInputFiles({ name: 'jgo_catalog.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(catalog)) });
   const rep = p.getByTestId('catalog-report');
+  await rep.waitFor();
+  assert.ok(sent.length > 0 && sent.every((b) => !/Secret Path|192\.168|source_relative/.test(b)), 'no file paths were sent to the server');
   await rep.waitFor();
   const txt = await rep.innerText();
   assert.match(txt, /preview/i);

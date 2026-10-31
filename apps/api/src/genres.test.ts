@@ -183,6 +183,34 @@ describe('genres: classifications by game, a catalog imported by SHA-256', () =>
     restored.close();
   });
 
+  it('reads the curator manifest: confidence maps to the source, paths are dropped, checked entries outweigh guesses', async () => {
+    const extra = { guess: makeJar('Guess', { vendor: 'ACME' }), blank: makeJar('Blank', { vendor: 'ACME' }), checked: makeJar('Checked', { vendor: 'ACME' }) };
+    for (const [k, jar] of Object.entries(extra)) { const { game } = app.library.add(jar, null, 1 << 30); ids[k] = game.id; group[k] = game.groupKey; }
+    const item = (jar: Uint8Array, over: object) => ({ rank: 1, title: 'T', title_key: 't', genre: 'Action', genre_confidence: 'manual', sha256: sha(jar), source_relative: 'Gameloft\\Secret.jar', file: 'Secret.jar', resolution: '', vendor: 'V', version: '1', ...over });
+    const manifest = { schema: 'jgo-curator-manifest-v1', generated_by: 'J2ME Curator 1.1.0', report_source_root: '\\\\192.168.1.5\\Games', target: 500, items: [
+      item(extra.checked, { title: 'Checked', genre: 'Sports' }),
+      item(extra.guess, { title: 'Guess', genre: 'Strategy', genre_confidence: 'heuristic' }),
+      item(extra.blank, { title: 'Blank', genre: 'Other', genre_confidence: 'unclassified' }),
+      item(jars.other, { genre: 'Action', genre_confidence: 'psychic' }),
+    ] };
+    const pre = await call('POST', '/api/library/catalog/preview', manifest);
+    assert.equal(pre.status, 200, pre.text);
+    assert.deepEqual([pre.json.entries, pre.json.ok, pre.json.invalid], [4, 3, 1]);
+    assert.ok(!JSON.stringify(pre.json).includes('Secret') && !JSON.stringify(pre.json).includes('192.168'), 'no path in the answer');
+    const r = await call('POST', '/api/library/catalog/import', manifest);
+    assert.equal(r.json.applied, 3);
+    assert.deepEqual([genreOf('checked').source, genreOf('checked').confidence, genreOf('checked').unconfirmed], ['curator', 'curated', false]);
+    assert.deepEqual([genreOf('guess').source, genreOf('guess').confidence, genreOf('guess').unconfirmed], ['heuristic', 'heuristic', true]);
+    assert.deepEqual([genreOf('blank').primaryGenre, genreOf('blank').confidence, genreOf('blank').unconfirmed], ['Other', 'unclassified', true]);
+    assert.ok(!JSON.stringify(app.library.db.prepare('SELECT * FROM game_classifications').all()).includes('Secret'), 'paths were never stored');
+    assert.equal((await call('POST', '/api/library/catalog/import', manifest)).json.unchanged, 3, 'idempotent');
+    // a later, checked entry replaces a guess; a guess never replaces a checked entry
+    const upgrade = await call('POST', '/api/library/catalog/import', { ...manifest, items: [item(extra.guess, { title: 'Guess', genre: 'Puzzle' }), item(extra.checked, { genre: 'Arcade', genre_confidence: 'heuristic' })] });
+    assert.deepEqual([upgrade.json.applied, upgrade.json.protected], [1, 1]);
+    assert.deepEqual([genreOf('guess').primaryGenre, genreOf('guess').confidence], ['Puzzle', 'curated']);
+    assert.equal(genreOf('checked').primaryGenre, 'Sports');
+  });
+
   it('an older database without the table is upgraded in place, and no game is lost', () => {
     const dir = tmpDir('jgo-old-');
     const old = new Library(dir);

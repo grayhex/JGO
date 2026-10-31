@@ -2,6 +2,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import {
   GENRES,
   isGenre,
+  normalizeCatalog,
   type CatalogEntryState,
   type CatalogFile,
   type CatalogReport,
@@ -36,6 +37,8 @@ interface Row {
 }
 
 export interface ClassInput {
+  /** `heuristic` when the catalog only guessed; `unclassified` marks a guess that found no genre at all. */
+  confidence?: 'curated' | 'heuristic' | 'unclassified';
   primaryGenre: Genre;
   genres?: Genre[];
   tags?: string[];
@@ -132,7 +135,7 @@ export class Classifications {
     return RANK[cur.source] > RANK[source] ? 'protected' : null;
   }
 
-  private write(groupKey: string, i: ClassInput, source: ClassificationSource, locked: boolean): void {
+  private write(groupKey: string, i: ClassInput, source: ClassificationSource, locked: boolean, confidence?: ClassificationConfidence): void {
     const genres = [...new Set([i.primaryGenre, ...(i.genres ?? [])])];
     this.db
       .prepare(
@@ -141,7 +144,7 @@ export class Classifications {
          ON CONFLICT(group_key) DO UPDATE SET canonical_title=excluded.canonical_title, primary_genre=excluded.primary_genre, genres_json=excluded.genres_json,
            tags_json=excluded.tags_json, source=excluded.source, confidence=excluded.confidence, locked=excluded.locked, updated_at=excluded.updated_at`,
       )
-      .run(groupKey, i.canonicalTitle ?? null, i.primaryGenre, JSON.stringify(genres), JSON.stringify(i.tags ?? []), source, CONFIDENCE[source], locked ? 1 : 0, new Date().toISOString());
+      .run(groupKey, i.canonicalTitle ?? null, i.primaryGenre, JSON.stringify(genres), JSON.stringify(i.tags ?? []), source, confidence ?? CONFIDENCE[source], locked ? 1 : 0, new Date().toISOString());
   }
 
   /** The user's choice: always wins, and from then on nothing else may change it. Omitted fields keep their current value. */
@@ -194,20 +197,18 @@ export class Classifications {
   // ---------------------------------------------------------------- the catalog file
   /** Checks the structure of a catalog file. A broken file is refused whole; a broken entry is reported and skipped later. */
   static parse(body: unknown): CatalogFile {
-    if (typeof body !== 'object' || body === null || Array.isArray(body)) throw bad('The catalog must be a JSON object');
-    const o = body as Record<string, unknown>;
-    if (o.schema !== 1) throw bad('Unsupported catalog schema (expected "schema": 1)');
-    if (!Array.isArray(o.games)) throw bad('The catalog needs a "games" list');
-    if (o.games.length > CATALOG_MAX_ENTRIES) throw bad(`The catalog has more than ${CATALOG_MAX_ENTRIES} games`, 413);
-    return { schema: 1, ...(typeof o.generated === 'string' ? { generated: sanitizeText(o.generated, 40) } : {}), games: o.games as CatalogFile['games'] };
+    let file: CatalogFile;
+    try { file = normalizeCatalog(body); } catch (e) { throw bad((e as Error).message); }
+    if (file.games.length > CATALOG_MAX_ENTRIES) throw bad(`The catalog has more than ${CATALOG_MAX_ENTRIES} games`, 413);
+    return file;
   }
 
   /**
    * Matches every entry by SHA-256 and decides what an import would do, without writing. Entries are matched to the
    * group (all versions of a game) of the file with that hash; hashes that are not in the library are only counted.
    */
-  analyze(file: CatalogFile, shaToGroup: (sha: string) => string | null): { report: CatalogReport; writes: { groupKey: string; input: ClassInput }[] } {
-    type Cand = { idx: number; sha: string; groupKey: string; title: string | undefined; input: ClassInput };
+  analyze(file: CatalogFile, shaToGroup: (sha: string) => string | null): { report: CatalogReport; writes: { groupKey: string; input: ClassInput; source: ClassificationSource }[] } {
+    type Cand = { idx: number; sha: string; groupKey: string; title: string | undefined; conf: 'curated' | 'heuristic' | 'unclassified'; input: ClassInput };
     const report: CatalogReport = { entries: file.games.length, ok: 0, applied: 0, unchanged: 0, missing: 0, conflict: 0, locked: 0, protected: 0, invalid: 0, items: [] };
     const shown: Record<string, number> = {};
     const note = (state: CatalogEntryState, sha: string, extra: { title?: string; genre?: string; detail?: string } = {}) => {
@@ -230,22 +231,29 @@ export class Classifications {
       if (e.tags !== undefined) {
         try { tags = cleanTags(e.tags); } catch (err) { return fail((err as Error).message); }
       }
+      const c = e.confidence;
+      if (c !== undefined && !['manual', 'curated', 'heuristic', 'unclassified'].includes(String(c))) return fail(`unknown confidence "${sanitizeText(String(c), 40)}"`);
+      const conf = c === 'heuristic' ? 'heuristic' : c === 'unclassified' ? 'unclassified' : 'curated';
       const groupKey = shaToGroup(sha);
       if (!groupKey) { report.missing++; note('missing', sha, { ...(title ? { title } : {}), genre: e.genre }); return; }
-      cands.push({ idx, sha, groupKey, title, input: { primaryGenre: e.genre, genres: extra, tags, canonicalTitle: title ?? null } });
+      cands.push({ idx, sha, groupKey, title, conf, input: { primaryGenre: e.genre, genres: extra, tags, canonicalTitle: title ?? null } });
     });
 
     // one group, one genre: two files of a game that the catalog puts in different genres are left alone (not guessed)
     const byGroup = new Map<string, Cand[]>();
     for (const c of cands) (byGroup.get(c.groupKey) ?? byGroup.set(c.groupKey, []).get(c.groupKey)!).push(c);
-    const writes: { groupKey: string; input: ClassInput }[] = [];
-    for (const [groupKey, list] of byGroup) {
+    const writes: { groupKey: string; input: ClassInput; source: ClassificationSource }[] = [];
+    for (const [groupKey, all] of byGroup) {
+      // a checked entry outweighs a guess about the same game
+      const list = all.some((c) => c.conf === 'curated') ? all.filter((c) => c.conf === 'curated') : all;
+      const conf = list.some((c) => c.conf === 'curated') ? 'curated' : list.every((c) => c.conf === 'unclassified') ? 'unclassified' : 'heuristic';
+      const source: ClassificationSource = conf === 'curated' ? 'curator' : 'heuristic';
       const genres = new Set(list.map((c) => c.input.primaryGenre));
       if (genres.size > 1) {
         for (const c of list) { report.conflict++; note('conflict', c.sha, { ...(c.title ? { title: c.title } : {}), genre: c.input.primaryGenre, detail: `the same game is listed as ${[...genres].join(' and ')}` }); }
         continue;
       }
-      const why = this.refusal(groupKey, 'curator');
+      const why = this.refusal(groupKey, source);
       if (why) {
         for (const c of list) { report[why]++; note(why, c.sha, { ...(c.title ? { title: c.title } : {}), genre: c.input.primaryGenre, detail: why === 'locked' ? 'the genre was chosen by hand' : 'a MobyGames genre is already set' }); }
         continue;
@@ -257,12 +265,13 @@ export class Classifications {
         genres: [...new Set(list.flatMap((c) => c.input.genres ?? []))],
         tags: [...new Set(list.flatMap((c) => c.input.tags ?? []))].slice(0, MAX_TAGS),
         canonicalTitle: list.map((c) => c.title).find(Boolean) ?? null,
+        confidence: conf,
       };
       const cur = this.get(groupKey);
-      const same = cur && cur.source === 'curator' && cur.primaryGenre === merged.primaryGenre && cur.canonicalTitle === merged.canonicalTitle
+      const same = cur && cur.source === source && cur.confidence === conf && cur.primaryGenre === merged.primaryGenre && cur.canonicalTitle === merged.canonicalTitle
         && JSON.stringify(cur.tags) === JSON.stringify(merged.tags) && JSON.stringify(cur.genres) === JSON.stringify([...new Set([merged.primaryGenre, ...(merged.genres ?? [])])]);
       if (same) report.unchanged += list.length;
-      else writes.push({ groupKey, input: merged });
+      else writes.push({ groupKey, input: merged, source });
     }
     return { report, writes };
   }
@@ -272,7 +281,7 @@ export class Classifications {
     const { report, writes } = this.analyze(file, shaToGroup);
     this.db.exec('BEGIN IMMEDIATE');
     try {
-      for (const w of writes) this.write(w.groupKey, w.input, 'curator', false);
+      for (const w of writes) this.write(w.groupKey, w.input, w.source, false, w.input.confidence === 'unclassified' ? 'unclassified' : undefined);
       this.db.exec('COMMIT');
     } catch (e) {
       this.db.exec('ROLLBACK');
@@ -289,7 +298,7 @@ export class Classifications {
     for (const f of files) {
       const c = cls.get(f.groupKey);
       if (!c) continue;
-      games.push({ sha256: f.sha256, title: c.canonicalTitle ?? f.name, genre: c.primaryGenre, ...(c.genres.length > 1 ? { genres: c.genres } : {}), ...(c.tags.length ? { tags: c.tags } : {}) });
+      games.push({ sha256: f.sha256, title: c.canonicalTitle ?? f.name, genre: c.primaryGenre, ...(c.genres.length > 1 ? { genres: c.genres } : {}), ...(c.tags.length ? { tags: c.tags } : {}), ...(c.source === 'heuristic' ? { confidence: c.confidence === 'unclassified' ? 'unclassified' : 'heuristic' } : {}) });
     }
     return { schema: 1, generated: new Date().toISOString(), games };
   }
