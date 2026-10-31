@@ -62,15 +62,12 @@ jobs:
         with:
           name: jgo-${{ steps.v.outputs.version }}
           path: dist-release/*
-      - name: Publish the GitHub release
-        if: github.ref_type == 'tag'
+            - name: Attach assets to published release
+        if: github.event_name == 'release'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          pre=""; case "${{ steps.v.outputs.version }}" in *-alpha*|*-rc*|*-dev*) pre="--prerelease";; esac
-          v="${{ steps.v.outputs.version }}"
-          gh release create "$GITHUB_REF_NAME" dist-release/* $pre --verify-tag --title "JGO $v" \
-            --notes "**Docker (recommended; NAS, Linux):** download compose.yaml and env.example from this release (save it as .env), set JGO_TOKEN, run \`docker compose up -d\`. Image: \`ghcr.io/grayhex/jgo:$v\`. Guide: docs/DOCKER.md.
+          gh release upload "$GITHUB_REF_NAME" dist-release/* --clobber
 
           **Proxmox VE (additional):** see docs/PROXMOX.md. Update inside the container: \`jgo update\`.
 
