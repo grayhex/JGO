@@ -63,10 +63,10 @@ try {
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.goto(base + '/phones');
+  await page.goto(base + '/phones/lab'); // the developer lab; /phones is the phone picker
   await page.waitForSelector('[data-testid=phone-nokia-e71]');
   await page.waitForFunction((count) => [...document.querySelectorAll('.skin-body')].every((i) => i.complete && i.naturalWidth > 0) && document.querySelectorAll('.skin-body').length === count * 2, IDS.length, { timeout: 20000 });
-  ok('/phones shows all ten models in both views (20 pictures, all loaded)', true);
+  ok('/phones/lab shows all ten models in both views (20 pictures, all loaded)', true);
   for (const id of IDS) {
     const c = cfg[id];
     const n = await page.locator(`[data-testid=phone-${id}] .skin-box`).count();
@@ -192,8 +192,7 @@ try {
   await page.waitForSelector('article.game-card h3:has-text("KemTest")');
   await page.click('article.game-card button.card-main');
   await page.waitForSelector('[data-testid=skin-lcd]');
-  await page.getByRole('radio', { name: /N95/ }).click();
-  ok('the player offers ten models', (await page.locator('.skin-picker [role=radio]').count()) === IDS.length);
+  ok('the player has no phone picker: the phones are chosen on /phones', (await page.locator('.skin-picker').count()) === 0);
   await page.click('.skin-lcd-overlay button.primary');
   await page.waitForFunction(() => document.querySelector('[data-testid=state-badge]')?.textContent?.includes('running'), null, { timeout: 25000 });
   const px = () => page.evaluate(() => { const c = document.querySelector('canvas'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let y = 0; for (let i = 0; i < d.length; i += 4) if (d[i] === 255 && d[i + 1] === 255 && d[i + 2] === 0) y++; return { w: c.width, h: c.height, yellow: y, tl: [d[0], d[1], d[2]] }; });
@@ -244,9 +243,13 @@ try {
   p = await point(page, 'nokia-n95', 'full', 'd5');
   await page.mouse.move(p.x, p.y); await page.mouse.down();
   await page.waitForFunction(() => { const c = document.querySelector('canvas'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; for (let i = 0; i < d.length; i += 4) if (d[i] === 255 && d[i + 1] === 255 && d[i + 2] === 0) return true; return false; }, null, { timeout: 6000 });
-  await page.getByRole('radio', { name: /K750i/ }).dispatchEvent('click');
+  // the phone is changed on /phones; the mouse button is still down on the key, so the clicks are dispatched
+  await page.getByRole('link', { name: 'Phones' }).dispatchEvent('click');
+  await page.locator('.phone-pick').nth(IDS.length - 1).waitFor();
+  ok('/phones offers ten models', (await page.locator('.phone-pick').count()) === IDS.length);
+  await page.getByRole('button', { name: /K750i/ }).dispatchEvent('click');
   await page.waitForSelector('.skin-box[data-skin="sony-ericsson-k750i"]');
-  await page.waitForFunction(() => { const c = document.querySelector('canvas'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; for (let i = 0; i < d.length; i += 4) if (d[i] === 255 && d[i + 1] === 255 && d[i + 2] === 0) return false; return true; }, null, { timeout: 6000 });
+  await page.waitForFunction(() => { const c = document.querySelector('.skin-canvas'); if (!c) return false; const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; for (let i = 0; i < d.length; i += 4) if (d[i] === 255 && d[i + 1] === 255 && d[i + 2] === 0) return false; return true; }, null, { timeout: 6000 });
   await page.mouse.up();
   ok('changing the model releases a held key', true);
   const geo2 = await page.evaluate(() => { const cv = document.querySelector('canvas'); const c = cv.getBoundingClientRect(); const l = document.querySelector('[data-testid=skin-lcd]').getBoundingClientRect(); return { ratio: c.width / c.height, fw: cv.width / cv.height, inLcd: c.left >= l.left - 1 && c.right <= l.right + 1 && c.top >= l.top - 1 && c.bottom <= l.bottom + 1, lcdRatio: l.width / l.height }; });
@@ -263,9 +266,9 @@ try {
   const m = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   await m.addInitScript(()=>localStorage.setItem('jgo.developer-mode','true'));
   const mp = await m.newPage();
-  await mp.goto(base + '/phones');
+  await mp.goto(base + '/phones/lab');
   await mp.waitForSelector('[data-testid=phone-nokia-6100] .skin-box');
-  ok('/phones fits a phone screen without horizontal scroll', await mp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+  ok('/phones/lab fits a phone screen without horizontal scroll', await mp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
   await mp.screenshot({ path: path.join(outDir, 'skin-08-mobile-phones.png') });
 
   ok('no uncaught browser errors', errors.length === 0, errors.slice(0, 3).join(' | '));

@@ -3,6 +3,8 @@ import { useDeveloperMode } from '../developer';
 import { isPhoneId, resolvePhone } from '@j2me-web/protocol';
 import { TextEditor } from './TextEditor';
 import { RecordingPanel } from './RecordingPanel';
+import { getLastGame, setLastGame } from '../lastGame';
+import { navigate } from '../router';
 import { GameFilesPanel } from './GameFilesPanel';
 import { EmulationTweaksForm } from './EmulationTweaksForm';
 import { Recorder, Replayer } from '../recording';
@@ -24,8 +26,8 @@ import { Icon } from './Icon';
 import { KeyMapDialog } from './KeyMapDialog';
 import { Keypad } from './Keypad';
 import { Modal } from './Modal';
-import { SkinPicker, SkinStatus } from './SkinPicker';
-import { Meter, Panel, Seg, Spark, Switch } from './ui';
+import { SkinStatus } from './SkinPicker';
+import { Hint, Meter, Panel, Seg, Spark, Switch } from './ui';
 import { audioSettings, buzz, controlSettings } from '../serverSettings';
 import { nextRotation, unrotatePoint, type Rotation } from '../skin/geometry';
 import { useRotation } from '../skin/rotation';
@@ -67,6 +69,10 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   const recorder = useRef(new Recorder()).current;
   const replayer = useRef(new Replayer()).current;
   const [link, setLink] = useState<string | null>(null);
+  const [showFps, setShowFpsState] = useState(() => { try { return localStorage.getItem('j2me-web.fps') === '1'; } catch { return false; } });
+  const setShowFps = (v: boolean) => { setShowFpsState(v); try { localStorage.setItem('j2me-web.fps', v ? '1' : '0'); } catch { /* storage unavailable */ } };
+  const [fps, setFps] = useState(0);
+  const framesSeen = useRef(0);
   const [pauseInfo, setPauseInfo] = useState<{ on: boolean; reason: 'manual' | 'hidden' } | null>(null);
   const [textArea, setTextArea] = useState<Extract<ServerEvent, { t: 'text' }>['area']>(null);
   const [menu, setMenu] = useState<Extract<ServerEvent, { t: 'menu' }> | null>(null);
@@ -84,7 +90,6 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   const [prefs, setPrefs] = usePrefs();
   const [smooth, setSmooth] = useState(false);
   const [rotation, setRotation] = useRotation(gameId);
-  useEffect(() => { try { localStorage.setItem('j2me-web.lastGame', gameId); } catch { /* storage unavailable */ } }, [gameId]);
   const [showKeypad, setShowKeypad] = useState(() => { const k = controlSettings().keypad; return k === 'always' || (k === 'auto' && matchMedia('(pointer: coarse)').matches); });
   const [keymap, setKeymap] = useState(false);
   const [advanced, setAdvanced] = useState(false);
@@ -97,7 +102,12 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   const [touchControls, setTouchControls] = useState(false);
   const wakeTimer = useRef<ReturnType<typeof setTimeout>>();
   useEffect(()=>()=>clearTimeout(wakeTimer.current),[]);
-  const lightsActive = lights && prefs.view === 'screen';
+  const { skins } = useCatalog();
+  const skin: LoadedSkin | null = useMemo(() => skins?.find((s) => s.config.id === prefs.skinId) ?? null, [skins, prefs.skinId]);
+  // A touch-screen monoblock (Nokia 5800, Samsung S5230) is only a display: a "screen only" view means nothing there.
+  const monoblock = skin?.config.input?.kind === 'touchscreen';
+  const view: 'full' | 'screen' = monoblock ? 'full' : prefs.view;
+  const lightsActive = lights && view === 'screen';
   const wake = () => { setAwake(true); clearTimeout(wakeTimer.current); wakeTimer.current = setTimeout(() => setAwake(false), 2500); };
   useEffect(() => { try { localStorage.setItem('j2me-web.lights.v1', String(lights)); } catch {} }, [lights]);
   useEffect(() => {
@@ -119,7 +129,6 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   const [muted, setMuted] = useState(() => !audioSettings().enabled);
   const [audioInfo, setAudioInfo] = useState({ state: 'off' as string, rms: 0, buffered: 0 });
   const audio = useMemo(() => new PcmAudio(), []);
-  const { skins } = useCatalog();
 
   const canvasEl = useRef<HTMLCanvasElement | null>(null);
   const lastFrame = useRef<ImageData | null>(null);
@@ -129,7 +138,6 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   const input = useMemo(() => new InputController(() => undefined), []);
   const [bindings, setBindings] = useState(input.bindings);
 
-  const skin: LoadedSkin | null = useMemo(() => skins?.find((s) => s.config.id === prefs.skinId) ?? null, [skins, prefs.skinId]);
   const shownSkin = useRef<LoadedSkin | null>(null);
   if (skin) shownSkin.current = skin;
 
@@ -143,7 +151,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
     const el = canvasEl.current;
     const f = lastFrame.current;
     if (el && f && el.width === f.width && el.height === f.height) el.getContext('2d')!.putImageData(f, 0, 0);
-  }, [frameSize.w, frameSize.h, prefs.view, prefs.skinId]);
+  }, [frameSize.w, frameSize.h, view, prefs.skinId]);
 
   // ---- game + attach to an already running session (page reload / reconnect)
   useEffect(() => {
@@ -151,9 +159,9 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
     (async () => {
       try {
         const g = (await api.games()).find((x) => x.id === gameId);
-        if (!g) { toast('error', 'Game not found'); onExit(); return; }
+        if (!g) { toast('error', 'Game not found'); if (getLastGame()?.id === gameId) setLastGame(null); onExit(); return; }
         if (dead) return;
-        setGame(g); setLayout(g.settings.layout); setRes({ width: g.settings.width, height: g.settings.height }); setDevice(g.settings.device ?? ''); setHeapMb(g.settings.heapMb); setTweaks(g.settings.emulation ?? {}); setAdvanced(g.settings.profileMode === 'advanced'); if (g.settings.skinId && isSkinId(g.settings.skinId)) setPrefs({skinId:g.settings.skinId}); setLoaded(true);
+        setGame(g); setLastGame({ id: g.id, name: g.name }); setLayout(g.settings.layout); setRes({ width: g.settings.width, height: g.settings.height }); setDevice(g.settings.device ?? ''); setHeapMb(g.settings.heapMb); setTweaks(g.settings.emulation ?? {}); setAdvanced(g.settings.profileMode === 'advanced'); if (g.settings.skinId && isSkinId(g.settings.skinId)) setPrefs({skinId:g.settings.skinId}); setLoaded(true);
         const running = (await api.sessions()).find((s) => s.gameId === gameId && (s.state === 'running' || s.state === 'starting'));
         if (running && !dead) attach(running);
       } catch (e) { toast('error', (e as Error).message); }
@@ -203,7 +211,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
     const st = new SessionStream(s.id, {
       onEvent,
       onFrame: (img) => {
-        lastFrame.current = img;
+        lastFrame.current = img; framesSeen.current++;
         const c = canvasEl.current;
         if (!c) return;
         if (c.width !== img.width || c.height !== img.height) { c.width = img.width; c.height = img.height; setFrameSize({ w: img.width, h: img.height }); }
@@ -242,6 +250,13 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
     return () => window.clearInterval(t);
   }, [audio]);
   const live = state === 'running';
+  // frames per second that reach this page: what the game really delivers (a small number in the corner of the screen)
+  useEffect(() => {
+    if (!showFps || !live) return;
+    framesSeen.current = 0;
+    const t = window.setInterval(() => { setFps(framesSeen.current); framesSeen.current = 0; }, 1000);
+    return () => window.clearInterval(t);
+  }, [showFps, live]);
   // the game is suspended while no viewer has the page in front of them (the server decides, see Session.syncPause)
   useEffect(() => {
     if (!live || conn !== 'open') return;
@@ -298,7 +313,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   };
   useEffect(()=>{if(gamepad.current)gamepad.current.uiMode=padMenu || !live || !!menu || !!perm || keymap;},[padMenu,live,menu,perm,keymap]);
   // the held-key state is shared by every control surface: changing the picture or the view lets go of everything
-  useEffect(() => { input.releaseAll(); }, [input, prefs.skinId, prefs.view]);
+  useEffect(() => { input.releaseAll(); }, [input, prefs.skinId, view]);
 
   useEffect(() => () => { streamRef.current?.close(); }, []);
 
@@ -422,7 +437,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   const diag = session?.diagnostics ?? [];
   const logDiag = log.filter((l) => l.startsWith('⚠'));
   const res_ = session?.resources ?? null;
-  const keypadRequired = prefs.view === 'screen' || skin?.config.input?.externalKeypad === true;
+  const keypadRequired = view === 'screen' || skin?.config.input?.externalKeypad === true;
   const external = keypadRequired || showKeypad;
   const skinScreen = skin?.config.screen;
 
@@ -439,7 +454,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
 
   return (
     <div className={`player-grid ${lightsActive ? 'lights-out' : ''} ${awake ? 'hud-awake' : ''} ${touchControls ? 'touch-controls' : ''}`} onPointerMove={wake} onPointerDown={wake}>
-      <section className={`card stage-card ${prefs.view === 'screen' ? 'is-screen' : ''}`} ref={card} aria-label={translateUI("Phone")}>
+      <section className={`card stage-card ${view === 'screen' ? 'is-screen' : ''}`} ref={card} aria-label={translateUI("Phone")}>
         {lightsActive && <div className="lights-hud"><button className="btn" onClick={()=>setLights(false)} aria-label={translateUI("Exit Lights Out")}>{translateUI("☀ Exit · Esc")}</button><button className="btn transient" onClick={fullscreen}>{translateUI("Fullscreen")}</button><button className="btn transient" onClick={()=>setTouchControls(v=>!v)}>{translateUI("Touch controls")}</button></div>}
         <div className="stage-bar">
           <div className="stage-left">
@@ -452,43 +467,44 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
           <div className="stage-actions">
             <span className={`badge ${STATE_BADGE[state] ?? ''} ${live ? 'live' : ''}`} data-testid="state-badge"><span className="dot" />{translateUI(state === 'idle' ? 'stopped' : state)}{translateUI(conn === 'reconnecting' ? ' · reconnecting…' : '')}{pauseInfo?.on && live ? translateUI(' · paused') : ''}</span>
             {live && <button className="btn ghost sm" onClick={() => send({ t: 'pause', on: !(pauseInfo?.on && pauseInfo.reason === 'manual') })} aria-pressed={!!pauseInfo?.on && pauseInfo.reason === 'manual'} title={translateUI('Suspend the game: pauseApp is called, the picture stops')}>{translateUI(pauseInfo?.on && pauseInfo.reason === 'manual' ? '▶ Resume' : '⏸ Pause')}</button>}
-            <Seg label={translateUI("View")} value={prefs.view} onChange={(view) => setPrefs({ view })} options={[{ value: 'full', label: <><Icon name="phone" /> {translateUI("Phone")}</>, title: 'Whole phone, body keys active' }, { value: 'screen', label: <><Icon name="zoom" /> {translateUI("Screen")}</>, title: 'Enlarged display; controls below' }]} />
-            {prefs.view === 'screen' && <button className="btn ghost sm" onClick={()=>setLights(v=>!v)} aria-label={translateUI("Lights Out")} aria-pressed={lights} title={translateUI("Lights Out · Alt+L")}>{translateUI("☾ Lights Out")}</button>}
+            {!monoblock && <Seg label={translateUI("View")} value={prefs.view} onChange={(view) => setPrefs({ view })} options={[{ value: 'full', label: <><Icon name="phone" /> {translateUI("Phone")}</>, title: 'Whole phone, body keys active' }, { value: 'screen', label: <><Icon name="zoom" /> {translateUI("Screen")}</>, title: 'Enlarged display; controls below' }]} />}
+            {view === 'screen' && <button className="btn ghost sm" onClick={()=>setLights(v=>!v)} aria-label={translateUI("Lights Out")} aria-pressed={lights} title={translateUI("Lights Out · Alt+L")}>{translateUI("☾ Lights Out")}</button>}
             <button className="btn ghost sm icon" onClick={() => turnTo(nextRotation(rotation))} aria-label={translateUI("Rotate the picture")} title={translateUI("Rotate the picture (for games made for landscape)")} data-testid="rotate"><Icon name="rotate" /></button>
             <button className="btn ghost sm icon" onClick={() => void shot('save')} disabled={!lastFrame.current} aria-label={translateUI("Save a screenshot")} title={translateUI("Save a screenshot (PNG, the game's own size)")} data-testid="screenshot"><Icon name="camera" /></button>
+            <button className={`btn ghost sm icon${showFps ? ' on' : ''}`} onClick={() => setShowFps(!showFps)} aria-pressed={showFps} aria-label={translateUI("Show the frame rate")} title={translateUI("Show the frame rate in the corner of the screen")} data-testid="fps-toggle"><Icon name="pulse" /></button>
             <button className="btn ghost sm icon" onClick={() => void shot('copy')} disabled={!lastFrame.current} aria-label={translateUI("Copy a screenshot")} title={translateUI("Copy a screenshot to the clipboard")} data-testid="screenshot-copy"><Icon name="copy" /></button>
             <button className="btn ghost sm icon" onClick={fullscreen} aria-label={translateUI("Toggle fullscreen")} title={translateUI("Fullscreen")}><Icon name="fullscreen" /></button>
           </div>
         </div>
 
-        <div className={`stage ${prefs.view === 'screen' ? 'stage-screen' : ''} ${skin?.config.input?.kind === 'touchscreen' ? 'stage-touchscreen' : ''}`}>
-          {shownSkin.current ? (
-            <PhoneSkin
-              skin={shownSkin.current}
-              view={prefs.view}
-              frame={frameSize}
-              rotation={rotation}
-              canvasRef={setCanvas}
-              canvasProps={{ onPointerDown: pointer('D'), onPointerMove: pointer('M'), onPointerUp: pointer('U'), onPointerCancel: pointer('U') }}
-              integer={prefs.integer}
-              smooth={smooth}
-              input={input}
-              interactive={live}
-              lcdOverlay={overlay}
-            />
-          ) : <p className="muted center">{translateUI("Loading the phone…")}</p>}
+        <div className={`stage-row${external ? ' with-keypad' : ''}`}>
+          {external && (
+            <div className="stage-foot side">
+              <SoftKeys input={input} left={softkeys.left} right={softkeys.right} live={live} />
+              <Keypad input={input} softLeft={softkeys.left} softRight={softkeys.right} />
+            </div>
+          )}
+          <div className={`stage ${view === 'screen' ? 'stage-screen' : ''} ${skin?.config.input?.kind === 'touchscreen' ? 'stage-touchscreen' : ''}`}>
+            {shownSkin.current ? (
+              <PhoneSkin
+                skin={shownSkin.current}
+                view={view}
+                frame={frameSize}
+                rotation={rotation}
+                canvasRef={setCanvas}
+                canvasProps={{ onPointerDown: pointer('D'), onPointerMove: pointer('M'), onPointerUp: pointer('U'), onPointerCancel: pointer('U') }}
+                integer={prefs.integer}
+                smooth={smooth}
+                input={input}
+                interactive={live}
+                lcdOverlay={overlay}
+              lcdBadge={live && showFps ? <span className="fps-badge" data-testid="fps-badge">{fps}</span> : undefined}
+              />
+            ) : <p className="muted center">{translateUI("Loading the phone…")}</p>}
+          </div>
         </div>
 
         {textArea && live && <TextEditor key={textArea.kind} area={textArea} onText={(text) => send({ t: 'text', text })} />}
-
-        <SkinPicker skins={skins} value={prefs.skinId} onChange={(id) => isSkinId(id) && setPrefs({ skinId: id })} />
-
-        {external && (
-          <div className="stage-foot">
-            <SoftKeys input={input} left={softkeys.left} right={softkeys.right} live={live} />
-            <Keypad input={input} softLeft={softkeys.left} softRight={softkeys.right} />
-          </div>
-        )}
       </section>
 
       <aside className="ctrl-col" aria-label={translateUI("Emulator controls")}>
@@ -496,7 +512,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
           <div className="btn-row">
             {!running
               ? <button className="btn primary grow" disabled={!canStart} onClick={start}><Icon name="play" /> {translateUI("Start")}</button>
-              : <button className="btn danger grow" onClick={stop} disabled={busy || state === 'stopping'}><Icon name="stop" /> {translateUI("Stop")}</button>}
+              : <button className="btn danger grow" onClick={stop} disabled={busy || state === 'stopping'} title={translateUI("Stop requests a safe MIDlet shutdown. An unresponsive game may be forcibly closed after 8 seconds; unsaved in-game progress can be lost. Save inside the game first.")}><Icon name="stop" /> {translateUI("Stop")}</button>}
             {running && <button className="btn" disabled={busy || state === 'stopping'} onClick={async () => { if (await stop()) setTimeout(start, 400); }}><Icon name="restart" /> {translateUI("Restart")}</button>}
           </div>
           {running && <div className="field"><span className="label-caps">{translateUI("Game speed")}</span>
@@ -504,7 +520,6 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
               options={[{ value: '-75', label: '×0.25' }, { value: '-50', label: '×0.5' }, { value: '1', label: '×1' }, { value: '2', label: '×2' }, { value: '4', label: '×4' }]} />
             {![-75, -50, 1, 2, 4].includes(speed) && <span className="hint">{translateUI("Custom speed")}: {speed}</span>}
           </div>}
-          {running && <div className="note">{translateUI("Stop requests a safe MIDlet shutdown. An unresponsive game may be forcibly closed after 8 seconds; unsaved in-game progress can be lost. Save inside the game first.")}</div>}
           {session && <button className="btn ghost sm" onClick={() => api.diagnostics(session.id).then((b) => downloadBlob(b, `jgo-diagnostics-${fileSafe(game?.name ?? 'game')}.txt`), (e) => toast('error', (e as Error).message))} title={translateUI("A text report with the settings, the emulator log and the JVM state: attach it to a bug report")} data-testid="diagnostics">{translateUI("Download diagnostics")}</button>}
           {state === 'failed' && <div className="note err">{translateUI("The emulator stopped unexpectedly. The log below has the details.")}</div>}
           {health?.ok === false && <div className="note warn">{translateUI("The emulator runtime is not ready on this server.")}</div>}
@@ -551,7 +566,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
 
         <Panel icon="layers" title={translateUI("Display")}>
           <div className="chips">
-            <span className="chip" title={translateUI("Phone model")}><Icon name="phone" /> {skin ? `${skin.config.manufacturer} ${skin.config.model}` : '…'}{skin && <SkinStatus status={skin.config.status} />}</span>
+            <button type="button" className="chip chip-link" onClick={() => navigate('/phones')} title={translateUI("Change the phone")} data-testid="change-phone"><Icon name="phone" /> {skin ? `${skin.config.manufacturer} ${skin.config.model}` : '…'}{skin && <SkinStatus status={skin.config.status} />}</button>
             <span className="chip" title={translateUI("Emulated picture")}><Icon name="zoom" /> <span data-testid="frame-size">{frameSize.w}×{frameSize.h}</span></span>
             {skinScreen && res && (res.width !== skinScreen.width || res.height !== skinScreen.height) && (
               <span className="chip" title={translateUI(`This phone’s display is ${skinScreen.width}×${skinScreen.height}; the game renders ${res.width}×${res.height}. It is shown whole, with margins, never stretched.`)}><Icon name="info" /> {skinScreen.width}×{skinScreen.height}</span>
@@ -568,8 +583,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
           {padMenu && <GamepadSettings gameId={gameId} poller={gamepad.current} state={padState} />}
           {!!padState.pressed.length && <div className="note">{translateUI("Held:")} {padState.pressed.join(', ')}</div>}
           <Switch checked={external} disabled={keypadRequired} onChange={setShowKeypad}>{translateUI("On-screen keypad")}</Switch>
-          <div className="btn-row"><button className="btn sm" onClick={() => setKeymap(true)}>{translateUI("Remap keyboard")}</button></div>
-          <p className="hint">{translateUI("Arrows · Enter = OK · Q/W = soft keys · 0–9 · X = * · Z = #.")} {translateUI(skin?.config.input?.kind === 'touchscreen' ? 'Touch the display; use the keypad below for games that need buttons.' : prefs.view === 'full' ? 'Click or touch the phone’s keys; several at once work.' : 'In the Screen view the keys are below the picture.')}{translateUI(pad ? ` Gamepad: ${pad.slice(0, 28)}.` : '')}</p>
+          <div className="btn-row"><button className="btn sm" onClick={() => setKeymap(true)}>{translateUI("Remap keyboard")}</button><Hint text={`${translateUI("Arrows · Enter = OK · Q/W = soft keys · 0–9 · X = * · Z = #.")} ${translateUI(skin?.config.input?.kind === 'touchscreen' ? 'Touch the display; use the keypad below for games that need buttons.' : view === 'full' ? 'Click or touch the phone’s keys; several at once work.' : 'In the Screen view the keys are below the picture.')}${pad ? ` Gamepad: ${pad.slice(0, 28)}.` : ''}`} /></div>
         </Panel>
 
         <Panel icon="log" title={translateUI("Input recording")} open={false}>

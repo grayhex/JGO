@@ -1,3 +1,4 @@
+import { getLastGame, setLastGame } from '../lastGame';
 import { t as translateUI } from '../i18n';
 import { SCREEN_PRESETS, KEY_LAYOUTS, type GameMeta, type GameSettings, type LayoutId } from '@j2me-web/protocol';
 import { useState } from 'react';
@@ -15,7 +16,7 @@ export function GameSettingsDialog({ game, toast, onClose, onChanged }: { game: 
   };
   const del = async () => {
     if (!confirm(`Delete “${game.name}” from the library${delSaves ? ' together with its saved data' : ''}?`)) return;
-    try { await api.deleteGame(game.id, delSaves); onChanged(); } catch (e) { toast('error', (e as Error).message); }
+    try { await api.deleteGame(game.id, delSaves); if (getLastGame()?.id === game.id) setLastGame(null); onChanged(); } catch (e) { toast('error', (e as Error).message); }
   };
   return (
     <Modal title={translateUI(game.name)} onClose={onClose}>

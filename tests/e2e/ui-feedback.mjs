@@ -64,14 +64,15 @@ try {
   const g = (await games())[0];
   await p.goto(`${base}/play/${g.id}`);
   await p.locator('[data-testid=phone-profile-match]').waitFor();
+  await p.getByRole('link', { name: 'Game', exact: true }).waitFor(); // the game is loaded and remembered
   await p.goto(base + '/phones');
   await p.getByRole('button', { name: /K790i/ }).click();
-  await p.waitForURL(`**/play/${g.id}`);
+  await p.waitForURL(`**/play/${g.id}`, { waitUntil: 'commit' });
   await wait(async () => (await games()).find((x) => x.id === g.id).settings.skinId === 'sony-ericsson-k790i', 'the game now has the K790i');
   const s = (await games()).find((x) => x.id === g.id).settings;
   assert.equal(s.layout, 'sonyericsson');
   assert.equal(s.profileMode, 'auto');
-  await p.getByRole('radio', { name: /K790i/ }).waitFor();
+  await p.locator('.skin-box[data-skin="sony-ericsson-k790i"]').waitFor();
   const chips = await p.locator('[data-testid=phone-profile-match]').innerText();
   assert.match(chips, /Sony Ericsson/, chips);
   assert.doesNotMatch(chips, /Nokia/);

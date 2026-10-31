@@ -1,6 +1,6 @@
 import { EMULATION_DEFAULTS, EMULATION_LIMITS, type EmulationTweaks } from '@j2me-web/protocol';
 import { t as translateUI } from '../i18n';
-import { Switch } from './ui';
+import { Hint, Switch } from './ui';
 
 type Size = 'small' | 'medium' | 'large';
 
@@ -29,24 +29,21 @@ export function EmulationTweaksForm({ value, onChange, disabled }: { value: Emul
           onChange={(e) => set({ frameRate: e.target.value === '' ? undefined : Math.min(EMULATION_LIMITS.frameRate[1], Math.max(EMULATION_LIMITS.frameRate[0], Math.round(Number(e.target.value)))) })} aria-label={translateUI('Frame limit (fps)')} />
       </label>
       <label className="field">
-        <span className="label-caps">{translateUI('Language of the phone')}</span>
+        <span className="label-caps">{translateUI('Language of the phone')} <Hint text="What the game reads as microedition.locale, for example en-US or ru-RU. Some games pick their language from it." /></span>
         <input className="input" type="text" maxLength={8} placeholder={EMULATION_DEFAULTS.locale} value={value.locale ?? ''}
           onChange={(e) => set({ locale: e.target.value === '' ? undefined : e.target.value })} aria-label={translateUI('Language of the phone')} />
-        <span className="hint">{translateUI('What the game reads as microedition.locale, for example en-US or ru-RU. Some games pick their language from it.')}</span>
       </label>
       <div className="field">
-        <span className="label-caps">{translateUI('Font sizes (small / medium / large, pixels)')}</span>
+        <span className="label-caps">{translateUI('Font sizes (small / medium / large, pixels)')} <Hint text="Raise them if the text of a game looks tiny or lowers into the next line." /></span>
         <div className="field-row three">
           {(['small', 'medium', 'large'] as Size[]).map((k) => (
             <input key={k} className="input" type="number" min={EMULATION_LIMITS.fontSize[0]} max={EMULATION_LIMITS.fontSize[1]} value={fonts[k]} onChange={(e) => setFont(k, e.target.value)} aria-label={translateUI(`Font size ${k}`)} />
           ))}
         </div>
-        <span className="hint">{translateUI('Raise them if the text of a game looks tiny or lowers into the next line.')}</span>
       </div>
       <Switch checked={value.pointerEvents ?? EMULATION_DEFAULTS.pointerEvents} onChange={(v) => set({ pointerEvents: v === EMULATION_DEFAULTS.pointerEvents ? undefined : v })}>{translateUI('Tell the game the phone has a touch screen')}</Switch>
       <Switch checked={value.startAppOnResume ?? EMULATION_DEFAULTS.startAppOnResume} onChange={(v) => set({ startAppOnResume: v === EMULATION_DEFAULTS.startAppOnResume ? undefined : v })}>{translateUI('Call pauseApp and startApp when the game is paused and resumed')}</Switch>
-      <div className="btn-row"><button className="btn ghost sm" disabled={empty} onClick={() => onChange({})}>{translateUI('Back to the emulator defaults')}</button></div>
-      <p className="hint">{translateUI('Applied when the game is started the next time.')}</p>
+      <div className="btn-row"><button className="btn ghost sm" disabled={empty} onClick={() => onChange({})}>{translateUI('Back to the emulator defaults')}</button><Hint text="Applied when the game is started the next time." /></div>
     </fieldset>
   );
 }

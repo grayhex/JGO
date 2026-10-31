@@ -48,3 +48,9 @@ export function Spark({ values, max, label }: { values: number[]; max?: number; 
   const top = max ?? Math.max(1, ...values);
   return <div className="spark" role="img" aria-label={translateUI(label)}>{values.map((v, i) => <span key={i} style={{ height: `${Math.max(4, (v / top) * 100)}%` }} />)}</div>;
 }
+
+/** A help text that stays out of the way: an (i) mark with the text as its tooltip (hover, long press or keyboard focus). */
+export function Hint({ text }: { text: string }) {
+  const shown = translateUI(text);
+  return <span className="hint-mark" tabIndex={0} role="img" aria-label={shown} title={shown}>i</span>;
+}

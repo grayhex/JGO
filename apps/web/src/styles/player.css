@@ -103,3 +103,38 @@ textarea.text-editor-field { resize: vertical; min-height: 84px; }
 /* a picker that lists every model (Settings): wraps instead of widening the page */
 .skin-picker.wrap { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); overflow: visible; padding: 4px 0; border-top: 0; }
 .skin-picker.wrap .skin-opt { flex: none; max-width: none; }
+
+/* ---- player: the picture gets the room (no bottom picker, slimmer bars), the touch keys sit left of the screen ---- */
+.container.wide { max-width: none; padding: 12px 16px 14px; }
+.player-grid { grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; }
+.player-grid .stage-card { top: calc(var(--header-h) + 12px); }
+.stage-card .stage-bar { padding: 6px 12px; gap: 8px; }
+.stage-card .stage-bar .title span { display: none; }
+.stage-row { display: flex; min-width: 0; }
+.stage-row > .stage { flex: 1; min-width: 0; }
+.player-grid .stage,
+.player-grid .stage.stage-screen,
+.player-grid .stage-screen.stage-touchscreen { --stage-h: clamp(420px, calc(100dvh - var(--header-h) - 74px), 1600px); padding: 6px 10px; }
+.stage-card:fullscreen .stage { --stage-h: calc(100dvh - 60px); }
+.stage-foot.side { width: 176px; flex: none; padding: 10px 8px; border-top: 0; border-right: 1px solid var(--outline); align-content: center; gap: 8px; }
+.stage-foot.side .keypad { max-width: none; gap: 6px; margin: 0; }
+.stage-foot.side .keypad-top { grid-template-columns: 1fr; justify-items: center; gap: 6px; }
+.stage-foot.side .numpad { gap: 4px; }
+.stage-foot.side .key { min-height: 32px; border-radius: var(--r-sm); }
+.stage-foot.side .key.dp { min-height: 30px; }
+.stage-foot.side .key-main { font-size: 0.9375rem; }
+.stage-foot.side .key-sub { display: none; }
+.stage-foot.side .softkeys { flex-direction: column; }
+.stage-foot.side .softkey { max-width: none; height: 32px; padding: 0 8px; }
+@media (max-width: 980px) { .player-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 760px) { .stage-row.with-keypad { flex-direction: column; } .stage-row.with-keypad > .stage { flex: none; width: 100%; } .player-grid .stage, .player-grid .stage.stage-screen { --stage-h: clamp(360px, 62dvh, 760px); } .stage-foot.side { width: auto; border-right: 0; border-top: 1px solid var(--outline); } }
+/* Lights Out: the keys are a narrow column on the left, the screen is never covered */
+.lights-out .stage-row { flex: 1; min-height: 0; }
+.lights-out .stage-foot.side { display: none; background: #010203; border: 0; }
+.lights-out.touch-controls .stage-foot.side { display: grid; position: static; opacity: .9; max-height: none; width: 156px; }
+.lights-out .stage-foot { position: static; }
+/* the frame rate: small green digits in the corner of the screen */
+.skin-lcd-badge { position: absolute; top: 2px; left: 4px; z-index: 3; pointer-events: none; font: 700 clamp(9px, 4cqw, 15px)/1 var(--mono); color: #39ff6a; text-shadow: 0 0 2px #000, 0 0 3px #000, 1px 1px 0 #000; }
+.btn.icon.on { color: var(--primary); border-color: var(--primary-warm); background: var(--primary-tint); }
+button.chip-link { cursor: pointer; font: inherit; font-size: 0.75rem; color: inherit; }
+button.chip-link:hover { border-color: var(--primary-warm); }

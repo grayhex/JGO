@@ -17,21 +17,24 @@ await fetch(base + '/api/setup/skip', { method: 'POST' }); // the first-run wiza
  browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH || undefined,args:['--no-sandbox']});
  const p=await browser.newPage({viewport:{width:1440,height:1000}});const errors=[];p.on('pageerror',e=>errors.push(e.message));
  await p.addInitScript(()=>{window.padButtons=[];Object.defineProperty(navigator,'getGamepads',{value:()=>[{index:0,id:'Simulated Xbox standard',connected:true,mapping:'standard',timestamp:performance.now(),axes:[0,0],buttons:Array.from({length:17},(_,i)=>({pressed:window.padButtons.includes(i),value:window.padButtons.includes(i)?1:0}))}]});});
+ // the phones are chosen on /phones (the player has no picker): a click sets the phone of the game opened last
+ const choosePhone=async(re)=>{await p.getByRole('link',{name:'Game',exact:true}).waitFor();await p.getByRole('link',{name:'Phones'}).click();await p.getByRole('button',{name:re}).click();await p.waitForURL('**/play/'+game.id,{waitUntil:'commit'});};
  await p.goto(base+'/play/'+game.id);
- await p.getByRole('radio',{name:/6100/}).click();
+ await choosePhone(/6100/);
  await p.waitForFunction(()=>document.querySelector('[aria-label="Device preset"]').value==='128x128-common-full-screen');
  await p.locator('.ctrl-col').getByRole('button',{name:'Start',exact:true}).click();
  await p.waitForFunction(()=>document.querySelector('[data-testid=state-badge]').textContent.includes('running'));
  const sessions=async()=>await(await fetch(base+'/api/sessions')).json();const sid=(await sessions())[0].id;
- await p.getByRole('radio',{name:/E71/}).click();
+ await choosePhone(/E71/);
  await p.getByRole('button',{name:'Restart with selected profile'}).waitFor();
  assert.equal((await sessions())[0].id,sid);assert.equal((await sessions())[0].width,128);
  await p.getByRole('button',{name:'Restart with selected profile'}).click();
  await wait(async()=> (await sessions()).some(s=>s.state==='running'&&s.width===320));
  await p.getByText('Advanced: choose skin and profile independently',{exact:true}).click();
  await p.getByLabel('Device preset',{exact:true}).selectOption('132x176-siemens-full-screen');
- await p.getByRole('radio',{name:/K750i/}).click();
- assert.equal(await p.getByLabel('Device preset',{exact:true}).inputValue(),'132x176-siemens-full-screen');
+ await wait(async()=>{const games=await(await fetch(base+'/api/games')).json();return games.find(g=>g.id===game.id).settings.device==='132x176-siemens-full-screen';}); // saved before leaving for /phones
+ await choosePhone(/K750i/);
+ await p.waitForFunction(()=>document.querySelector('[aria-label="Device preset"]')?.value==='132x176-siemens-full-screen'); // the advanced profile survives the trip to /phones
  await wait(async()=>{const games=await(await fetch(base+'/api/games')).json();const s=games.find(g=>g.id===game.id).settings;return s.skinId==='sony-ericsson-k750i'&&s.profileMode==='advanced'&&s.device==='132x176-siemens-full-screen';});
  await p.getByRole('radio',{name:/Screen/}).click();
  await p.evaluate(()=>window.originalCanvas=document.querySelector('.skin-canvas'));

@@ -123,3 +123,6 @@ input[type='range'] { width: 100%; accent-color: var(--primary); height: 20px; }
 .toast.error { border-left-color: var(--danger); }
 .field-row.three { grid-template-columns: repeat(3, 1fr); }
 .tweaks { border: 0; padding: 0; margin: 0; display: grid; gap: 12px; min-width: 0; }
+
+.hint-mark { display: inline-grid; place-items: center; width: 15px; height: 15px; margin-left: 4px; border-radius: 50%; border: 1px solid var(--outline-strong); color: var(--muted); font: 700 0.625rem/1 var(--sans, inherit); cursor: help; vertical-align: middle; text-transform: none; letter-spacing: 0; }
+.hint-mark:hover, .hint-mark:focus-visible { border-color: var(--primary); color: var(--primary); outline: none; }
