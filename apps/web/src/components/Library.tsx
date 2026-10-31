@@ -7,6 +7,7 @@ import { navigate } from '../router';
 import { useServerSettings } from '../serverSettings';
 import { GameInfoDialog } from './GameInfoDialog';
 import { GenreDialog } from './GenreDialog';
+import { splitPlayTime } from '../playTime';
 import { GameSettingsDialog } from './GameSettingsDialog';
 import { Icon } from './Icon';
 import { Seg } from './ui';
@@ -18,6 +19,14 @@ const loadGenre = (): GenreFilter => { try { const v = localStorage.getItem(GENR
 type View = 'tiles' | 'list';
 const VIEW_KEY = 'j2me-web.library.view';
 const loadView = (): View => { try { return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'tiles'; } catch { return 'tiles'; } };
+
+/** "2 h 05 min", "35 min", "< 1 min"; nothing before the first launch. */
+function playTime(seconds: number): string | null {
+  const t = splitPlayTime(seconds);
+  if (t.kind === 'none') return null;
+  if (t.kind === 'short') return translateUI('< 1 min');
+  return t.h > 0 ? translateUI('{h} h {m} min', { h: t.h, m: String(t.m).padStart(2, '0') }) : translateUI('{m} min', { m: t.m });
+}
 
 function Cover({ g }: { g: GameMeta }) {
   const [broken, setBroken] = useState(false);
@@ -204,6 +213,7 @@ export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['ki
                 <div className="meta">
                   <h3>{sel.name}</h3>
                   <p className="muted">{translateUI(sel.info?.year ? `${sel.vendor} · ${sel.info.year}` : sel.vendor)}</p>
+                  <p className={`playtime${vs.some((v) => v.playSeconds) ? '' : ' none'}`} data-testid="playtime" title={translateUI("Time spent in this game, all versions together")}>{playTime(vs.reduce((n, v) => n + (v.playSeconds ?? 0), 0)) ?? translateUI('not played yet')}</p>
                 </div>
               </button>
               <div className="card-foot">

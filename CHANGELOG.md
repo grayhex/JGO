@@ -6,10 +6,14 @@ Formatted after [Keep a Changelog](https://keepachangelog.com/); versions follow
 ## [Unreleased]
 
 ### Added
+- **Play time** on every game card (hours and minutes, all versions of a game together): counted while a game's session runs, saved every 30 s and when it ends (column `games.play_seconds`).
 - **Genres.** A game's genre is metadata of the game (all its versions), not of a folder: table `game_classifications`, 13 genres plus free tags, chips with counts over the library, a genre badge and dialog on every card.
 - **Genre catalog** (`jgo_catalog.json` in JGO's format or the J2ME Curator manifest, matched by SHA-256; file paths are stripped in the browser and never sent; curator confidence `heuristic`/`unclassified` is kept as an unconfirmed genre): preview, then import in one transaction, idempotent; export. Genres chosen by hand are locked; MobyGames outranks the catalog; no paths are sent to the API. See `docs/LIBRARY.md`.
 
 ### Changed
+- **Louder game sound**: the volume curve now reaches +9.5 dB (it topped out at the emulator's raw level, quieter than other tabs) and a limiter after it stops loud passages from clipping.
+- **On-screen keypad** rebuilt like a handset: a chassis with wing-shaped soft keys that show the game's own labels, a round navigation key with OK, a C key, and rubber number keys with numerals and letters. The separate row of soft keys above it is gone.
+- **Lights Out** keeps the phone body faintly visible (it was practically invisible).
 - **New design: WattVision.** One dark theme (`#121212` workspace, `#1E1E1E` cards with 16 px radius, cyan `#00E5FF` accent, red alerts with a left bar, lime-green "live"), Inter and JetBrains Mono bundled for offline use, monospace 32 px telemetry values. The light theme and the theme switch are gone (the design rules out light backgrounds).
 
 ### Fixed

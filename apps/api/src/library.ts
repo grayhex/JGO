@@ -22,6 +22,7 @@ interface Row {
   favorite: number;
   created_at: string;
   last_played_at: string | null;
+  play_seconds?: number;
   settings_json: string;
   warnings_json: string;
   origin?: string;
@@ -159,6 +160,7 @@ export class Library {
   private migrate(): void {
     const cols = (this.db.prepare('PRAGMA table_info(games)').all() as unknown as { name: string }[]).map((c) => c.name);
     if (!cols.includes('origin')) this.db.exec(`ALTER TABLE games ADD COLUMN origin TEXT NOT NULL DEFAULT 'upload'`);
+    if (!cols.includes('play_seconds')) this.db.exec('ALTER TABLE games ADD COLUMN play_seconds INTEGER NOT NULL DEFAULT 0');
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS sources (
         rel_path TEXT PRIMARY KEY, jad_rel_path TEXT, game_id TEXT NOT NULL, size INTEGER NOT NULL, mtime_ms INTEGER NOT NULL,
@@ -252,6 +254,7 @@ export class Library {
       favorite: !!r.favorite,
       createdAt: r.created_at,
       lastPlayedAt: r.last_played_at,
+      playSeconds: r.play_seconds ?? 0,
       groupKey: r.group_key,
       settings: JSON.parse(r.settings_json),
       warnings: JSON.parse(r.warnings_json),
@@ -368,6 +371,12 @@ export class Library {
 
   touchPlayed(id: string): void {
     this.db.prepare('UPDATE games SET last_played_at = ? WHERE id = ?').run(new Date().toISOString(), id);
+  }
+
+  /** Adds time a game has been running; whole seconds, never negative. */
+  addPlayTime(id: string, seconds: number): void {
+    if (!Number.isFinite(seconds) || seconds <= 0) return;
+    this.db.prepare('UPDATE games SET play_seconds = play_seconds + ? WHERE id = ?').run(Math.round(seconds), id);
   }
 
   remove(id: string): boolean {

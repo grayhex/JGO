@@ -68,6 +68,8 @@ export interface GameMeta {
   favorite: boolean;
   createdAt: string;
   lastPlayedAt: string | null;
+  /** Time this version has been running, in seconds (counted while its session runs). */
+  playSeconds?: number;
   /** Other uploaded versions of the same (vendor, name). */
   groupKey: string;
   settings: GameSettings;

@@ -79,3 +79,9 @@ button.genre-badge.unconfirmed { color: var(--muted); font-weight: 500; font-sty
 .plain-list { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 2px; }
 .catalog-panel { display: grid; gap: 10px; margin-bottom: var(--s-lg); }
 .lib-grid.list .genre-badge { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+
+/* time spent in a game */
+.playtime { margin-top: 4px; font: 600 0.75rem/1rem var(--mono); color: var(--primary); letter-spacing: 0.02em; }
+.playtime:empty { display: none; }
+.lib-grid.list .playtime { flex: none; margin: 0; min-width: 84px; text-align: right; }
+.playtime.none { color: var(--muted); font-weight: 400; }

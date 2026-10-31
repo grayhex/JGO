@@ -18,6 +18,7 @@ import './styles/shell.css';
 import './styles/library.css';
 import './styles/skin.css';
 import './styles/player.css';
+import './styles/keypad.css';
 import './styles/phones.css';
 import './styles/settings.css';
 

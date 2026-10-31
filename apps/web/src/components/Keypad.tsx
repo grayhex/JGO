@@ -37,7 +37,7 @@ export function Keypad({ input, softLeft, softRight }: { input: InputController;
   return (
     <div className="keypad" aria-label={translateUI("Phone keypad")} data-testid="keypad">
       <div className="keypad-top">
-        <Key a="softLeft" label={translateUI(softLeft || '◂')} sub="soft" cls="soft" {...k} />
+        <Key a="softLeft" label={translateUI(softLeft || '◂')} cls="soft left" {...k} />
         <div className="dpad">
           <Key a="up" label={translateUI("▲")} cls="dp up" {...k} />
           <Key a="left" label={translateUI("◀")} cls="dp left" {...k} />
@@ -45,7 +45,8 @@ export function Keypad({ input, softLeft, softRight }: { input: InputController;
           <Key a="right" label={translateUI("▶")} cls="dp right" {...k} />
           <Key a="down" label={translateUI("▼")} cls="dp down" {...k} />
         </div>
-        <Key a="softRight" label={translateUI(softRight || '▸')} sub="soft" cls="soft" {...k} />
+        <Key a="softRight" label={translateUI(softRight || '▸')} cls="soft right" {...k} />
+        <Key a="clear" label={translateUI("C")} cls="clear" {...k} />
       </div>
       <div className="numpad">
         <Key a="d1" label={translateUI("1")} {...k} /><Key a="d2" label={translateUI("2")} sub="abc" {...k} /><Key a="d3" label={translateUI("3")} sub="def" {...k} />
