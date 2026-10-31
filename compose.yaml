@@ -1,8 +1,10 @@
 # JGO in Docker: the main way to run it (NAS: Synology, UGREEN, QNAP, TrueNAS; any Linux host).
 #
-#   1. copy .env.example to .env and set JGO_TOKEN (at least 16 characters)
-#   2. docker compose up -d
-#   3. open http://<address of the host>:8080 and sign in with the token
+#   1. paste this YAML into NAS/Portainer or save it as compose.yaml
+#   2. edit the game library path below, then Deploy / docker compose up -d
+#   3. open http://<NAS IP>:8080 and sign in with the token from app container logs
+# No .env and no manual token generation needed. A random credential is saved in /data.
+# Optional: set JGO_TOKEN / JGO_VERSION / other variables using .env for advanced deployments.
 #
 # Details, NAS walkthroughs, updates and backups: docs/DOCKER.md
 # Source builds use the separate compose.build.yaml override; this file needs NO local source tree.
@@ -14,10 +16,9 @@ services:
     restart: unless-stopped
     init: true
     environment:
-      # Required: the web UI is reachable from your network, the games run code of unknown origin.
-      AUTH_TOKEN: ${JGO_TOKEN:?Set JGO_TOKEN (at least 16 characters) in .env, see .env.example}
+      # Optional override: an existing JGO_TOKEN still works. Empty = auto-generate once in /data.
+      AUTH_TOKEN: ${JGO_TOKEN:-}
       # The app listens on the private compose network only; the gateway below publishes it.
-      ALLOW_INSECURE_PUBLIC: "1"
       MAX_SESSIONS: ${MAX_SESSIONS:-1}
       SESSION_MAX_MINUTES: ${SESSION_MAX_MINUTES:-120}
       SESSION_IDLE_MINUTES: ${SESSION_IDLE_MINUTES:-5}
@@ -27,10 +28,13 @@ services:
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
       MOBYGAMES_API_KEY: ${MOBYGAMES_API_KEY:-}
     volumes:
-      # JGO_DATA is a volume name (default) or an absolute folder, e.g. /volume1/docker/jgo/data on Synology.
-      # With a folder, set PUID and PGID to its owner (see docs/DOCKER.md).
+      # JGO_DATA defaults to a persistent Docker volume. To use a NAS folder instead,
+      # replace the left-hand side with /volume1/docker/jgo/data and adjust PUID/PGID.
+      # Never delete /data during upgrades: it contains saves, settings, and the login token.
       - ${JGO_DATA:-jgo-data}:/data
-      # Your collection of .jar/.jad files, read-only; then choose /mnt/jgo-library in Settings > Game library.
+      # EDIT THE LEFT-HAND PATH for your NAS: e.g. /volume1/games/j2me:/mnt/jgo-library:ro
+      # The default ./games is relative to this compose project; JGO only reads it.
+      # After deployment select /mnt/jgo-library in Settings > Game library.
       - ${JGO_LIBRARY:-./games}:/mnt/jgo-library:ro
     networks: [internal]
     # --- hardening: the JAR is untrusted code ---
@@ -52,7 +56,8 @@ services:
       app:
         condition: service_healthy
     ports:
-      # JGO_BIND=127.0.0.1 keeps it on the host itself (when a reverse proxy or a TLS terminator sits in front).
+      # To change the port directly, replace the complete value with "8090:8080".
+      # JGO_BIND=127.0.0.1 confines access to the host (for HTTPS reverse proxy).
       - "${JGO_BIND:-0.0.0.0}:${JGO_PORT:-8080}:8080"
     networks: [internal, edge]
     read_only: true

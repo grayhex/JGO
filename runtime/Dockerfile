@@ -58,6 +58,7 @@ COPY --from=kem-build /out/kemulator /opt/kemulator
 COPY --from=adapter-build /src/target/release/kem-adapter /usr/local/bin/kem-adapter
 COPY --from=app-build /app /app
 COPY runtime/scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY runtime/scripts/docker-auth-token.cjs /usr/local/bin/jgo-auth-token.cjs
 
 # jdk-headless (not only the JRE) so that the diagnostics report can ask the emulator's JVM for heap and threads (jcmd)
 ARG JGO_VERSION=dev

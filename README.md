@@ -37,23 +37,22 @@
 
 ### Docker (рекомендуется: NAS Synology / UGREEN / QNAP, Linux-сервер)
 
-Нужны Docker с Compose v2 и процессор x86-64. Образы скачиваются готовыми, собирать ничего не нужно.
+Нужны Docker с Compose v2 и процессор x86-64. **Только один файл: [compose.yaml](compose.yaml).** Никаких `.env`, ручной генерации пароля или сборки исходников.
+
+Для NAS/Portainer: вставьте содержимое `compose.yaml` в проект/Stack, при необходимости замените путь `./games` на каталог JAR/JAD на вашем NAS и нажмите **Deploy**.
+
+Для обычного Linux:
 
 ```bash
 mkdir jgo && cd jgo
 curl -fsSLO https://raw.githubusercontent.com/grayhex/JGO/main/compose.yaml
-curl -fsSL https://raw.githubusercontent.com/grayhex/JGO/main/.env.example -o .env
-```
-Эти же файлы прикрепляются к каждому [релизу](https://github.com/grayhex/JGO/releases). Ссылка GitHub `/releases/latest` **не показывает prerelease**, поэтому быстрый старт скачивает конфигурацию из `main`. Для воспроизводимой установки укажите в `.env` `JGO_VERSION` опубликованного образа (номер тега без необязательной `v`).
-
-
-Впишите в `.env` токен доступа (`JGO_TOKEN`, не короче 16 символов; например `openssl rand -hex 16`) и запустите:
-
-```bash
 docker compose up -d
+docker compose logs app
 ```
 
-Откройте `http://<адрес NAS>:8080`, войдите по токену и пройдите мастер первого запуска. Обновление: `docker compose pull && docker compose up -d`.
+При первом запуске JGO автоматически создаст случайный токен входа в постоянном томе `/data/.jgo-auth-token`. Он выводится **один раз** в лог контейнера `app` (строка `First-run login token`). Позднее можно прочитать его через `docker compose exec app cat /data/.jgo-auth-token`. Логи с токеном не публикуйте.
+
+Откройте `http://<адрес NAS>:8080`, введите токен и пройдите мастер первого запуска. Обновление: `docker compose pull && docker compose up -d`. Готовые файлы также прикрепляются к [релизам](https://github.com/grayhex/JGO/releases). Для фиксированной версии замените `:latest` в YAML или задайте `JGO_VERSION` через необязательный `.env`.
 
 Пошаговые инструкции для Synology и UGREEN, права на папки, резервные копии, HTTPS и разбор неполадок — в [docs/DOCKER.md](docs/DOCKER.md).
 

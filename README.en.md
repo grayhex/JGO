@@ -37,23 +37,22 @@ English · [Русский](README.md)
 
 ### Docker (recommended: Synology / UGREEN / QNAP NAS, Linux server)
 
-Needs Docker with Compose v2 and an x86-64 CPU. The images are pulled ready-made; nothing is built.
+Needs Docker Compose v2 and x86-64. **One file only: [compose.yaml](compose.yaml).** No `.env`, manual token creation or local build.
+
+On Synology/UGREEN/Portainer: paste `compose.yaml` as a project/stack, edit `./games` to the host folder containing your JAR/JAD collection if needed, then **Deploy**.
+
+On Linux:
 
 ```bash
 mkdir jgo && cd jgo
 curl -fsSLO https://raw.githubusercontent.com/grayhex/JGO/main/compose.yaml
-curl -fsSL https://raw.githubusercontent.com/grayhex/JGO/main/.env.example -o .env
-```
-The install files are also attached to each [tagged release](https://github.com/grayhex/JGO/releases). GitHub's `/releases/latest` URL **excludes prereleases**, so the quick start uses the public repository files. The beta GHCR image must be published first; for reproducible deployments set `JGO_VERSION` to that release tag (without an optional `v`).
-
-
-Put an access token into `.env` (`JGO_TOKEN`, at least 16 characters; for example `openssl rand -hex 16`) and start it:
-
-```bash
 docker compose up -d
+docker compose logs app
 ```
 
-Open `http://<NAS address>:8080`, sign in with the token and go through the first-run wizard. To update: `docker compose pull && docker compose up -d`.
+At first boot JGO generates a secure random login token in the persistent `/data/.jgo-auth-token` file. The token is shown **once** in `app` container logs as `First-run login token`; later retrieve it with `docker compose exec app cat /data/.jgo-auth-token`. Keep these logs private.
+
+Open `http://<NAS address>:8080`, enter the token, and finish the first-run wizard. To update: `docker compose pull && docker compose up -d`. The configuration is also attached to [GitHub releases](https://github.com/grayhex/JGO/releases); pin a version by editing the image tags or using optional `JGO_VERSION`.
 
 Step-by-step guides for Synology and UGREEN, folder permissions, backups, HTTPS and troubleshooting: [docs/DOCKER.md](docs/DOCKER.md) (Russian).
 
