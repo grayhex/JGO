@@ -15,10 +15,8 @@ try {
   if (process.env.AUTH_TOKEN) {
     if (process.env.AUTH_TOKEN.length < 16) throw new Error('AUTH_TOKEN must be at least 16 characters');
     process.stdout.write(process.env.AUTH_TOKEN);
-    process.exit(0);
-  }
-
-  fs.mkdirSync(dataDir, { recursive: true });
+  } else {
+    fs.mkdirSync(dataDir, { recursive: true });
   let created = false;
   try {
     // O_EXCL avoids clobbering an existing credential on concurrent starts.
@@ -49,7 +47,8 @@ try {
   } else {
     process.stderr.write(`[JGO] Using persistent login token from ${file}. To retrieve it: docker compose exec app cat ${file}\n`);
   }
-  process.stdout.write(token);
+    process.stdout.write(token);
+  }
 } catch (e) {
   process.stderr.write(`[JGO] Cannot provision login token: ${e.message}\n`);
   process.exit(1);
