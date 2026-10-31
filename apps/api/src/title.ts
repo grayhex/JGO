@@ -34,7 +34,7 @@ function splitCamel(s: string): string {
     .trim();
 }
 
-export function cleanTitle(raw: string): string {
+export function cleanTitle(raw: string, opts: { split?: boolean } = {}): string {
   let s = raw.normalize('NFKC').replace(/[\u0000-\u001f\u007f]/g, ' ');
   // **MASYAKA**, *x-mobila*, ~terjef~ : emphasis markers around a tag
   s = s.replace(/[*~=]{1,}\s*([^*~=]{1,40}?)\s*[*~=]{1,}/g, (m, inner: string) => (isJunk(inner) || DOMAIN.test(inner) ? ' ' : m));
@@ -64,6 +64,7 @@ export function cleanTitle(raw: string): string {
   s = s.replace(/(?:\s[-–—|~:]){2,}/g, ' -').replace(/^[\s\-–—|~:.,]+|[\s\-–—|~:.,]+$/g, '').replace(/\s{2,}/g, ' ');
   s = s.replace(/\s+by$/i, '');
   const oneWord = !/\s/.test(s);
+  if (opts.split === false) return s.trim() || raw.trim();
   s = splitCamel(s);
   if (oneWord && !/[A-Z]/.test(s)) s = s.charAt(0).toUpperCase() + s.slice(1); // "tetris" -> "Tetris", "asphalt3" -> "Asphalt 3"
   return s.trim() || raw.trim();
@@ -71,5 +72,5 @@ export function cleanTitle(raw: string): string {
 
 /** Vendors carry the same tags ("Gameloft SA by dedomil.net"). */
 export function cleanVendor(raw: string): string {
-  return cleanTitle(raw).replace(/\s+by$/i, '');
+  return cleanTitle(raw, { split: false }).replace(/\s+by$/i, ''); // a vendor is a name ("j2me-web", "iGames"), never split into words
 }

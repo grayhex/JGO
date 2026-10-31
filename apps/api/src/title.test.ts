@@ -47,5 +47,6 @@ describe('cleanTitle', () => {
   it('cleans vendors too', () => {
     assert.equal(cleanVendor('Gameloft SA by dedomil.net'), 'Gameloft SA');
     assert.equal(cleanVendor('Gameloft SA'), 'Gameloft SA');
+    for (const v of ['j2me-web', 'iGames', 'Test Vendor', 'Hands-On Mobile', 'in2games']) assert.equal(cleanVendor(v), v, 'a vendor is a name: it is not split into words');
   });
 });

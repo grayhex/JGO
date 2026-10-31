@@ -213,7 +213,7 @@ describe('J2ME Web API against a real KEmulator (Bridge)', () => {
   it('runs several games one after another', async () => {
     const r2 = await upload(env.base, jar2);
     assert.equal(r2.status, 201);
-    assert.equal(r2.body.game.name, 'KemTest2');
+    assert.equal(r2.body.game.name, 'KemTest 2'); // titles written as one word are split: Rayman3 -> Rayman 3
     assert.equal(r2.body.game.groupKey === (await json(await api(`/api/games/${gameId}`))).groupKey, false);
     for (const id of [gameId, r2.body.game.id, gameId]) {
       const r = await api('/api/sessions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ gameId: id }) });
