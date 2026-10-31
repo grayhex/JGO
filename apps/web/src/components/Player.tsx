@@ -27,7 +27,7 @@ import { Modal } from './Modal';
 import { SkinPicker, SkinStatus } from './SkinPicker';
 import { Meter, Panel, Seg, Spark, Switch } from './ui';
 import { audioSettings, buzz, controlSettings } from '../serverSettings';
-import { nextRotation, ROTATIONS, unrotatePoint } from '../skin/geometry';
+import { nextRotation, unrotatePoint, type Rotation } from '../skin/geometry';
 import { useRotation } from '../skin/rotation';
 
 type Conn = 'connecting' | 'open' | 'reconnecting' | 'closed' | 'idle';
@@ -84,6 +84,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   const [prefs, setPrefs] = usePrefs();
   const [smooth, setSmooth] = useState(false);
   const [rotation, setRotation] = useRotation(gameId);
+  useEffect(() => { try { localStorage.setItem('j2me-web.lastGame', gameId); } catch { /* storage unavailable */ } }, [gameId]);
   const [showKeypad, setShowKeypad] = useState(() => { const k = controlSettings().keypad; return k === 'always' || (k === 'auto' && matchMedia('(pointer: coarse)').matches); });
   const [keymap, setKeymap] = useState(false);
   const [advanced, setAdvanced] = useState(false);
@@ -371,8 +372,20 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
     const p = devices.find((d) => d.id === id);
     if (p) { setRes({ width: p.width, height: p.height }); setLayout(p.layout); }
   };
-  // a game made for the other way up: the picture is turned (only a view) and shown on the phone whose display is landscape
-  const landscapeMode = (r: 90 | 270) => { setAdvanced(true); setPrefs({ skinId: 'nokia-e71' }); setRotation(r); };
+  // A game made for the other way up is shown on the phone whose display is landscape; turning back restores the phone.
+  const skinBeforeTurn = useRef<{ skinId: string; advanced: boolean } | null>(null);
+  const turnTo = (r: Rotation) => {
+    const sideways = r === 90 || r === 270;
+    const portraitSkin = !!skin && skin.config.screen.height > skin.config.screen.width;
+    if (sideways && portraitSkin && !skinBeforeTurn.current) {
+      skinBeforeTurn.current = { skinId: prefs.skinId, advanced };
+      setAdvanced(true); setPrefs({ skinId: 'nokia-e71' });
+    } else if (!sideways && skinBeforeTurn.current) {
+      if (isSkinId(skinBeforeTurn.current.skinId)) setPrefs({ skinId: skinBeforeTurn.current.skinId }); setAdvanced(skinBeforeTurn.current.advanced);
+      skinBeforeTurn.current = null;
+    }
+    setRotation(r);
+  };
   const sizeHint = (() => {
     const h = analysis?.analysis.screenHints[0];
     return h && res && (h.width !== res.width || h.height !== res.height) ? h : null;
@@ -380,12 +393,12 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   const matched = !advanced && isPhoneId(prefs.skinId) && devices.length ? resolvePhone(prefs.skinId, devices) : null;
   useEffect(() => {
     if (!loaded || advanced || !isPhoneId(prefs.skinId) || !devices.length) return;
-    const { preset } = resolvePhone(prefs.skinId, devices);
-    setDevice(preset.id); setLayout(preset.layout); setRes({width:preset.width,height:preset.height});
+    const { preset, layout: phoneLayout } = resolvePhone(prefs.skinId, devices);
+    setDevice(preset.id); setLayout(phoneLayout); setRes({width:preset.width,height:preset.height});
   }, [loaded,advanced,prefs.skinId,devices]);
   useEffect(() => {
     if (!loaded || !res) return;
-    if (!advanced && matched && (device !== matched.preset.id || res.width !== matched.preset.width || res.height !== matched.preset.height || layout !== matched.preset.layout)) return;
+    if (!advanced && matched && (device !== matched.preset.id || res.width !== matched.preset.width || res.height !== matched.preset.height || layout !== matched.layout)) return;
     api.patchGame(gameId,{settings:{skinId:prefs.skinId,profileMode:advanced?'advanced':'auto',device:device || null,...res,layout,heapMb,emulation:emuPatch}}).catch(e=>toast('error',(e as Error).message));
   }, [loaded,prefs.skinId,advanced,device,res?.width,res?.height,layout,heapMb,gameId,emuKey]);
   const saveDefaults = async () => {
@@ -394,6 +407,14 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   };
 
   const running = state === 'running' || state === 'starting' || state === 'stopping';
+  // A game that names the screen it was made for (manifest or JAD) is set up for it once, without asking.
+  const hintApplied = useRef<string | null>(null);
+  useEffect(() => {
+    if (!loaded || running || advanced || !sizeHint || hintApplied.current === gameId) return;
+    hintApplied.current = gameId;
+    setAdvanced(true); setDevice(''); setRes({ width: sizeHint.width, height: sizeHint.height });
+    if (sizeHint.width > sizeHint.height) setPrefs({ skinId: 'nokia-e71' });
+  }, [loaded, running, advanced, sizeHint?.width, sizeHint?.height, gameId]);
   const canStart = !!game && !running && !busy && health?.ok !== false;
   const resKey = res ? `${res.width}x${res.height}` : '';
   const needRestart = running && res && session && (res.width !== session.width || res.height !== session.height || device !== (session.device ?? '') || layout !== session.layout || heapMb !== session.heapMb);
@@ -433,7 +454,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
             {live && <button className="btn ghost sm" onClick={() => send({ t: 'pause', on: !(pauseInfo?.on && pauseInfo.reason === 'manual') })} aria-pressed={!!pauseInfo?.on && pauseInfo.reason === 'manual'} title={translateUI('Suspend the game: pauseApp is called, the picture stops')}>{translateUI(pauseInfo?.on && pauseInfo.reason === 'manual' ? '▶ Resume' : '⏸ Pause')}</button>}
             <Seg label={translateUI("View")} value={prefs.view} onChange={(view) => setPrefs({ view })} options={[{ value: 'full', label: <><Icon name="phone" /> {translateUI("Phone")}</>, title: 'Whole phone, body keys active' }, { value: 'screen', label: <><Icon name="zoom" /> {translateUI("Screen")}</>, title: 'Enlarged display; controls below' }]} />
             {prefs.view === 'screen' && <button className="btn ghost sm" onClick={()=>setLights(v=>!v)} aria-label={translateUI("Lights Out")} aria-pressed={lights} title={translateUI("Lights Out · Alt+L")}>{translateUI("☾ Lights Out")}</button>}
-            <button className="btn ghost sm icon" onClick={() => setRotation(nextRotation(rotation))} aria-label={translateUI("Rotate the picture")} title={translateUI("Rotate the picture (for games made for landscape)")} data-testid="rotate"><Icon name="rotate" /></button>
+            <button className="btn ghost sm icon" onClick={() => turnTo(nextRotation(rotation))} aria-label={translateUI("Rotate the picture")} title={translateUI("Rotate the picture (for games made for landscape)")} data-testid="rotate"><Icon name="rotate" /></button>
             <button className="btn ghost sm icon" onClick={() => void shot('save')} disabled={!lastFrame.current} aria-label={translateUI("Save a screenshot")} title={translateUI("Save a screenshot (PNG, the game's own size)")} data-testid="screenshot"><Icon name="camera" /></button>
             <button className="btn ghost sm icon" onClick={() => void shot('copy')} disabled={!lastFrame.current} aria-label={translateUI("Copy a screenshot")} title={translateUI("Copy a screenshot to the clipboard")} data-testid="screenshot-copy"><Icon name="copy" /></button>
             <button className="btn ghost sm icon" onClick={fullscreen} aria-label={translateUI("Toggle fullscreen")} title={translateUI("Fullscreen")}><Icon name="fullscreen" /></button>
@@ -490,15 +511,14 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
         </Panel>
 
         <Panel icon="device" title={translateUI("Emulation profile")}>
-          {sizeHint && !running && (
-            <div className="note info" data-testid="size-hint">
-              {translateUI("This game says it is made for")} {sizeHint.width}×{sizeHint.height} ({sizeHint.source.replace(/^attribute /, '')}). {translateUI("At")} {res?.width}×{res?.height} {translateUI("it may be cropped or laid out wrongly.")}
-              <button className="btn sm" style={{ marginTop: 8 }} onClick={() => { setAdvanced(true); setDevice(''); setRes({ width: sizeHint.width, height: sizeHint.height }); }}>{translateUI("Use")} {sizeHint.width}×{sizeHint.height}</button>
-            </div>
-          )}
+          <div className="chips" data-testid="phone-profile-match">
+            {res && <span className="chip" title={translateUI("Screen the game renders")}><Icon name="device" /> {res.width}×{res.height}</span>}
+            <span className="chip" title={translateUI("Key layout")}><Icon name="keypad" /> {translateUI(KEY_LAYOUTS[layout]?.label.split(' / ')[0] ?? layout)}</span>
+            {dev?.platform && <span className="chip" title={translateUI("Platform reported to the game")}><Icon name="cpu" /> {dev.platform}</span>}
+            {matched && <span className={`chip ${matched.exact ? 'ok' : ''}`} title={`${matched.preset.name}. ${translateUI(matched.reason)}`}><Icon name={matched.exact ? 'check' : 'info'} /> {translateUI(matched.exact ? 'exact' : 'generic')}</span>}
+          </div>
           <Switch checked={advanced} onChange={setAdvanced}>{translateUI("Advanced: choose skin and profile independently")}</Switch>
-          {matched && <div className={`note ${matched.exact ? 'info':'warn'}`} data-testid="phone-profile-match">{translateUI(matched.exact?'Exact preset':'Generic fallback')}: {matched.preset.name}. {translateUI(matched.reason)}</div>}
-          <fieldset disabled={!advanced} style={{border:0,padding:0,margin:0}}>
+          <fieldset hidden={!advanced} style={{border:0,padding:0,margin:0,display:advanced?'grid':'none',gap:12}}>
           <label className="field"><span className="label-caps">{translateUI("Device preset")}</span>
             <select className="select" value={device} onChange={(e) => applyDevice(e.target.value)} aria-label={translateUI("Device preset")}>
               <option value="">{translateUI("None — resolution and layout only")}</option>
@@ -506,21 +526,19 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
               {devices.map((d) => <option key={d.id} value={d.id}>{translateUI(d.vendor === 'common' ? '' : `${d.vendor} · `)}{d.name}{translateUI(d.model ? ` (${d.model})` : '')} · {d.width}×{d.height}</option>)}
             </select>
           </label>
-          {dev && <dl className="kv"><dt>{translateUI("Resolution")}</dt><dd>{dev.width}×{dev.height}</dd><dt>{translateUI("Keys")}</dt><dd>{dev.layoutName}</dd><dt>{translateUI("Platform")}</dt><dd>{dev.platform ?? 'emulator default'}</dd></dl>}
-          {dev?.notes.map((n) => <p className="hint" key={n}>{n}</p>)}
-          <label className="field"><span className="label-caps">{translateUI("Resolution")}</span>
-            <select className="select" aria-label={translateUI("Resolution")} value={SCREEN_PRESETS.some((p) => `${p.width}x${p.height}` === resKey) ? resKey : 'custom'} onChange={(e) => { const [w, h] = e.target.value.split('x').map(Number); if (w && h) { setRes({ width: w, height: h }); setDevice(''); } }}>
-              {SCREEN_PRESETS.map((p) => <option key={p.label} value={`${p.width}x${p.height}`}>{translateUI(p.label)}</option>)}
-              {res && !SCREEN_PRESETS.some((p) => `${p.width}x${p.height}` === resKey) && <option value="custom">{res.width}×{res.height}</option>}
-            </select>
-            <span className="hint">{translateUI("A game that looks cropped or drawn in a corner was probably made for a bigger screen (try 320×480 or 480×800); one that is drawn sideways was made for landscape (use Picture rotation in Display).")}</span>
-          </label>
-
-          <label className="field"><span className="label-caps">{translateUI("Key layout")}</span>
-            <select className="select" aria-label={translateUI("Key layout")} value={layout} onChange={(e) => { input.releaseAll(); setLayout(e.target.value as LayoutId); }}>
-              {Object.entries(KEY_LAYOUTS).map(([id, l]) => <option key={id} value={id}>{translateUI(l.label)}</option>)}
-            </select>
-          </label>
+          <div className="field-row">
+            <label className="field"><span className="label-caps">{translateUI("Resolution")}</span>
+              <select className="select" aria-label={translateUI("Resolution")} value={SCREEN_PRESETS.some((p) => `${p.width}x${p.height}` === resKey) ? resKey : 'custom'} onChange={(e) => { const [w, h] = e.target.value.split('x').map(Number); if (w && h) { setRes({ width: w, height: h }); setDevice(''); } }}>
+                {SCREEN_PRESETS.map((p) => <option key={p.label} value={`${p.width}x${p.height}`}>{translateUI(p.label)}</option>)}
+                {res && !SCREEN_PRESETS.some((p) => `${p.width}x${p.height}` === resKey) && <option value="custom">{res.width}×{res.height}</option>}
+              </select>
+            </label>
+            <label className="field"><span className="label-caps">{translateUI("Key layout")}</span>
+              <select className="select" aria-label={translateUI("Key layout")} value={layout} onChange={(e) => { input.releaseAll(); setLayout(e.target.value as LayoutId); }}>
+                {Object.entries(KEY_LAYOUTS).map(([id, l]) => <option key={id} value={id}>{translateUI(l.label)}</option>)}
+              </select>
+            </label>
+          </div>
           <label className="field"><span className="label-caps">{translateUI("Heap (MB)")}</span><input className="input" type="number" min={64} max={1024} step={32} value={heapMb} onChange={(e) => setHeapMb(Number(e.target.value))} aria-label={translateUI("Heap in MB")} /></label>
           </fieldset>
           {needRestart && <div className="note warn" role="status">{translateUI("The running game keeps its current profile. Restart to apply the selected phone/profile.")} <button className="btn sm" disabled={busy || state === 'stopping'} onClick={async()=>{if(await stop())await start();}}>{translateUI("Restart with selected profile")}</button></div>}
@@ -532,36 +550,17 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
         </Panel>
 
         <Panel icon="layers" title={translateUI("Display")}>
-          <div className="statline"><span className="label-caps">{translateUI("Phone model")}</span><span className="small mono">{translateUI(skin ? `${skin.config.manufacturer} ${skin.config.model}` : '…')}</span></div>
-          {skin && <div className="statline"><SkinStatus status={skin.config.status} /><span className="hint">{translateUI("display")} {skin.config.screen.width}×{skin.config.screen.height}</span></div>}
-          <div className="statline"><span className="label-caps">{translateUI("Emulated picture")}</span><span className="small mono" data-testid="frame-size">{frameSize.w}×{frameSize.h}</span></div>
-          {skinScreen && res && (res.width !== skinScreen.width || res.height !== skinScreen.height) && (
-            <div className="note info"> {translateUI("This phone’s display is")} {skinScreen.width}×{skinScreen.height}{translateUI("; the game renders")} {res.width}×{res.height}{translateUI(". It is shown whole, with margins, never stretched.")} {!running && advanced && <> <button className="btn sm" style={{ marginTop: 8 }} onClick={() => { setRes({ width: skinScreen.width, height: skinScreen.height }); setDevice(''); }}>{translateUI("Use")} {skinScreen.width}×{skinScreen.height} {translateUI("for the next start")}</button></>}
-            </div>
-          )}
-          <div className="field">
-            <span className="label-caps">{translateUI("Picture rotation")}</span>
-            <Seg<'0' | '90' | '180' | '270'> label={translateUI("Picture rotation")} value={String(rotation) as '0'} onChange={(v) => setRotation(Number(v) as 0)} options={ROTATIONS.map((d) => ({ value: String(d) as '0', label: `${d}°` }))} />
-            <span className="hint">{translateUI("Some games are made for landscape and draw sideways. Turning the picture is only a view; the game is not told.")}</span>
+          <div className="chips">
+            <span className="chip" title={translateUI("Phone model")}><Icon name="phone" /> {skin ? `${skin.config.manufacturer} ${skin.config.model}` : '…'}{skin && <SkinStatus status={skin.config.status} />}</span>
+            <span className="chip" title={translateUI("Emulated picture")}><Icon name="zoom" /> <span data-testid="frame-size">{frameSize.w}×{frameSize.h}</span></span>
+            {skinScreen && res && (res.width !== skinScreen.width || res.height !== skinScreen.height) && (
+              <span className="chip" title={translateUI(`This phone’s display is ${skinScreen.width}×${skinScreen.height}; the game renders ${res.width}×${res.height}. It is shown whole, with margins, never stretched.`)}><Icon name="info" /> {skinScreen.width}×{skinScreen.height}</span>
+            )}
           </div>
-          {rotation === 0 && (
-            <div className="note info" data-testid="landscape-quick">
-              {translateUI("Made for landscape? Turn the picture and switch to the Nokia E71, whose display is landscape.")}
-              <div className="btn-row" style={{ marginTop: 8 }}>
-                <button className="btn sm" onClick={() => landscapeMode(90)}>{translateUI("Landscape, turn right")} ⟳</button>
-                <button className="btn sm" onClick={() => landscapeMode(270)}>{translateUI("Landscape, turn left")} ⟲</button>
-              </div>
-            </div>
-          )}
-          {(rotation === 90 || rotation === 270) && skin && skin.config.screen.height > skin.config.screen.width && (
-            <div className="note info" data-testid="landscape-hint">
-              {translateUI("A landscape picture is small in a portrait display. The Nokia E71 has a landscape display.")}
-              <button className="btn sm" style={{ marginTop: 8 }} onClick={() => { setAdvanced(true); setPrefs({ skinId: 'nokia-e71' }); }}>{translateUI("Use the Nokia E71 picture")}</button>
-            </div>
-          )}
-          <Switch checked={prefs.integer} onChange={(integer) => setPrefs({ integer })}>{translateUI("Whole-number scaling")}</Switch>
-          <Switch checked={smooth} onChange={setSmooth}>{translateUI("Smooth scaling")}</Switch>
-          <p className="hint">{translateUI("The Screen view only enlarges the picture; the game keeps its resolution and keeps running.")}</p>
+          <div className="switch-row">
+            <Switch checked={prefs.integer} onChange={(integer) => setPrefs({ integer })}>{translateUI("Whole-number scaling")}</Switch>
+            <Switch checked={smooth} onChange={setSmooth}>{translateUI("Smooth scaling")}</Switch>
+          </div>
         </Panel>
 
         <Panel icon="gamepad" title={translateUI("Controls")}>

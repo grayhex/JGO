@@ -11,6 +11,9 @@ import { Icon } from './Icon';
 import { Seg } from './ui';
 
 type Filter = 'all' | 'favorites' | 'recent';
+type View = 'tiles' | 'list';
+const VIEW_KEY = 'j2me-web.library.view';
+const loadView = (): View => { try { return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'tiles'; } catch { return 'tiles'; } };
 
 function Cover({ g }: { g: GameMeta }) {
   const [broken, setBroken] = useState(false);
@@ -26,6 +29,8 @@ function Cover({ g }: { g: GameMeta }) {
 export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['kind'], t: string) => void; onPlay: (id: string) => void; health: HealthStatus | null; query: string }) {
   const [games, setGames] = useState<GameMeta[] | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
+  const [view, setViewState] = useState<View>(loadView);
+  const setView = (v: View) => { setViewState(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* storage unavailable */ } };
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(0);
   const [editing, setEditing] = useState<GameMeta | null>(null);
@@ -135,6 +140,7 @@ export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['ki
           <p>{games === null ? translateUI('Loading…') : (() => { const n = new Set((games ?? []).map((g) => g.groupKey)).size; return translateUI('{games} · {fav} favorites · stored on this server only', { games: translateUI(n === 1 ? '{n} game' : '{n} games', { n }), fav: favCount }); })()}</p>
         </div>
         <span className="spacer" />
+        <Seg<View> label={translateUI("View")} value={view} onChange={setView} options={[{ value: 'tiles', label: 'Tiles', title: 'Large tiles with covers' }, { value: 'list', label: 'List', title: 'Compact list, one game per line' }]} />
         <Seg<Filter> label={translateUI("Filter")} value={filter} onChange={setFilter} options={[{ value: 'all', label: 'All' }, { value: 'favorites', label: 'Favorites' }, { value: 'recent', label: 'Recent' }]} />
         {libraryPath && <button className="btn" disabled={scanning} onClick={() => void api.scanStart('update').then((r) => setScan(r.report), (e) => toast('error', (e as Error).message))} title={translateUI("Look for new and changed files in the library folder")}><Icon name="restart" /> {translateUI(scanning ? 'Importing…' : 'Scan folder')}</button>}
         <button className="btn primary" onClick={() => fileInput.current?.click()}><Icon name="upload" /> {translateUI("Add games")}</button>
@@ -159,7 +165,7 @@ export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['ki
       )}
       {games === null && <p className="muted">{translateUI("Loading…")}</p>}
 
-      <div className="lib-grid">
+      <div className={`lib-grid${view === 'list' ? ' list' : ''}`} data-view={view}>
         {groups.map((vs) => {
           const sel = vs.find((v) => v.id === chosen[vs[0]!.groupKey]) ?? vs[0]!;
           const bad = sel.classVersion >= 49;

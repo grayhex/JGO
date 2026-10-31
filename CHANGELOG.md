@@ -3,6 +3,20 @@
 Formatted after [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 `-beta` releases are complete enough to use but not yet proven on a variety of hardware.
 
+## [Unreleased]
+
+### Fixed
+- **Games did not start in Docker** (beta.5): the emulator died at the game's icon with `NoClassDefFoundError ... swt.internal.gtk.OS`,
+  because SWT's native library cannot be unpacked in a container. Images are now decoded with the JDK's ImageIO when SWT is unusable (patch `0014`).
+- Choosing a library folder now imports it at once; before, the library stayed empty until *Scan* was pressed.
+- Sony Ericsson phones use the Sony Ericsson key layout (was labelled Nokia).
+- Settings: wider page, the ten phones wrap instead of stretching the form.
+
+### Changed
+- The emulation profile shows short icons instead of sentences; the manifest's screen size is applied automatically; rotation is one button that also moves the picture to the landscape phone.
+- `/phones`: a click on a phone sets it for the game opened last (or as the default for new games).
+- The library has a compact list view next to the tiles.
+
 ## [0.1.0-beta.1] - first beta
 
 First public beta of JGO: a self-hosted web player for Java ME (J2ME/MIDP) games that runs the real

@@ -97,7 +97,7 @@ export function App() {
     : settings
       ? { title: 'Settings', subtitle: 'Library, MobyGames, phone, sound, server', node: <SettingsPage toast={toast} onRunWizard={() => setWizard(true)} onLibraryChanged={() => window.dispatchEvent(new Event('j2me:library-changed'))} /> }
     : phones
-      ? { title: 'Phones', subtitle: 'Classic phones', node: DevPhones && developer ? <Suspense fallback={null}><DevPhones /></Suspense> : <PhonesPage /> }
+      ? { title: 'Phones', subtitle: 'Classic phones', node: DevPhones && developer ? <Suspense fallback={null}><DevPhones /></Suspense> : <PhonesPage toast={toast} /> }
       : { title: 'Library', subtitle: 'Your games on this server', node: <Library toast={toast} onPlay={(id) => go(`/play/${id}`)} health={health} query={query} /> };
 
   return (

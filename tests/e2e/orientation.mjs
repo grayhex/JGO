@@ -1,4 +1,4 @@
-// Games made for another screen: the size hint from the JAR, the landscape shortcut (Nokia E71 + turned picture), the turn itself.
+// Games made for another screen: the size from the JAR is applied by itself, turning the picture moves it to the landscape phone (Nokia E71).
 // Real API + KEmulator + Chromium.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -32,22 +32,19 @@ try {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
 
-  // a game that names its screen size gets a one-click suggestion
+  // a game that names its screen size is set up for it, without asking
   await page.goto(`${base}/play/${big.id}`);
-  await page.locator('[data-testid=size-hint]').waitFor();
-  ok('a JAR that declares a 480×800 screen gets a size suggestion', /480×800/.test(await page.locator('[data-testid=size-hint]').innerText()));
-  await page.locator('[data-testid=size-hint] button').click();
   await page.waitForFunction(() => document.querySelector('select[aria-label="Resolution"]')?.value === '480x800');
-  ok('the suggestion switches to advanced mode with that resolution', (await page.locator('select[aria-label="Resolution"]').inputValue()) === '480x800');
-  ok('... and goes away once the resolution matches', (await page.locator('[data-testid=size-hint]').count()) === 0);
+  ok('a JAR that declares a 480×800 screen is set up for 480×800 by itself', (await page.locator('select[aria-label="Resolution"]').inputValue()) === '480x800');
+  ok('... in advanced mode, and no question is asked', (await page.locator('[data-testid=size-hint]').count()) === 0 && await page.locator('label.switch', { hasText: 'Advanced' }).locator('input').isChecked());
 
-  // landscape shortcut on a normal game
+  // a sideways game: one tap on the turn button puts the picture on the landscape phone
   await page.goto(`${base}/play/${kem.id}`);
   await page.waitForSelector('.skin-box');
-  ok('the landscape shortcut is offered for a turned-off picture', (await page.locator('[data-testid=landscape-quick]').count()) === 1);
-  await page.locator('[data-testid=landscape-quick]').getByRole('button', { name: /turn right/ }).click();
+  ok('the old landscape shortcuts are gone (it is automatic now)', (await page.locator('[data-testid=landscape-quick]').count()) === 0);
+  await page.locator('[data-testid=rotate]').click();
   await page.waitForSelector('.skin-box[data-skin="nokia-e71"]');
-  ok('it picks the Nokia E71 (landscape display)', true);
+  ok('turning the picture picks the Nokia E71 (landscape display)', true);
   ok('... and turns the picture by 90°', (await page.locator('canvas.skin-canvas').getAttribute('data-rotation')) === '90');
   ok('... in advanced mode, so the game keeps its own resolution', await page.locator('label.switch', { hasText: 'Advanced' }).locator('input').isChecked());
   await page.locator('.ctrl-col').getByRole('button', { name: 'Start', exact: true }).click();

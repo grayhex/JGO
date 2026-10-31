@@ -76,6 +76,12 @@ public class KemScreens extends MIDlet implements CommandListener {
 				return;
 			} else {
 				Form f = new Form("Settings");
+				try {
+					javax.microedition.lcdui.Image im = javax.microedition.lcdui.Image.createImage("/icon.png");
+					System.out.println("IMAGE_LOADED " + im.getWidth() + "x" + im.getHeight());
+				} catch (Exception e) {
+					// jars without that resource (the plain form fixture) simply have no image
+				}
 				f.append(new StringItem("Hello", "KemLab form"));
 				f.append(new TextField("Name", "player", 16, TextField.ANY));
 				ChoiceGroup cg = new ChoiceGroup("Sound", ChoiceGroup.EXCLUSIVE, new String[] {"On", "Off"}, null);

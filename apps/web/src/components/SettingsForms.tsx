@@ -62,9 +62,9 @@ export function PhoneDefaultsForm({ toast, auto }: { toast: Toaster; auto?: bool
   return (
     <div className="stack">
       <p className="muted">{translateUI("The phone new games start with. It is chosen once here and can be changed per game later; games already in the library keep their own settings.")}</p>
-      <div>
+      <div className="wide">
         <span className="label-caps">{translateUI("Phone picture")}</span>
-        <SkinPicker skins={skins} value={draft.skinId} onChange={(id) => set({ skinId: id })} />
+        <SkinPicker skins={skins} value={draft.skinId} onChange={(id) => set({ skinId: id })} wrap />
         {skin && <p className="muted small">{skin.config.manufacturer} {skin.config.model} · <SkinStatus status={skin.config.status} /> {translateUI("The picture is only a look: it never changes what the game sees.")}</p>}
       </div>
       <div className="field"><span className="label-caps">{translateUI("Starting view")}</span><Seg<'full' | 'screen'> label={translateUI("Starting view")} value={draft.view} onChange={(v) => set({ view: v })} options={[{ value: 'full', label: 'Whole phone' }, { value: 'screen', label: 'Screen close-up' }]} /></div>
