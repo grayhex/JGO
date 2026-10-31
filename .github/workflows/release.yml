@@ -9,8 +9,8 @@ name: Release
 # -beta tag is a normal release so that `latest` points at it. Run by hand (workflow_dispatch) it builds the
 # artifacts and the images but pushes nothing, which is how to look at a release before tagging.
 on:
-  push:
-    tags: ['v*']
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       version:
