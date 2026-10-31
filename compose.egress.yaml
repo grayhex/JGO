@@ -1,5 +1,6 @@
 # Opt-in: let MIDlets reach the network (online features, ads, analytics).
-#   docker compose -f compose.yaml -f compose.egress.yaml up --build
+#   docker compose -f compose.yaml -f compose.egress.yaml up -d
+# Source build with network access: add -f compose.build.yaml before the final up --build.
 # The JAR is untrusted code: it will be able to connect to anything the container can reach.
 services:
   app:
