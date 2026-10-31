@@ -41,9 +41,11 @@
 
 ```bash
 mkdir jgo && cd jgo
-curl -fsSLO https://github.com/grayhex/JGO/releases/latest/download/compose.yaml
-curl -fsSL https://github.com/grayhex/JGO/releases/latest/download/env.example -o .env
+curl -fsSLO https://raw.githubusercontent.com/grayhex/JGO/main/compose.yaml
+curl -fsSL https://raw.githubusercontent.com/grayhex/JGO/main/.env.example -o .env
 ```
+Эти же файлы прикрепляются к каждому [релизу](https://github.com/grayhex/JGO/releases). Ссылка GitHub `/releases/latest` **не показывает prerelease**, поэтому быстрый старт скачивает конфигурацию из `main`. Для воспроизводимой установки укажите в `.env` `JGO_VERSION` опубликованного образа (номер тега без необязательной `v`).
+
 
 Впишите в `.env` токен доступа (`JGO_TOKEN`, не короче 16 символов; например `openssl rand -hex 16`) и запустите:
 
