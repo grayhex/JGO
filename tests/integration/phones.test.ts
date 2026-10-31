@@ -16,7 +16,7 @@ describe('PhoneSkin automatic profiles against real KEmulator', () => {
       const settings={skinId:id,profileMode:'auto',width:777,height:777,layout:'siemens',device:'no-such-device'};
       const patch=await fetch(env.base+'/api/games/'+game.id,{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({settings})});
       assert.equal(patch.status,200);const saved=await patch.json();
-      assert.deepEqual([saved.settings.device,saved.settings.width,saved.settings.height,saved.settings.layout],[p.id,p.width,p.height,p.layout]);
+      assert.deepEqual([saved.settings.device,saved.settings.width,saved.settings.height,saved.settings.layout],[p.id,p.width,p.height,resolved.layout]);
       assert.equal(saved.settings.skinId,id);
       const r=await fetch(env.base+'/api/sessions',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({gameId:game.id})});
       assert.equal(r.status,201);const session=await r.json();
