@@ -5,6 +5,9 @@ Formatted after [Keep a Changelog](https://keepachangelog.com/); versions follow
 
 ## [Unreleased]
 
+### Changed
+- **New design: WattVision.** One dark theme (`#121212` workspace, `#1E1E1E` cards with 16 px radius, cyan `#00E5FF` accent, red alerts with a left bar, lime-green "live"), Inter and JetBrains Mono bundled for offline use, monospace 32 px telemetry values. The light theme and the theme switch are gone (the design rules out light backgrounds).
+
 ### Fixed
 - **Games did not start in Docker** (beta.5): the emulator died at the game's icon with `NoClassDefFoundError ... swt.internal.gtk.OS`,
   because SWT's native library cannot be unpacked in a container. Images are now decoded with the JDK's ImageIO when SWT is unusable (patch `0014`).

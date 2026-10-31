@@ -18,7 +18,7 @@ const loadView = (): View => { try { return localStorage.getItem(VIEW_KEY) === '
 function Cover({ g }: { g: GameMeta }) {
   const [broken, setBroken] = useState(false);
   const art = !!g.info?.hasCover && !broken; // a MobyGames cover, served by this server
-  const hue = 18 + (parseInt(g.groupKey.slice(0, 4), 16) % 34); // warm range only: the palette has one signal colour
+  const hue = 170 + (parseInt(g.groupKey.slice(0, 4), 16) % 46); // teal to blue: the palette has one signal colour, cyan
   return (
     <div className={`cover ${art ? 'art' : ''}`} style={{ ['--hue' as string]: hue }}>
       {art ? <img src={api.coverUrl(g.id)} alt="" loading="lazy" onError={() => setBroken(true)} /> : g.hasIcon && !broken ? <img src={api.iconUrl(g.id)} alt="" onError={() => setBroken(true)} /> : <span className="initials">{g.name.slice(0, 2).toUpperCase()}</span>}

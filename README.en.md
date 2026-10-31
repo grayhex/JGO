@@ -24,7 +24,7 @@ English · [Русский](README.md)
 - **Ten handsets:** Nokia 6100, 6230i, N95-1, E71, 5800 XpressMusic; Sony Ericsson K750i, W995, K790i; Motorola RAZR V3; Samsung S5230 Star. Every handset has full and screen close-up views.
 - **Controls:** handset keys, on-screen keypad, PC keyboard, gamepad, multi-touch.
 - **Text input** in `TextField`/`TextBox`, **pause**, game **speed**, screenshots, **input recording and playback**, **game files** (JSR-75), a custom MIDI **SoundFont**.
-- **Display:** picture rotation, landscape mode, full screen, light and dark themes, English and Russian UI.
+- **Display:** picture rotation, landscape mode, full screen, dark WattVision theme, English and Russian UI.
 - **Library:** drag-and-drop JAR/JAD or import a whole folder; duplicate detection; optional [MobyGames](https://www.mobygames.com) metadata.
 - **Easy install:** a ready-made Docker image for NAS (Synology, UGREEN, QNAP) and servers; additionally a Proxmox VE LXC container with the `jgo` command for updates and backups.
 - **Security:** game code is untrusted — separate user, container isolation, resource limits, no network access.

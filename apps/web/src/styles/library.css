@@ -1,12 +1,12 @@
 .lib-toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: var(--s-xl); }
 .lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
 .game-card { display: flex; flex-direction: column; overflow: hidden; background: var(--surface-elevated); border: 1px solid var(--outline); border-radius: var(--r-lg); box-shadow: var(--shadow-subtle); transition: box-shadow var(--t-normal) var(--ease), transform var(--t-normal) var(--ease), border-color var(--t-normal) var(--ease); }
-.game-card:hover { box-shadow: var(--shadow-raised); transform: translateY(-2px); border-color: var(--primary-warm); }
+.game-card:hover { box-shadow: var(--shadow-raised); transform: translateY(-2px); border-color: var(--primary); }
 .card-main { all: unset; cursor: pointer; display: block; box-sizing: border-box; }
 .card-main:disabled { cursor: not-allowed; opacity: 0.6; }
 .card-main:focus-visible { outline: 2px solid var(--primary-focus); outline-offset: -2px; }
-.cover { aspect-ratio: 16 / 10; display: grid; place-items: center; background: linear-gradient(135deg, hsl(var(--hue) 55% 62%), hsl(calc(var(--hue) + 14) 70% 48%)); position: relative; overflow: hidden; }
-.cover::after { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 80% 0%, rgba(255, 255, 255, 0.28), transparent 55%); }
+.cover { aspect-ratio: 16 / 10; display: grid; place-items: center; background: linear-gradient(135deg, hsl(var(--hue) 70% 22%), hsl(calc(var(--hue) + 14) 80% 14%)); position: relative; overflow: hidden; }
+.cover::after { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 80% 0%, rgba(0, 229, 255, 0.18), transparent 60%); }
 .cover img { width: 64px; height: 64px; object-fit: contain; image-rendering: pixelated; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35)); position: relative; z-index: 1; }
 .initials { font: 700 1.75rem/1 var(--mono); color: rgba(255, 255, 255, 0.92); letter-spacing: 0.04em; position: relative; z-index: 1; }
 .meta { padding: 12px 16px 4px; }
@@ -14,7 +14,7 @@
 .meta p { font-size: 0.8125rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card-foot { display: flex; align-items: center; gap: 4px; padding: 6px 8px 10px 16px; }
 .icon-btn { border: 0; background: transparent; width: 32px; height: 32px; border-radius: var(--r-md); display: grid; place-items: center; color: var(--muted); transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease); }
-.icon-btn:hover { background: var(--primary-tint); color: var(--primary-strong); }
+.icon-btn:hover { background: var(--primary-tint); color: var(--primary); }
 .icon-btn.fav { color: var(--warning); }
 .icon-btn.fav svg { fill: currentColor; }
 .empty { text-align: center; padding: var(--s-4xl) 16px; display: grid; gap: 12px; justify-items: center; max-width: 520px; margin: 0 auto; }
@@ -31,11 +31,11 @@
 .facts dt { color: var(--muted); } .facts dd { margin: 0; overflow-wrap: anywhere; }
 .menu-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
 .login { min-height: 100dvh; display: grid; grid-template-columns: 1fr 1fr; }
-.login-hero { background: linear-gradient(135deg, var(--primary-warm), var(--primary-strong) 55%); color: #fff; display: grid; align-content: center; padding: var(--s-4xl); gap: 16px; }
+.login-hero { background: radial-gradient(900px 480px at 20% 10%, rgba(0, 229, 255, 0.22), transparent 70%), var(--surface); border-right: 1px solid var(--outline); color: var(--fg); display: grid; align-content: center; padding: var(--s-4xl); gap: 16px; }
 .login-hero h1 { font-size: 3rem; line-height: 1; font-weight: 600; letter-spacing: -0.025em; }
 .login-hero p { max-width: 36ch; opacity: 0.9; }
 .login-side { display: grid; place-items: center; padding: var(--s-xl); background: var(--bg); }
-.login-card { width: min(380px, 100%); background: var(--surface-elevated); border: 1px solid var(--outline); border-radius: var(--r-md); padding: var(--s-2xl); box-shadow: var(--shadow-raised); display: grid; gap: 14px; }
+.login-card { width: min(380px, 100%); background: var(--surface-elevated); border: 1px solid var(--outline); border-radius: var(--r-lg); padding: var(--s-2xl); box-shadow: var(--shadow-raised); display: grid; gap: 14px; }
 @media (max-width: 760px) { .login { grid-template-columns: 1fr; } .login-hero { padding: var(--s-2xl) var(--s-xl); } .login-hero h1 { font-size: 2rem; } }
 
 .cover.art { aspect-ratio: 4 / 5; background: var(--surface-soft); }

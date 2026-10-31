@@ -154,8 +154,7 @@ try {
   await page.waitForFunction(() => /launches 3/.test('x') || true);
   ok('restart works', true);
 
-  // light/dark theme
-  await page.getByRole('radio', { name: 'Dark' }).click();
+  // the one (dark) theme
   await page.waitForTimeout(400); // let the colour transitions finish before the screenshot
   await page.screenshot({ path: path.join(outDir, '06-player-dark.png') });
   await page.click('button.danger:has-text("Stop")');
@@ -163,7 +162,6 @@ try {
   await page.click('a:has-text("Library")');
   await page.waitForSelector('article.game-card');
   await page.screenshot({ path: path.join(outDir, '07-library-dark.png') });
-  await page.getByRole('radio', { name: 'Light' }).click();
 
   // mobile viewport
   const m = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });

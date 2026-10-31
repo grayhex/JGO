@@ -9,7 +9,7 @@
 }
 .settings-nav { display: flex; flex-wrap: wrap; gap: 8px; position: sticky; top: 0; z-index: 5; padding: 8px 0; background: var(--bg); }
 .settings-nav a { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: var(--r-pill); border: 1px solid var(--outline); background: var(--surface-elevated); color: var(--fg); text-decoration: none; font-size: 0.8125rem; font-weight: 600; }
-.settings-nav a:hover { border-color: var(--primary-warm); color: var(--primary-strong); }
+.settings-nav a:hover { border-color: var(--primary-warm); color: var(--primary); }
 .settings-nav .icon-svg { width: 16px; height: 16px; }
 .settings-section { display: grid; gap: 14px; scroll-margin-top: 56px; }
 .settings-section h2 { display: flex; align-items: center; gap: 8px; font-size: 1.125rem; }
@@ -30,7 +30,7 @@
 .root .icon-svg { width: 18px; height: 18px; color: var(--primary); flex: none; }
 .folder-list { display: flex; flex-wrap: wrap; gap: 6px; max-height: 180px; overflow: auto; padding: 8px; border: 1px solid var(--outline); border-radius: var(--r-md); background: var(--surface-soft); }
 .folder { border: 1px solid var(--outline); background: var(--surface-elevated); border-radius: var(--r-sm); padding: 4px 10px; font: 0.8125rem var(--mono); color: inherit; }
-.folder:hover { border-color: var(--primary-warm); color: var(--primary-strong); }
+.folder:hover { border-color: var(--primary-warm); color: var(--primary); }
 .scan { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--outline); border-radius: var(--r-md); background: var(--surface-soft); }
 .stats { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; font-size: 0.875rem; margin: 0; }
 .stats dt { color: var(--muted); }
@@ -38,7 +38,7 @@
 .more summary { cursor: pointer; font-weight: 600; font-size: 0.875rem; }
 .plain-list { list-style: none; padding: 0; margin: 6px 0 0; display: grid; gap: 6px; }
 .plain-list ul { margin: 2px 0 0 14px; padding: 0; list-style: none; }
-.linklike { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--primary-strong); }
+.linklike { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--primary); }
 .linklike:focus-visible { outline: 2px solid var(--primary-focus); outline-offset: 2px; }
 .cands { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .cand { display: grid; grid-template-columns: 1fr auto auto auto; gap: 10px; align-items: center; padding: 8px 12px; border: 1px solid var(--outline); border-radius: var(--r-md); background: var(--surface-elevated); }

@@ -118,10 +118,7 @@ try {
     const attached = (await (await fetch(base + '/api/sessions')).json()).find(s => s.state === 'running');
     assert.equal(attached.id, running.id, 'reload retains phone and attaches same session');
     await page.locator('.stage-bar').getByRole('radio', { name: 'Phone', exact: true }).click();
-    for (const theme of ['light', 'dark']) {
-      await page.evaluate(t => document.documentElement.setAttribute('data-theme', t), theme);
-      await page.locator('.stage-card').screenshot({ path: `test-results/${id}-${theme}.png` });
-    }
+    await page.locator('.stage-card').screenshot({ path: `test-results/${id}-dark.png` });
     await page.locator('.ctrl-col').getByRole('button', { name: 'Stop', exact: true }).click();
     await page.waitForFunction(() => document.querySelector('[data-testid=state-badge]').textContent.includes('exited'));
     console.log(`PASS ${id}: real ${c.screen.width}×${c.screen.height}, ${c.input.kind} input, zoom and persisted session.`);

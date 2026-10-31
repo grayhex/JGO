@@ -2,7 +2,6 @@ import { useLocale, setLocale } from '../i18n';
 import { t as translateUI } from '../i18n';
 import type { HealthStatus } from '@j2me-web/protocol';
 import { useEffect, useState, type ReactNode } from 'react';
-import type { ThemeChoice } from '../theme';
 import { Icon, type IconName } from './Icon';
 import { Seg } from './ui';
 import { useLastGame } from '../lastGame';
@@ -26,8 +25,8 @@ export function Link({ to, children, className, onNavigate, ...rest }: { to: str
 
 const COLLAPSE = 'j2me-web.sidebar';
 
-export function Shell({ path, go, health, theme, setTheme, title, subtitle, search, children }: {
-  path: string; go: (to: string) => void; health: HealthStatus | null; theme: ThemeChoice; setTheme: (t: ThemeChoice) => void;
+export function Shell({ path, go, health, title, subtitle, search, children }: {
+  path: string; go: (to: string) => void; health: HealthStatus | null;
   title: string; subtitle?: string; search?: { value: string; onChange: (v: string) => void }; children: ReactNode;
 }) {
   const locale=useLocale();
@@ -91,17 +90,6 @@ export function Shell({ path, go, health, theme, setTheme, title, subtitle, sear
         <Seg<'en' | 'ru'> className="on-shell" label="Language / Язык" value={locale} onChange={setLocale} options={[{ value: 'en', label: 'EN', title: 'English' }, { value: 'ru', label: 'RU', title: 'Русский' }]} />
         {search && <input className="input-shell" type="search" placeholder={translateUI("Search games or vendors")} value={search.value} onChange={(e) => search.onChange(e.target.value)} aria-label={translateUI("Search")} />}
         {health && !health.ok && <span className="badge mock hide-narrow" title={translateUI("The emulator runtime is missing on this server")}>{translateUI("Runtime not ready")}</span>}
-        <Seg
-          className="on-shell"
-          label={translateUI("Theme")}
-          value={theme}
-          onChange={setTheme}
-          options={[
-            { value: 'system', label: 'Auto', title: 'Follow the system' },
-            { value: 'light', label: <Icon name="sun" />, title: 'Light' },
-            { value: 'dark', label: <Icon name="moon" />, title: 'Dark' },
-          ]}
-        />
       </header>
       <main className="content" id="main">
         <div className={`container${inPlayer ? ' wide' : ''}`}>{children}</div>
