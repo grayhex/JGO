@@ -50,7 +50,7 @@ docker compose up -d
 docker compose logs app
 ```
 
-При первом запуске JGO автоматически создаст случайный токен входа в постоянном томе `/data/.jgo-auth-token`. Он выводится **один раз** в лог контейнера `app` (строка `First-run login token`). Позднее можно прочитать его через `docker compose exec app cat /data/.jgo-auth-token`. Логи с токеном не публикуйте.
+При первом запуске JGO автоматически создаст случайный токен входа в отдельном постоянном Docker-томе `jgo-auth`, в файле `/jgo-auth/.jgo-auth-token`. Этот том сохраняет строгие права на секрет даже на NAS с ACL. Он выводится **один раз** в лог контейнера `app` (строка `First-run login token`). Позднее можно прочитать его через `docker compose exec app cat /jgo-auth/.jgo-auth-token`. Логи с токеном не публикуйте.
 
 Откройте `http://<адрес NAS>:8080`, введите токен и пройдите мастер первого запуска. Обновление: `docker compose pull && docker compose up -d`. Готовые файлы также прикрепляются к [релизам](https://github.com/grayhex/JGO/releases). Для фиксированной версии замените `:latest` в YAML или задайте `JGO_VERSION` через необязательный `.env`.
 
