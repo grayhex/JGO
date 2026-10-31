@@ -458,5 +458,17 @@
   "Only the first entries are shown.": "Показаны только первые записи.",
   "Upload a file…": "Загрузить файл…",
   "Refresh": "Обновить",
-  "used": "занято"
+  "used": "занято",
+  "Tiles": "Плитки",
+  "List": "Список",
+  "Large tiles with covers": "Крупные плитки с обложками",
+  "Compact list, one game per line": "Компактный список, одна игра в строке",
+  "exact": "точный",
+  "generic": "общий",
+  "Screen the game renders": "Экран, который видит игра",
+  "Platform reported to the game": "Платформа, о которой сообщается игре",
+  "{phone} is now the phone of “{game}”": "{phone} теперь телефон игры «{game}»",
+  "Click a phone to use it for “{game}”: the picture, screen size and keys follow it.": "Нажмите на телефон, чтобы использовать его для «{game}»: картинка, размер экрана и клавиши подстроятся.",
+  "Click a phone to make it the default for new games. Open a game first to change its own phone.": "Нажмите на телефон, чтобы сделать его телефоном по умолчанию для новых игр. Чтобы сменить телефон конкретной игры, сначала откройте её.",
+  "This phone is now the default for new games": "Этот телефон теперь по умолчанию для новых игр"
 }

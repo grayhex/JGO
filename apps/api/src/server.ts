@@ -98,8 +98,8 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
   const withDevice = (settings: GameSettings, explicit: Record<string, unknown>): GameSettings => {
     if (settings.profileMode === 'auto') {
       if (!settings.skinId) throw new SessionError('bad_settings', 'Automatic mode requires a skin', 400);
-      const { preset } = resolvePhone(settings.skinId, devicePresets().presets);
-      return { ...settings, device: preset.id, width: preset.width, height: preset.height, layout: preset.layout };
+      const { preset, layout } = resolvePhone(settings.skinId, devicePresets().presets);
+      return { ...settings, device: preset.id, width: preset.width, height: preset.height, layout };
     }
     if (!settings.device) return settings;
     const p = findPreset(devicePresets().presets, settings.device);

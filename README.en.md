@@ -93,7 +93,7 @@ npm start          # http://127.0.0.1:8080
 1. **Add games:** drop `.jar` (and `.jad`) files onto the window or connect a folder — *Settings → Game library*. For Proxmox: `tools/proxmox/jgo-library-mount.sh <CTID> /host/path` ([docs/LIBRARY.md](docs/LIBRARY.md)).
 2. **Start** a game with *Start*. Audio is enabled after the first user action, as browsers require.
 3. **Play** with digits and arrows (Enter is "Fire"), the handset keys, the on-screen keypad or a gamepad. The layout is under *Keys…*.
-4. **Fit the screen.** If a game is cropped, pick a larger resolution (JGO suggests the one in the manifest). If it is drawn sideways, press *Landscape*.
+4. **Fit the screen.** If the game's manifest names its screen size, JGO sets it by itself. If a game is drawn sideways, press the rotate button in the player header: the picture turns and the phone changes to the Nokia E71 with its landscape display (turn back to restore it).
 5. **Quit with Stop:** the regular `destroyApp()` runs and RMS saves are written atomically.
 
 ## Compatibility

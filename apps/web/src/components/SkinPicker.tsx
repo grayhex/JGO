@@ -6,9 +6,9 @@ export function SkinStatus({ status }: { status: string }) {
   return <span className={`badge ${status === 'review-draft' ? 'mock' : 'prod'}`} title={translateUI(status === 'review-draft' ? 'Geometry validated, historical accuracy not yet confirmed' : status)}>{translateUI(status === 'review-draft' ? 'review draft' : status)}</span>;
 }
 
-export function SkinPicker({ skins, value, onChange }: { skins: LoadedSkin[] | null; value: string; onChange: (id: string) => void }) {
+export function SkinPicker({ skins, value, onChange, wrap }: { skins: LoadedSkin[] | null; value: string; onChange: (id: string) => void; wrap?: boolean }) {
   return (
-    <div className="skin-picker" role="radiogroup" aria-label={translateUI("Phone model")}>
+    <div className={`skin-picker${wrap ? ' wrap' : ''}`} role="radiogroup" aria-label={translateUI("Phone model")}>
       {(skins ?? []).map((s) => (
         <button key={s.config.id} type="button" role="radio" className="skin-opt" aria-checked={s.config.id === value} onClick={() => onChange(s.config.id)} title={translateUI(`${s.config.manufacturer} ${s.config.model} (${s.config.year}), display ${s.config.screen.width}×${s.config.screen.height}`)}>
           <img src={`${s.base}${s.config.assets.preview ?? 'preview.webp'}`} alt="" loading="lazy" draggable={false} />

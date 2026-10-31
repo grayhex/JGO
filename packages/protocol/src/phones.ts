@@ -1,4 +1,4 @@
-import type { DevicePreset } from './index.js';
+import type { DevicePreset, LayoutId } from './index.js';
 /** IDs are actual presets.xml IDs, never generated device names. */
 export const PHONE_PROFILES = {
   'nokia-6100': { device: '128x128-common-full-screen', exact: false, reason: 'No Nokia 6100 preset; generic 128×128, emulator platform unchanged.' },
@@ -14,9 +14,11 @@ export const PHONE_PROFILES = {
 } as const;
 export type PhoneId = keyof typeof PHONE_PROFILES;
 export function isPhoneId(value: unknown): value is PhoneId { return typeof value === 'string' && Object.hasOwn(PHONE_PROFILES, value); }
+/** Key layout a phone is played with: its own when the model has one (Sony Ericsson), else the one of its device preset. */
+const OWN_LAYOUT: Partial<Record<PhoneId, LayoutId>> = { 'sony-ericsson-k750i': 'sonyericsson', 'sony-ericsson-w995': 'sonyericsson', 'sony-ericsson-k790i': 'sonyericsson' };
 export function resolvePhone(id: PhoneId, presets: DevicePreset[]) {
   const match = PHONE_PROFILES[id];
   const preset = presets.find((p) => p.id === match.device);
   if (!preset) throw new Error(`Required KEmulator preset unavailable: ${match.device}`);
-  return { ...match, preset };
+  return { ...match, preset, layout: OWN_LAYOUT[id] ?? preset.layout };
 }

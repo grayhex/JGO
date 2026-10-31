@@ -91,3 +91,15 @@ textarea.text-editor-field { resize: vertical; min-height: 84px; }
 .file-list { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 2px; max-height: 260px; overflow: auto; }
 .file-list li { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 8px; font-size: 0.8125rem; }
 .file-list li > .file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; justify-content: flex-start; }
+
+/* compact summaries: icons and short values instead of sentences (hover for the details) */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips .chip { height: 26px; padding: 0 10px; font-size: 0.75rem; cursor: default; }
+.chips .chip .icon-svg { width: 14px; height: 14px; color: var(--primary); }
+.chips .chip.ok { border-color: var(--success, #2e9e5b); }
+.chips .chip.ok .icon-svg { color: var(--success, #2e9e5b); }
+.chips .chip .badge { margin-left: 4px; }
+.switch-row { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+/* a picker that lists every model (Settings): wraps instead of widening the page */
+.skin-picker.wrap { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); overflow: visible; padding: 4px 0; border-top: 0; }
+.skin-picker.wrap .skin-opt { flex: none; max-width: none; }
