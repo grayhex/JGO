@@ -2,6 +2,13 @@
 # Container entrypoint: private Xvfb (needed by GLFW/OpenGL for M3G + Mascot Capsule), then the API.
 set -eu
 
+# One-file NAS install: if no token was configured, generate a private persistent
+# credential in /data and expose it to the API. Never run publicly unauthenticated.
+if [ -z "${AUTH_TOKEN:-}" ]; then
+  AUTH_TOKEN="$(node /usr/local/bin/jgo-auth-token.cjs)" || exit 1
+  export AUTH_TOKEN
+fi
+
 if [ "${KEM_XVFB:-1}" = "1" ]; then
   export DISPLAY="${KEM_DISPLAY:-:99}"
   rm -f "/tmp/.X11-unix/X${DISPLAY#:}" "/tmp/.X${DISPLAY#:}-lock"
