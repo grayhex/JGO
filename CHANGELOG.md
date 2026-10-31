@@ -6,6 +6,15 @@ Formatted after [Keep a Changelog](https://keepachangelog.com/); versions follow
 ## [Unreleased]
 
 ### Added
+- **Rename a game** (Game settings → Title): the title applies to every version, beats a catalog title and the automatic one, and can be reset. Stored in `game_titles`, kept when the library is emptied.
+- `tools/docs-screenshots.mjs`: takes the README screenshots from any folder of JARs.
+
+### Changed
+- **No top bar** on a desktop screen (a slim bar with the menu stays on phone-sized screens): the language switch moved to the sidebar, the search to the library toolbar (with smaller Scan/Add buttons). The phone in the player grew into the freed space.
+- The library list is an even table (title, publisher, genre, version, time) with a header row; long titles are cut instead of pushing the columns.
+- README and screenshots renewed; the old ones are removed.
+
+### Added
 - **`:edge` image**: `edge.yml` publishes `jgo:edge` and `jgo-gateway:edge` (and an immutable `sha-<commit>`) after every green CI on `main`, with Buildx and the Actions cache; a red CI publishes nothing. `latest` now moves only for an official release, and a version tag already in GHCR is never overwritten.
 - **Library clean-up**: remove all games whose files are gone, or empty the whole library (type `DELETE`), optionally with saves. Genres and MobyGames data are kept.
 - **Genres from folder names** (`JGO-Top500/Racing/…`), applied after every scan and by a button; sorting (name, added, last played, time played, genre) and a status filter (not played, played, file gone, genre not confirmed) in the library.

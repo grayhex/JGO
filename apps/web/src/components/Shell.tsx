@@ -25,9 +25,9 @@ export function Link({ to, children, className, onNavigate, ...rest }: { to: str
 
 const COLLAPSE = 'j2me-web.sidebar';
 
-export function Shell({ path, go, health, title, subtitle, search, children }: {
+export function Shell({ path, go, health, title, subtitle, children }: {
   path: string; go: (to: string) => void; health: HealthStatus | null;
-  title: string; subtitle?: string; search?: { value: string; onChange: (v: string) => void }; children: ReactNode;
+  title: string; subtitle?: string; children: ReactNode;
 }) {
   const locale=useLocale();
   const lastGame = useLastGame();
@@ -66,6 +66,7 @@ export function Shell({ path, go, health, title, subtitle, search, children }: {
           {item('/settings', 'sliders', 'Settings', path === '/settings')}
         </nav>
         <div className="sidebar-foot">
+          <Seg<'en' | 'ru'> className="on-shell lang" label="Language / Язык" value={locale} onChange={setLocale} options={[{ value: 'en', label: 'EN', title: 'English' }, { value: 'ru', label: 'RU', title: 'Русский' }]} />
           <div className="runtime" title={translateUI(health ? `KEmulator ${health.kemulator.commit?.slice(0, 9) ?? '?'} · Java ${health.java.version ?? 'missing'}` : 'Checking the server')}>
             <span className={`dot ${ok ? '' : 'bad'}`} aria-hidden />
             <span className="runtime-text">
@@ -86,10 +87,6 @@ export function Shell({ path, go, health, title, subtitle, search, children }: {
           <div className="header-title">{translateUI(title)}</div>
           {subtitle && <div className="header-sub">{translateUI(subtitle)}</div>}
         </div>
-        <span className="spacer" />
-        <Seg<'en' | 'ru'> className="on-shell" label="Language / Язык" value={locale} onChange={setLocale} options={[{ value: 'en', label: 'EN', title: 'English' }, { value: 'ru', label: 'RU', title: 'Русский' }]} />
-        {search && <input className="input-shell" type="search" placeholder={translateUI("Search games or vendors")} value={search.value} onChange={(e) => search.onChange(e.target.value)} aria-label={translateUI("Search")} />}
-        {health && !health.ok && <span className="badge mock hide-narrow" title={translateUI("The emulator runtime is missing on this server")}>{translateUI("Runtime not ready")}</span>}
       </header>
       <main className="content" id="main">
         <div className={`container${inPlayer ? ' wide' : ''}`}>{children}</div>

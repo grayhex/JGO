@@ -281,6 +281,31 @@ describe('genres: classifications by game, a catalog imported by SHA-256', () =>
     assert.equal(a2.groupKey, a.groupKey);
   });
 
+  it('a title typed by hand beats the catalog and the automatic one, and can be reset', async () => {
+    const g = app.library.add(makeJar('rnmpl', { vendor: 'Typed' }), null, 1 << 30).game;
+    assert.equal(g.name, 'Rnmpl');
+    const put = (groupKey: string, body: unknown) => call('PUT', `/api/library/groups/${groupKey}/title`, body);
+    const r = await put(g.groupKey, { title: '  Rainbow\u0000 Six  ' });
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.json.title, 'Rainbow Six');
+    assert.equal((await call('GET', `/api/games/${g.id}`)).json.name, 'Rainbow Six');
+    assert.equal(app.library.list().find((x) => x.id === g.id)!.name, 'Rainbow Six');
+    // a catalog title arrives later: the typed one stays
+    const sha3 = createHash('sha256').update(makeJar('rnmpl', { vendor: 'Typed' })).digest('hex');
+    await call('POST', '/api/library/catalog/import', catalog([{ sha256: sha3, title: 'Something Else', genre: 'Action' }]));
+    assert.equal((await call('GET', `/api/games/${g.id}`)).json.name, 'Rainbow Six');
+    // back to automatic: the catalog title shows
+    assert.equal((await put(g.groupKey, { title: null })).json.title, 'Something Else');
+    assert.equal((await put(g.groupKey, { title: '   ' })).status, 400, 'an empty title is refused');
+    assert.equal((await put(g.groupKey, { title: 7 })).status, 400);
+    assert.equal((await put('0123456789ab', { title: 'x' })).status, 404, 'a game that is not in the library');
+    // it survives emptying the library and importing the game again
+    await put(g.groupKey, { title: 'Kept Title' });
+    app.library.remove(g.id);
+    const back = app.library.add(makeJar('rnmpl', { vendor: 'Typed' }), null, 1 << 30).game;
+    assert.equal(app.library.get(back.id)!.name, 'Kept Title');
+  });
+
   it('an older database without the table is upgraded in place, and no game is lost', () => {
     const dir = tmpDir('jgo-old-');
     const old = new Library(dir);

@@ -11,7 +11,7 @@ Games run in the real [KEmulator nnmod](https://github.com/shinovon/KEmulator) e
 
 English · [Русский](README.md)
 
-<img src="docs/img/player.png" alt="The JGO player: a game in a Nokia E71" width="760">
+<img src="docs/img/player.png" alt="The JGO player: a game in a Nokia N95" width="760">
 
 </div>
 
@@ -24,13 +24,17 @@ English · [Русский](README.md)
 - **Ten handsets:** Nokia 6100, 6230i, N95-1, E71, 5800 XpressMusic; Sony Ericsson K750i, W995, K790i; Motorola RAZR V3; Samsung S5230 Star. Every handset has full and screen close-up views.
 - **Controls:** handset keys, on-screen keypad, PC keyboard, gamepad, multi-touch.
 - **Text input** in `TextField`/`TextBox`, **pause**, game **speed**, screenshots, **input recording and playback**, **game files** (JSR-75), a custom MIDI **SoundFont**.
-- **Display:** picture rotation, landscape mode, full screen, dark WattVision theme, English and Russian UI.
-- **Library:** drag-and-drop JAR/JAD or import a whole folder; duplicate detection; optional [MobyGames](https://www.mobygames.com) metadata.
+- **Display:** picture rotation, "Lights Out" landscape mode, full screen, the phone as tall as the window, dark WattVision theme, English and Russian UI (switch in the sidebar).
+- **Library:** drag-and-drop JAR/JAD or import a whole folder; duplicate detection; tiles or an even table; search, sorting (name, added, last played, time played, genre) and filters; **play time** on every card; renaming games; optional [MobyGames](https://www.mobygames.com) metadata.
+- **Genres:** a genre belongs to the game, not to a folder. It comes from a `jgo_catalog.json` catalog (matched by SHA-256, with a preview), from folder names (`…/Racing/…`) or by hand; a genre you choose is never overwritten. Titles are cleaned of release-group and site tags.
+- **Tidy-up:** games whose files are gone, or the whole library, can be removed in one go (saves are kept unless you say otherwise).
 - **Easy install:** a ready-made Docker image for NAS (Synology, UGREEN, QNAP) and servers; additionally a Proxmox VE LXC container with the `jgo` command for updates and backups.
 - **Security:** game code is untrusted — separate user, container isolation, resource limits, no network access.
 
 <div align="center">
-<img src="docs/img/player-portrait.gif" alt="A portrait game in a Nokia N95" width="320">
+<img src="docs/img/library.png" alt="Library: tiles with genres and play time" width="760">
+<img src="docs/img/library-list.png" alt="Library: the list as a table" width="760">
+<img src="docs/img/phones.png" alt="Ten phones to choose from" width="760">
 </div>
 
 ## Quick start
@@ -52,7 +56,7 @@ docker compose logs app
 
 At first boot JGO generates a secure random login token in a separate Docker-managed volume `jgo-auth`, at `/jgo-auth/.jgo-auth-token`. This avoids NAS shared-folder ACL restrictions. The token is shown **once** in `app` container logs as `First-run login token`; later retrieve it with `docker compose exec app cat /jgo-auth/.jgo-auth-token`. Keep these logs private.
 
-Open `http://<NAS address>:8080`, enter the token, and finish the first-run wizard. To update: `docker compose pull && docker compose up -d`. The configuration is also attached to [GitHub releases](https://github.com/grayhex/JGO/releases); pin a version by editing the image tags or using optional `JGO_VERSION`.
+Open `http://<NAS address>:8080`, enter the token, and finish the first-run wizard. To update: `docker compose pull && docker compose up -d`. The configuration is also attached to [GitHub releases](https://github.com/grayhex/JGO/releases); pin a version by editing the image tags or using optional `JGO_VERSION`. `JGO_VERSION=edge` follows the newest `main` build that passed CI (for testers); `latest` moves only for an official release.
 
 Step-by-step guides for Synology and UGREEN, folder permissions, backups, HTTPS and troubleshooting: [docs/DOCKER.md](docs/DOCKER.md) (Russian).
 

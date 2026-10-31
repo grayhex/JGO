@@ -21,7 +21,7 @@
 .shell-collapsed .nav-label, .shell-collapsed .nav-title, .shell-collapsed .brand-text, .shell-collapsed .runtime-text { display: none; }
 .shell-collapsed .runtime { justify-content: center; padding: 10px 0; }
 
-.header { position: fixed; z-index: 30; top: 0; right: 0; left: var(--sidebar-w); height: var(--header-h); padding: 0 16px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--shell-border); transition: left var(--t-slow) var(--ease); }
+.header { display: none; position: fixed; z-index: 30; top: 0; right: 0; left: var(--sidebar-w); height: var(--header-h); padding: 0 16px; align-items: center; gap: 12px; border-bottom: 1px solid var(--shell-border); transition: left var(--t-slow) var(--ease); }
 .shell-collapsed .header { left: var(--sidebar-w-collapsed); }
 .header-title { font-size: 1rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .header-sub { font-size: 0.75rem; color: var(--on-shell-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -46,6 +46,8 @@
 
 @media (max-width: 1100px) { .container { padding: var(--s-lg) var(--s-xl) var(--s-3xl); } }
 @media (max-width: 860px) {
+  :root { --header-h: 56px; }
+  .header { display: flex; }
   .sidebar { transform: translateX(-100%); width: min(280px, 86vw); }
   .shell-drawer .sidebar { transform: none; }
   .shell-drawer .scrim { display: block; position: fixed; inset: 0; z-index: 35; background: rgba(0, 0, 0, 0.6); }
@@ -61,3 +63,9 @@
 .show-mobile { display: none; }
 @media (max-width: 860px) { .show-mobile { display: grid; } .hide-mobile { display: none; } }
 .seg.on-shell button[aria-checked='true'], .seg.on-shell button[aria-pressed='true'] { background: var(--primary); color: var(--on-primary); }
+
+/* language switch in the sidebar */
+.sidebar-foot .seg.lang { align-self: stretch; }
+.sidebar-foot .seg.lang button { flex: 1; justify-content: center; }
+.shell-collapsed .sidebar-foot .seg.lang { flex-direction: column; align-self: center; width: 40px; }
+@media (max-width: 860px) { .shell-collapsed .sidebar-foot .seg.lang { flex-direction: row; width: auto; align-self: stretch; } }

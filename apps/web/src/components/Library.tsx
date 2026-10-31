@@ -46,7 +46,7 @@ function Cover({ g }: { g: GameMeta }) {
   );
 }
 
-export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['kind'], t: string) => void; onPlay: (id: string) => void; health: HealthStatus | null; query: string }) {
+export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: Toast['kind'], t: string) => void; onPlay: (id: string) => void; health: HealthStatus | null; query: string; onQuery: (v: string) => void }) {
   const [games, setGames] = useState<GameMeta[] | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
   const [view, setViewState] = useState<View>(loadView);
@@ -179,7 +179,13 @@ export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['ki
           <p>{games === null ? translateUI('Loading…') : (() => { const n = new Set((games ?? []).map((g) => g.groupKey)).size; return translateUI('{games} · {fav} favorites · stored on this server only', { games: translateUI(n === 1 ? '{n} game' : '{n} games', { n }), fav: favCount }); })()}</p>
         </div>
         <span className="spacer" />
-        <Seg<View> label={translateUI("View")} value={view} onChange={setView} options={[{ value: 'tiles', label: 'Tiles', title: 'Large tiles with covers' }, { value: 'list', label: 'List', title: 'Compact list, one game per line' }]} />
+        {libraryPath && <button className="btn sm" disabled={scanning} onClick={() => void api.scanStart('update').then((r) => setScan(r.report), (e) => toast('error', (e as Error).message))} title={translateUI("Look for new and changed files in the library folder")}><Icon name="restart" /> {translateUI(scanning ? 'Importing…' : 'Scan folder')}</button>}
+        <button className="btn sm primary" onClick={() => fileInput.current?.click()}><Icon name="upload" /> {translateUI("Add games")}</button>
+        <input ref={fileInput} type="file" accept=".jar,.jad" multiple hidden onChange={(e) => { void upload([...(e.target.files ?? [])]); e.target.value = ''; }} />
+      </div>
+
+      <div className="lib-toolbar" role="search">
+        <input className="input lib-search" type="search" placeholder={translateUI("Search games or vendors")} value={query} onChange={(e) => onQuery(e.target.value)} aria-label={translateUI("Search")} data-testid="search" />
         <select className="select compact" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} aria-label={translateUI("Sort by")} data-testid="sort">
           {SORT_KEYS.map((k) => <option key={k} value={k}>{translateUI(SORT_LABEL[k])}</option>)}
         </select>
@@ -187,9 +193,7 @@ export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['ki
           {STATUS_FILTERS.map((k) => <option key={k} value={k}>{translateUI(STATUS_LABEL[k])}</option>)}
         </select>
         <Seg<Filter> label={translateUI("Filter")} value={filter} onChange={setFilter} options={[{ value: 'all', label: 'All' }, { value: 'favorites', label: 'Favorites' }, { value: 'recent', label: 'Recent' }]} />
-        {libraryPath && <button className="btn" disabled={scanning} onClick={() => void api.scanStart('update').then((r) => setScan(r.report), (e) => toast('error', (e as Error).message))} title={translateUI("Look for new and changed files in the library folder")}><Icon name="restart" /> {translateUI(scanning ? 'Importing…' : 'Scan folder')}</button>}
-        <button className="btn primary" onClick={() => fileInput.current?.click()}><Icon name="upload" /> {translateUI("Add games")}</button>
-        <input ref={fileInput} type="file" accept=".jar,.jad" multiple hidden onChange={(e) => { void upload([...(e.target.files ?? [])]); e.target.value = ''; }} />
+        <Seg<View> label={translateUI("View")} value={view} onChange={setView} options={[{ value: 'tiles', label: 'Tiles', title: 'Large tiles with covers' }, { value: 'list', label: 'List', title: 'Compact list, one game per line' }]} />
       </div>
 
       {scanning && scan && <div className="note info" role="status" data-testid="scan-banner">{translateUI("Importing from the library folder…")} {scan.added + scan.updated + scan.unchanged}/{scan.jars} {translateUI("files ·")} {scan.added} {translateUI("new")}{translateUI(scan.current ? ` · ${scan.current}` : '')}</div>}
@@ -220,10 +224,60 @@ export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['ki
       )}
       {games === null && <p className="muted">{translateUI("Loading…")}</p>}
 
+      {view === 'list' && groups.length > 0 && (
+        <div className="lib-table-head" aria-hidden>
+          <span /><span>{translateUI("Title")}</span><span className="c-vendor">{translateUI("Publisher")}</span><span className="c-genre">{translateUI("Genre")}</span><span className="c-version">{translateUI("Version")}</span><span className="c-time">{translateUI("Time")}</span><span />
+        </div>
+      )}
       <div className={`lib-grid${view === 'list' ? ' list' : ''}`} data-view={view}>
         {groups.map((vs) => {
           const sel = vs.find((v) => v.id === chosen[vs[0]!.groupKey]) ?? vs[0]!;
           const bad = sel.classVersion >= 49;
+          const unconfirmed = !sel.classification || sel.classification.unconfirmed;
+          const genreButton = (
+            <button className={`badge plain genre-badge${unconfirmed ? ' unconfirmed' : ''}`} onClick={() => setGenreFor(sel)} data-testid="genre-badge"
+              title={translateUI(unconfirmed ? 'The genre is not confirmed: click to choose it' : 'Change the genre')}>
+              {translateUI(unconfirmed ? 'Genre not confirmed' : sel.classification!.primaryGenre)}
+            </button>
+          );
+          const versionControl = vs.length > 1 ? (
+            <select className="select compact" value={sel.id} onChange={(e) => setChosen((c) => ({ ...c, [sel.groupKey]: e.target.value }))} aria-label={translateUI("Version")}>
+              {vs.map((v) => <option key={v.id} value={v.id}>{translateUI(v.version ? `v${v.version}` : v.id.slice(0, 6))} · {(v.sizeBytes / 1024).toFixed(0)} {translateUI("KB")}</option>)}
+            </select>
+          ) : (
+            <span className="badge plain">{translateUI(sel.version ? `v${sel.version}` : 'no version')}</span>
+          );
+          const flags = (
+            <>
+              {sel.warnings.length > 0 && <span className="badge mock" title={translateUI(sel.warnings.join('\n'))}>!</span>}
+              {sel.sourceMissing && <span className="badge plain" title={translateUI("The file is no longer in the library folder; the game stays here with its saves")}>{translateUI("file gone")}</span>}
+              {sel.info?.status === 'ambiguous' && <span className="badge mock" title={translateUI("Several MobyGames matches: open the info to choose")}>{translateUI("review")}</span>}
+            </>
+          );
+          const time = (
+            <span className={`playtime${totalPlaySeconds(vs) ? '' : ' none'}`} data-testid="playtime" title={translateUI("Time spent in this game, all versions together")}><Icon name="clock" /> {playTime(totalPlaySeconds(vs)) ?? '0'}</span>
+          );
+          const actions = (
+            <>
+              <button className={`icon-btn ${sel.favorite ? 'fav' : ''}`} onClick={() => toggleFav(sel)} aria-label={translateUI(sel.favorite ? 'Remove from favorites' : 'Add to favorites')} aria-pressed={sel.favorite}><Icon name="star" /></button>
+              <button className="icon-btn" onClick={() => setInfoFor(sel)} aria-label={translateUI("Game information")}><Icon name="info" /></button>
+              <button className="icon-btn" onClick={() => setEditing(sel)} aria-label={translateUI("Game settings")}><Icon name="sliders" /></button>
+            </>
+          );
+          if (view === 'list') return (
+            <article className="card game-card game-row" key={sel.groupKey}>
+              <button className="row-cover" tabIndex={-1} aria-hidden onClick={() => onPlay(sel.id)} disabled={bad || health?.ok === false}><Cover g={sel} /></button>
+              <button className="card-main row-title" onClick={() => onPlay(sel.id)} disabled={bad || health?.ok === false} title={translateUI(bad ? 'Java 5+ class files are not supported by KEmulator' : `Play ${sel.name}`)}>
+                <h3>{sel.name}</h3>
+                <span className="row-flags">{flags}</span>
+              </button>
+              <span className="cell c-vendor muted" title={sel.vendor}>{translateUI(sel.info?.year ? `${sel.vendor} · ${sel.info.year}` : sel.vendor)}</span>
+              <span className="cell c-genre">{genreButton}</span>
+              <span className="cell c-version">{versionControl}</span>
+              <span className="cell c-time">{time}</span>
+              <span className="cell actions">{actions}</span>
+            </article>
+          );
           return (
             <article className="card game-card" key={sel.groupKey}>
               <button className="card-main" onClick={() => onPlay(sel.id)} disabled={bad || health?.ok === false} title={translateUI(bad ? 'Java 5+ class files are not supported by KEmulator' : `Play ${sel.name}`)}>
@@ -231,28 +285,15 @@ export function Library({ toast, onPlay, health, query }: { toast: (k: Toast['ki
                 <div className="meta">
                   <h3>{sel.name}</h3>
                   <p className="muted">{translateUI(sel.info?.year ? `${sel.vendor} · ${sel.info.year}` : sel.vendor)}</p>
-                  <p className={`playtime${totalPlaySeconds(vs) ? '' : ' none'}`} data-testid="playtime" title={translateUI("Time spent in this game, all versions together")}><Icon name="clock" /> {playTime(totalPlaySeconds(vs)) ?? '0'}</p>
+                  <p>{time}</p>
                 </div>
               </button>
               <div className="card-foot">
-                {translateUI(vs.length > 1 ? (
-                  <select className="select compact" value={sel.id} onChange={(e) => setChosen((c) => ({ ...c, [sel.groupKey]: e.target.value }))} aria-label={translateUI("Version")}>
-                    {vs.map((v) => <option key={v.id} value={v.id}>{translateUI(v.version ? `v${v.version}` : v.id.slice(0, 6))} · {(v.sizeBytes / 1024).toFixed(0)} {translateUI("KB")}</option>)}
-                  </select>
-                ) : (
-                  <span className="badge plain">{translateUI(sel.version ? `v${sel.version}` : 'no version')}</span>
-                ))}
-                {sel.warnings.length > 0 && <span className="badge mock" title={translateUI(sel.warnings.join('\n'))}>!</span>}
-                {sel.sourceMissing && <span className="badge plain" title={translateUI("The file is no longer in the library folder; the game stays here with its saves")}>{translateUI("file gone")}</span>}
-                {sel.info?.status === 'ambiguous' && <span className="badge mock" title={translateUI("Several MobyGames matches: open the info to choose")}>{translateUI("review")}</span>}
-                <button className={`badge plain genre-badge${!sel.classification || sel.classification.unconfirmed ? ' unconfirmed' : ''}`} onClick={() => setGenreFor(sel)} data-testid="genre-badge"
-                  title={translateUI(!sel.classification || sel.classification.unconfirmed ? 'The genre is not confirmed: click to choose it' : 'Change the genre')}>
-                  {translateUI(!sel.classification || sel.classification.unconfirmed ? 'Genre not confirmed' : sel.classification.primaryGenre)}
-                </button>
+                {versionControl}
+                {flags}
+                {genreButton}
                 <span className="spacer" />
-                <button className={`icon-btn ${sel.favorite ? 'fav' : ''}`} onClick={() => toggleFav(sel)} aria-label={translateUI(sel.favorite ? 'Remove from favorites' : 'Add to favorites')} aria-pressed={sel.favorite}><Icon name="star" /></button>
-                <button className="icon-btn" onClick={() => setInfoFor(sel)} aria-label={translateUI("Game information")}><Icon name="info" /></button>
-                <button className="icon-btn" onClick={() => setEditing(sel)} aria-label={translateUI("Game settings")}><Icon name="sliders" /></button>
+                {actions}
               </div>
             </article>
           );
