@@ -66,7 +66,11 @@ jobs:
           commit="$(cat runtime/build/kemulator/KEM_COMMIT)"
           git init -q kem-src && git -C kem-src remote add origin https://github.com/shinovon/KEmulator
           git -C kem-src fetch -q --depth 1 origin "$commit" && git -C kem-src checkout -q FETCH_HEAD
-          git -C kem-src archive --prefix="kemulator-$commit/" -o "dist-release/jgo-kemulator-source-$commit.tar.gz" HEAD
+          # git -C resolves -o relative to kem-src, not the workflow workspace.
+          source_archive="$PWD/dist-release/jgo-kemulator-source-$commit.tar.gz"
+          git -C kem-src archive --prefix="kemulator-$commit/" -o "$source_archive" HEAD
+          test -s "$source_archive"
+          tar -tzf "$source_archive" > /dev/null
           cp compose.yaml compose.egress.yaml dist-release/
           cp .env.example dist-release/env.example   # GitHub renames release assets that start with a dot
           (cd dist-release && sha256sum jgo-kemulator-source-*.tar.gz compose.yaml compose.egress.yaml env.example >> SHA256SUMS && cat SHA256SUMS)

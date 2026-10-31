@@ -38,6 +38,9 @@ services:
       - ${JGO_LIBRARY:-./games}:/mnt/jgo-library:ro
     networks: [internal]
     # --- hardening: the JAR is untrusted code ---
+    # If /data is a NAS bind-mounted directory, grant this UID:GID write access
+    # or set user to the owner of that NAS folder (e.g. "1000:10").
+    # With the Docker-managed jgo-data volume, keep the default 10001:10001.
     user: "${PUID:-10001}:${PGID:-10001}"
     read_only: true
     cap_drop: [ALL]
