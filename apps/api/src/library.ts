@@ -6,6 +6,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { DEFAULT_SETTINGS, EMULATION_LIMITS, type EmulationTweaks, type GameInfoSummary, type GameMeta, type GameSettings, KEY_LAYOUTS, SCREEN_PRESETS, type LayoutId, type MetaStatus } from '@j2me-web/protocol';
 import { parseJad, parseJar, sanitizeText, UploadError } from './jar.js';
 import { Classifications } from './classification.js';
+import { cleanTitle, cleanVendor } from './title.js';
 
 interface Row {
   id: string;
@@ -243,8 +244,8 @@ export class Library {
     return {
       id: r.id,
       sha256: r.sha256,
-      name: r.name,
-      vendor: r.vendor,
+      name: cleanTitle(r.name), // what is stored stays as it came; the title shown has no release-group tags
+      vendor: cleanVendor(r.vendor),
       version: r.version,
       midlets: JSON.parse(r.midlets_json),
       classVersion: r.class_version,
@@ -260,6 +261,12 @@ export class Library {
       warnings: JSON.parse(r.warnings_json),
       origin: r.origin === 'import' ? 'import' : 'upload',
     };
+  }
+
+  /** Gives games the genre named by a folder they were imported from (see Classifications.assignFromFolders). */
+  assignGenresFromFolders(): { assigned: number; unchanged: number; skipped: number } {
+    const rows = this.db.prepare(`SELECT g.group_key AS groupKey, s.rel_path AS relPath FROM sources s JOIN games g ON g.id = s.game_id WHERE s.missing = 0`).all() as unknown as { groupKey: string; relPath: string }[];
+    return this.classes.assignFromFolders(rows);
   }
 
   /** The group (all versions of one game) of the file with this SHA-256, if the library has it. */
@@ -287,7 +294,7 @@ export class Library {
       const i = info.get(r.group_key);
       if (i) g.info = i;
       const c = cls.get(r.group_key);
-      if (c) g.classification = c;
+      if (c) { g.classification = c; if (c.canonicalTitle) g.name = c.canonicalTitle; }
       return g;
     });
     if (!genre) return all;
@@ -307,7 +314,7 @@ export class Library {
     const m = this.db.prepare('SELECT status, data_json FROM metadata WHERE group_key = ?').get(g.groupKey) as unknown as { status: string; data_json: string } | undefined;
     if (m) g.info = infoSummary(m);
     const c = this.classes.get(g.groupKey);
-    if (c) g.classification = c;
+    if (c) { g.classification = c; if (c.canonicalTitle) g.name = c.canonicalTitle; }
     return g;
   }
 
@@ -343,7 +350,7 @@ export class Library {
     const settings: GameSettings = { ...DEFAULT_SETTINGS, ...(opts.defaults ?? {}) };
     const firstMidlet = info.midlets[0];
     if (info.midlets.length > 1 && firstMidlet) settings.midlet = firstMidlet.className;
-    const groupKey = createHash('sha1').update(`${vendor.toLowerCase()}\0${name.toLowerCase()}`).digest('hex').slice(0, 12);
+    const groupKey = createHash('sha1').update(`${cleanVendor(vendor).toLowerCase()}\0${cleanTitle(name).toLowerCase()}`).digest('hex').slice(0, 12);
     this.db
       .prepare(
         `INSERT INTO games (id, sha256, name, vendor, version, group_key, midlets_json, class_version, size_bytes, has_icon, has_jad,
@@ -382,8 +389,23 @@ export class Library {
   remove(id: string): boolean {
     if (!this.get(id)) return false;
     this.db.prepare('DELETE FROM games WHERE id = ?').run(id);
+    this.db.prepare('DELETE FROM sources WHERE game_id = ?').run(id);
     rmSync(path.join(this.gamesDir, id), { recursive: true, force: true });
     return true;
+  }
+
+  /** Games whose every file has disappeared from the library folder ("file gone"). */
+  missingIds(): string[] {
+    return this.list().filter((g) => g.sourceMissing).map((g) => g.id);
+  }
+
+  /** The import history of a library that was emptied. */
+  clearScans(): void {
+    this.db.exec('DELETE FROM scans');
+  }
+
+  allIds(): string[] {
+    return (this.db.prepare('SELECT id FROM games').all() as unknown as { id: string }[]).map((r) => r.id);
   }
 
   /** Per-owner, per-game directory used as KEmulator's user path (RMS, settings). */

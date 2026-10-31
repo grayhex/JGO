@@ -276,6 +276,25 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
     return g;
   });
 
+  // Clean-up of the whole library: only the games whose files are gone, or everything. Genres and MobyGames data stay (they come
+  // back with the same game); saves are removed only when asked. "all" needs the word DELETE so a stray request does nothing.
+  app.post<{ Body: { what?: unknown; deleteSaves?: unknown; confirm?: unknown } }>('/api/library/cleanup', async (req) => {
+    const b = req.body ?? {};
+    if (b.what !== 'missing' && b.what !== 'all') throw new UploadError('bad_request', '"what" must be "missing" or "all"', 400);
+    if (b.what === 'all' && b.confirm !== 'DELETE') throw new UploadError('confirm_required', 'Deleting the whole library needs "confirm": "DELETE"', 400);
+    const saves = b.deleteSaves === true;
+    if (b.what === 'all') await sessions.stopAll();
+    const busy = new Set(sessions.active().map((s) => s.game.id));
+    const ids = b.what === 'all' ? library.allIds() : library.missingIds();
+    let removed = 0, skipped = 0;
+    for (const id of ids) {
+      if (busy.has(id)) { skipped++; continue; }
+      if (library.remove(id)) { removed++; if (saves) library.removeSaves(owner, id); }
+    }
+    if (b.what === 'all') library.clearScans();
+    return { removed, skipped, deletedSaves: saves };
+  });
+
   app.delete<{ Params: { id: string }; Querystring: { saves?: string } }>('/api/games/:id', async (req, reply) => {
     const id = req.params.id;
     if (sessions.active().some((s) => s.game.id === id)) throw new SessionError('in_use', 'Stop the running session first', 409);

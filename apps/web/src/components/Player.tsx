@@ -26,7 +26,6 @@ import { Icon } from './Icon';
 import { KeyMapDialog } from './KeyMapDialog';
 import { Keypad } from './Keypad';
 import { Modal } from './Modal';
-import { SkinStatus } from './SkinPicker';
 import { Hint, Meter, Panel, Seg, Spark, Switch } from './ui';
 import { audioSettings, buzz, controlSettings } from '../serverSettings';
 import { nextRotation, unrotatePoint, type Rotation } from '../skin/geometry';
@@ -548,7 +547,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
 
         <Panel icon="layers" title={translateUI("Display")}>
           <div className="chips">
-            <button type="button" className="chip chip-link" onClick={() => navigate('/phones')} title={translateUI("Change the phone")} data-testid="change-phone"><Icon name="phone" /> {skin ? `${skin.config.manufacturer} ${skin.config.model}` : '…'}{skin && <SkinStatus status={skin.config.status} />}</button>
+            <button type="button" className="chip chip-link" onClick={() => navigate('/phones')} title={translateUI("Change the phone")} data-testid="change-phone"><Icon name="phone" /> {skin ? `${skin.config.manufacturer} ${skin.config.model}` : '…'}</button>
             <span className="chip" title={translateUI("Emulated picture")}><Icon name="zoom" /> <span data-testid="frame-size">{frameSize.w}×{frameSize.h}</span></span>
             {skinScreen && res && (res.width !== skinScreen.width || res.height !== skinScreen.height) && (
               <span className="chip" title={translateUI(`This phone’s display is ${skinScreen.width}×${skinScreen.height}; the game renders ${res.width}×${res.height}. It is shown whole, with margins, never stretched.`)}><Icon name="info" /> {skinScreen.width}×{skinScreen.height}</span>
@@ -561,7 +560,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
         </Panel>
 
         <Panel icon="gamepad" title={translateUI("Controls")}>
-          <button className="btn" onClick={()=>{input.releaseAll();setPadMenu(v=>!v);}}>{translateUI("Gamepad settings / UI navigation")}</button>
+          <button className="btn wrap" title={translateUI("Gamepad settings / UI navigation")} aria-label={translateUI("Gamepad settings / UI navigation")} onClick={()=>{input.releaseAll();setPadMenu(v=>!v);}}><Icon name="gamepad" /> {translateUI("Gamepad settings")}</button>
           {padMenu && <GamepadSettings gameId={gameId} poller={gamepad.current} state={padState} />}
           {!!padState.pressed.length && <div className="note">{translateUI("Held:")} {padState.pressed.join(', ')}</div>}
           <Switch checked={external} disabled={keypadRequired} onChange={setShowKeypad}>{translateUI("On-screen keypad")}</Switch>

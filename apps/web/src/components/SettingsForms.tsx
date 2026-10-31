@@ -5,7 +5,7 @@ import { api } from '../api';
 import { setServerSettings, useServerSettings } from '../serverSettings';
 import { useCatalog } from '../skin/registry';
 import { Icon } from './Icon';
-import { SkinPicker, SkinStatus } from './SkinPicker';
+import { SkinPicker } from './SkinPicker';
 import { Seg, Switch } from './ui';
 
 type Toaster = (kind: 'info' | 'error', text: string) => void;
@@ -65,7 +65,7 @@ export function PhoneDefaultsForm({ toast, auto }: { toast: Toaster; auto?: bool
       <div className="wide">
         <span className="label-caps">{translateUI("Phone picture")}</span>
         <SkinPicker skins={skins} value={draft.skinId} onChange={(id) => set({ skinId: id })} wrap />
-        {skin && <p className="muted small">{skin.config.manufacturer} {skin.config.model} · <SkinStatus status={skin.config.status} /> {translateUI("The picture is only a look: it never changes what the game sees.")}</p>}
+        {skin && <p className="muted small">{skin.config.manufacturer} {skin.config.model} · {translateUI("The picture is only a look: it never changes what the game sees.")}</p>}
       </div>
       <div className="field"><span className="label-caps">{translateUI("Starting view")}</span><Seg<'full' | 'screen'> label={translateUI("Starting view")} value={draft.view} onChange={(v) => set({ view: v })} options={[{ value: 'full', label: 'Whole phone' }, { value: 'screen', label: 'Screen close-up' }]} /></div>
       <label className="field">

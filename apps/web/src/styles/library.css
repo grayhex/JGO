@@ -85,3 +85,6 @@ button.genre-badge.unconfirmed { color: var(--muted); font-weight: 500; font-sty
 .playtime:empty { display: none; }
 .lib-grid.list .playtime { flex: none; margin: 0; min-width: 84px; text-align: right; }
 .playtime.none { color: var(--muted); font-weight: 400; }
+
+.playtime { display: flex; align-items: center; gap: 5px; }
+.playtime .icon-svg { width: 13px; height: 13px; }

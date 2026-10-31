@@ -5,12 +5,23 @@
 1. Версия во всех `package.json`, в `bridge/kemulator-adapter/Cargo.toml` и `Cargo.lock` совпадает с тегом (`0.1.0-beta.1`); запись в [CHANGELOG.md](../CHANGELOG.md) готова.
 2. Проверка без публикации: Actions → **Release** → *Run workflow* с нужной версией. Собирает тарболл и оба образа, ничего не публикует; артефакты можно скачать и посмотреть.
 3. Тег: `git tag v0.1.0-beta.1 && git push origin v0.1.0-beta.1`. Workflow **Release**:
-   * публикует образы `ghcr.io/grayhex/jgo:<версия>` и `ghcr.io/grayhex/jgo-gateway:<версия>` (и `:latest`, кроме `-alpha`/`-rc`/`-dev`);
+   * публикует образы `ghcr.io/grayhex/jgo:<версия>` и `ghcr.io/grayhex/jgo-gateway:<версия>`; **версионный тег никогда не перезаписывается** (если такая версия уже есть в GHCR, workflow пропускает публикацию образа и предупреждает: выпустите новую версию); `:latest` двигается **только для официального релиза** (версия без суффикса `-beta`/`-rc`/… и релиз не помечен как pre-release);
    * создаёт GitHub Release с `compose.yaml`, `compose.egress.yaml`, `env.example`, тарболлом для Proxmox (`jgo-<версия>-linux-amd64.tar.gz`), `SHA256SUMS` и исходниками KEmulator (лицензии GPL/Apache/EPL).
 4. **Один раз** после первой публикации: GitHub → профиль → *Packages* → `jgo` и `jgo-gateway` → *Package settings* → *Change visibility* → **Public**. Пока пакеты приватны, NAS не сможет скачать образ.
 5. Проверка установки «с нуля» по [DOCKER.md](DOCKER.md) на чистой машине, затем — на реальном NAS.
 
-Теги `-alpha`, `-rc`, `-dev` помечаются как pre-release (Community Scripts и `latest` их пропускают); `-beta` — обычный релиз, чтобы `latest` указывал на него и скрипт Proxmox мог его установить.
+Теги `-alpha`, `-rc`, `-dev` помечаются как pre-release (Community Scripts пропускают их); `-beta` — обычный GitHub Release, чтобы скрипт Proxmox мог его установить.
+
+## Образ `:edge` (для себя и тестеров)
+
+Workflow **Edge image** (`.github/workflows/edge.yml`) запускается после каждого **успешного** CI на `main` и публикует `ghcr.io/grayhex/jgo:edge` и `jgo-gateway:edge` (плюс неизменяемый `sha-<коммит>` для отката). Сборка идёт через Docker Buildx с кэшем GitHub Actions. Если CI красный, новый `edge` не публикуется (workflow не стартует). `latest` и версионные теги он не трогает.
+
+| Тег | Когда обновляется | Для кого |
+|---|---|---|
+| `edge` | после каждого зелёного merge в `main` | вы на NAS, тестеры: `JGO_VERSION=edge` и `docker compose pull && docker compose up -d` |
+| `sha-<коммит>` | вместе с `edge`, не меняется | откат на конкретный коммит |
+| `<версия>` | при выпуске релиза, не перезаписывается | предсказуемые обновления |
+| `latest` | только при официальном релизе | остальные пользователи |
 
 ## Готовность первой беты
 
