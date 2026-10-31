@@ -278,6 +278,9 @@ jobs:
           env -u JGO_TOKEN docker compose config --format json | python3 -c 'import json,sys; c=json.load(sys.stdin); assert c["services"]["app"]["environment"]["AUTH_TOKEN"] == ""'
       - name: First-boot token provisioning and persistence
         run: node --test tests/scripts/docker-auth.test.cjs
+      - name: NAS Compose keeps auth in a Docker-managed volume
+        run: |
+          docker compose config --format json | python3 -c 'import json,sys; c=json.load(sys.stdin); s=c["services"]["app"]; assert s["environment"]["JGO_AUTH_DIR"] == "/jgo-auth"; assert any(m["target"] == "/jgo-auth" and m["type"] == "volume" for m in s["mounts"])'
       - name: NAS style - a folder owned by another user (PUID/PGID), restart keeps the data
         run: |
           docker compose down -v
@@ -297,12 +300,12 @@ jobs:
           docker compose down -v
           env -u JGO_TOKEN docker compose up -d
           for i in $(seq 1 60); do curl -fsS localhost:8080/api/health | grep -q '"ok":true' && break; sleep 2; done
-          secret="$(docker compose exec -T app cat /data/.jgo-auth-token)"
+          secret="$(docker compose exec -T app cat /jgo-auth/.jgo-auth-token)"
           test "${#secret}" -eq 64
           test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080/api/games)" = 401
           test "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $secret" localhost:8080/api/games)" = 200
           docker compose restart app
           for i in $(seq 1 60); do curl -fsS localhost:8080/api/health | grep -q '"ok":true' && break; sleep 2; done
-          test "$secret" = "$(docker compose exec -T app cat /data/.jgo-auth-token)"
+          test "$secret" = "$(docker compose exec -T app cat /jgo-auth/.jgo-auth-token)"
       - if: always()
         run: docker compose down -v
