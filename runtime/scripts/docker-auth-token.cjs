@@ -8,15 +8,19 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 
+// Keep the default legacy path for direct Docker executions. Production Compose uses
+// a dedicated Docker-managed volume so NAS SMB/ACL policies cannot make the
+// credential group/world-readable or interfere with mode 0600.
 const dataDir = path.resolve(process.env.DATA_DIR || '/data');
-const file = path.join(dataDir, '.jgo-auth-token');
+const authDir = path.resolve(process.env.JGO_AUTH_DIR || dataDir);
+const file = path.join(authDir, '.jgo-auth-token');
 
 try {
   if (process.env.AUTH_TOKEN) {
     if (process.env.AUTH_TOKEN.length < 16) throw new Error('AUTH_TOKEN must be at least 16 characters');
     process.stdout.write(process.env.AUTH_TOKEN);
   } else {
-    fs.mkdirSync(dataDir, { recursive: true });
+    fs.mkdirSync(authDir, { recursive: true });
     let created = false;
     try {
       // O_EXCL avoids clobbering an existing credential on concurrent starts.
