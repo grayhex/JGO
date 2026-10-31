@@ -11,7 +11,7 @@
 
 [English](README.en.md) · Русский
 
-<img src="docs/img/player.png" alt="Плеер JGO: игра в телефоне Nokia E71" width="760">
+<img src="docs/img/screen1.png" alt="Плеер JGO: игра в телефоне Nokia E71" width="760">
 
 </div>
 
@@ -30,7 +30,11 @@
 - **Безопасность:** игра — недоверенный код: отдельный пользователь, изоляция контейнера, лимиты ресурсов, нет доступа к сети.
 
 <div align="center">
-<img src="docs/img/player-portrait.gif" alt="Портретная игра в телефоне Nokia N95" width="320">
+<img src="docs/img/screen2.png" alt="Портретная игра в телефоне Nokia N95" width="760">
+</div>
+
+<div align="center">
+<img src="docs/img/screen3.png" alt="Портретная игра в телефоне Nokia N95" width="760">
 </div>
 
 ## Быстрый старт
