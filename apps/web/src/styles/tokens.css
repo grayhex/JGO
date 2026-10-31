@@ -1,87 +1,56 @@
-/* Design tokens: Evreghen Command Center (DESIGN.md). Warm light workspace, frosted dark shell, orange as the one signal colour. */
+/* Design tokens: WattVision (DESIGN.md). One dark theme: #121212 workspace, #1E1E1E cards, cyan for data and actions,
+   red for alerts, lime green for "live". No white backgrounds, no pastel colours. Spacing in multiples of 8px. */
 :root {
-  --bg: #fcfaf7;
-  --fg: #423d38;
-  --surface: #f3f4f6;
-  --surface-soft: #edebe9;
-  --surface-elevated: #ffffff;
-  --muted: #797067;
-  --outline: #e3e0dd;
-  --outline-strong: #d1d5dc;
+  --bg: #121212;
+  --fg: #ffffff;
+  --surface: #1e1e1e;
+  --surface-soft: #252525;
+  --surface-elevated: #1e1e1e;
+  --muted: #98989d;
+  --outline: #2c2c2e;
+  --outline-strong: #3a3a3c;
 
-  --primary: #fe6e00;
-  --primary-strong: #ff6b00;
-  --primary-warm: #ffb74d;
-  --primary-focus: #f97015;
-  --on-primary: #ffffff;
-  --primary-tint: rgba(254, 110, 0, 0.08);
-  --primary-tint-strong: rgba(254, 110, 0, 0.16);
+  --primary: #00e5ff;
+  --primary-strong: #00b8cc;
+  --primary-warm: #5cf0ff;
+  --primary-focus: #00e5ff;
+  --on-primary: #00262b;
+  --primary-tint: rgba(0, 229, 255, 0.1);
+  --primary-tint-strong: rgba(0, 229, 255, 0.22);
 
-  --shell-base: 0 0 0;
-  --shell-bg: rgba(0, 0, 0, 0.7);
-  --shell-border: rgba(255, 255, 255, 0.1);
+  --shell-base: 18 18 18;
+  --shell-bg: #161616;
+  --shell-border: #2c2c2e;
   --on-shell: #ffffff;
-  --on-shell-muted: rgba(255, 255, 255, 0.7);
-  --shell-blur: 12px;
+  --on-shell-muted: #98989d;
+  --shell-blur: 0px;
 
-  --success: #00c758;
-  --warning: #edb200;
-  --danger: #fb2c36;
-  --info: #3080ff;
-  --badge-mock-bg: #fef9c2; --badge-mock-fg: #874b00;
-  --badge-planned-bg: #f3f4f6; --badge-planned-fg: #364153;
-  --badge-dev-bg: #dbeafe; --badge-dev-fg: #1447e6;
-  --badge-integrated-bg: #f3e8ff; --badge-integrated-fg: #8200da;
-  --badge-prod-bg: #dcfce7; --badge-prod-fg: #016630;
-  --badge-danger-bg: #ffe2e2; --badge-danger-fg: #c10007;
+  --success: #32d74b;
+  --warning: #ffd60a;
+  --danger: #ff453a;
+  --info: #64d2ff;
+  --alert-bg: #3a1c1c;
+  --badge-mock-bg: rgba(255, 214, 10, 0.16); --badge-mock-fg: #ffd60a;
+  --badge-planned-bg: #2c2c2e; --badge-planned-fg: #c7c7cc;
+  --badge-dev-bg: rgba(0, 229, 255, 0.14); --badge-dev-fg: #5cf0ff;
+  --badge-integrated-bg: rgba(191, 90, 242, 0.2); --badge-integrated-fg: #dda7f8;
+  --badge-prod-bg: rgba(50, 215, 75, 0.16); --badge-prod-fg: #32d74b;
+  --badge-danger-bg: #3a1c1c; --badge-danger-fg: #ff453a;
 
   --lcd: #0b100e;
-  --stage-bg: radial-gradient(ellipse at 50% 30%, #ffffff 0%, #f1ede8 70%);
-  --glow: radial-gradient(900px 420px at 88% -8%, rgba(254, 110, 0, 0.12), transparent 70%), radial-gradient(700px 400px at -5% 105%, rgba(255, 183, 77, 0.14), transparent 70%);
+  --stage-bg: radial-gradient(ellipse at 50% 30%, #262626 0%, #151515 75%);
+  --glow: none;
 
-  --font: ui-sans-serif, system-ui, sans-serif;
-  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --mono: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
-  --r-xs: 4px; --r-sm: 6px; --r-md: 8px; --r-lg: 12px; --r-pill: 9999px;
-  --s-xs: 4px; --s-sm: 8px; --s-md: 12px; --s-lg: 16px; --s-xl: 24px; --s-2xl: 32px; --s-3xl: 40px; --s-4xl: 64px;
+  --r-xs: 4px; --r-sm: 8px; --r-md: 8px; --r-lg: 16px; --r-pill: 9999px;
+  --s-xs: 4px; --s-sm: 8px; --s-md: 16px; --s-lg: 16px; --s-xl: 24px; --s-2xl: 32px; --s-3xl: 40px; --s-4xl: 64px;
   --container: 1400px; --header-h: 64px; --sidebar-w: 256px; --sidebar-w-collapsed: 64px;
   --t-fast: 150ms; --t-normal: 200ms; --t-slow: 300ms; --t-panel: 500ms; --ease: cubic-bezier(0.4, 0, 0.2, 1);
 
-  --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
-  --shadow-raised: 0 4px 12px rgba(0, 0, 0, 0.12);
-  --shadow-dialog: 0 20px 25px rgba(0, 0, 0, 0.1), 0 8px 10px rgba(0, 0, 0, 0.04);
-  color-scheme: light;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --bg: #413830; --fg: #fafaf9; --surface: #4a423a; --surface-soft: #4f463d; --surface-elevated: #544b41;
-    --muted: #b9b3ac; --outline: rgba(255, 255, 255, 0.12); --outline-strong: rgba(255, 255, 255, 0.22);
-    --primary-tint: rgba(254, 110, 0, 0.16); --primary-tint-strong: rgba(254, 110, 0, 0.28);
-    --badge-mock-bg: rgba(237, 178, 0, 0.2); --badge-mock-fg: #ffd966;
-    --badge-planned-bg: rgba(255, 255, 255, 0.1); --badge-planned-fg: #e5e1dc;
-    --badge-dev-bg: rgba(48, 128, 255, 0.22); --badge-dev-fg: #9cc0ff;
-    --badge-integrated-bg: rgba(176, 90, 255, 0.22); --badge-integrated-fg: #d9b3ff;
-    --badge-prod-bg: rgba(0, 199, 88, 0.2); --badge-prod-fg: #7ee5a6;
-    --badge-danger-bg: rgba(251, 44, 54, 0.22); --badge-danger-fg: #ff9ba0;
-    --stage-bg: radial-gradient(ellipse at 50% 30%, #5a5047 0%, #3a322b 75%);
-    --glow: radial-gradient(900px 420px at 88% -8%, rgba(254, 110, 0, 0.18), transparent 70%);
-    --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.4); --shadow-raised: 0 4px 12px rgba(0, 0, 0, 0.45); --shadow-dialog: 0 20px 25px rgba(0, 0, 0, 0.5);
-    color-scheme: dark;
-  }
-}
-:root[data-theme='dark'] {
-  --bg: #413830; --fg: #fafaf9; --surface: #4a423a; --surface-soft: #4f463d; --surface-elevated: #544b41;
-  --muted: #b9b3ac; --outline: rgba(255, 255, 255, 0.12); --outline-strong: rgba(255, 255, 255, 0.22);
-  --primary-tint: rgba(254, 110, 0, 0.16); --primary-tint-strong: rgba(254, 110, 0, 0.28);
-  --badge-mock-bg: rgba(237, 178, 0, 0.2); --badge-mock-fg: #ffd966;
-  --badge-planned-bg: rgba(255, 255, 255, 0.1); --badge-planned-fg: #e5e1dc;
-  --badge-dev-bg: rgba(48, 128, 255, 0.22); --badge-dev-fg: #9cc0ff;
-  --badge-integrated-bg: rgba(176, 90, 255, 0.22); --badge-integrated-fg: #d9b3ff;
-  --badge-prod-bg: rgba(0, 199, 88, 0.2); --badge-prod-fg: #7ee5a6;
-  --badge-danger-bg: rgba(251, 44, 54, 0.22); --badge-danger-fg: #ff9ba0;
-  --stage-bg: radial-gradient(ellipse at 50% 30%, #5a5047 0%, #3a322b 75%);
-  --glow: radial-gradient(900px 420px at 88% -8%, rgba(254, 110, 0, 0.18), transparent 70%);
-  --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.4); --shadow-raised: 0 4px 12px rgba(0, 0, 0, 0.45); --shadow-dialog: 0 20px 25px rgba(0, 0, 0, 0.5);
+  --shadow-subtle: none;
+  --shadow-raised: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --shadow-dialog: 0 24px 48px rgba(0, 0, 0, 0.6);
   color-scheme: dark;
 }

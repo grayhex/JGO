@@ -9,6 +9,9 @@ Formatted after [Keep a Changelog](https://keepachangelog.com/); versions follow
 - **Genres.** A game's genre is metadata of the game (all its versions), not of a folder: table `game_classifications`, 13 genres plus free tags, chips with counts over the library, a genre badge and dialog on every card.
 - **Genre catalog** (`jgo_catalog.json` in JGO's format or the J2ME Curator manifest, matched by SHA-256; file paths are stripped in the browser and never sent; curator confidence `heuristic`/`unclassified` is kept as an unconfirmed genre): preview, then import in one transaction, idempotent; export. Genres chosen by hand are locked; MobyGames outranks the catalog; no paths are sent to the API. See `docs/LIBRARY.md`.
 
+### Changed
+- **New design: WattVision.** One dark theme (`#121212` workspace, `#1E1E1E` cards with 16 px radius, cyan `#00E5FF` accent, red alerts with a left bar, lime-green "live"), Inter and JetBrains Mono bundled for offline use, monospace 32 px telemetry values. The light theme and the theme switch are gone (the design rules out light backgrounds).
+
 ### Fixed
 - **Games did not start in Docker** (beta.5): the emulator died at the game's icon with `NoClassDefFoundError ... swt.internal.gtk.OS`,
   because SWT's native library cannot be unpacked in a container. Images are now decoded with the JDK's ImageIO when SWT is unusable (patch `0014`).
