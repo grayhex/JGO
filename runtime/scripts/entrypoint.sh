@@ -8,14 +8,14 @@ data_dir="${DATA_DIR:-/data}"
 if [ ! -d "$data_dir" ] || [ ! -w "$data_dir" ]; then
   echo >&2 "[MGO] Data directory $data_dir is not writable by UID:GID $(id -u):$(id -g)."
   echo >&2 "[MGO] NAS bind mount: set app.user to the UID:GID allowed to write the host folder, or give that user access on the NAS."
-  echo >&2 "[MGO] Alternative: use the Docker managed volume jgo-data:/data (keep existing data safe). Do not chmod 777."
+  echo >&2 "[MGO] Alternative: use the Docker managed volume mgo-data:/data (keep existing data safe). Do not chmod 777."
   exit 1
 fi
 
 # One-file NAS install: if no token was configured, generate a private persistent
 # credential in /data and expose it to the API. Never run publicly unauthenticated.
 if [ -z "${AUTH_TOKEN:-}" ]; then
-  AUTH_TOKEN="$(node /usr/local/bin/jgo-auth-token.cjs)" || exit 1
+  AUTH_TOKEN="$(node /usr/local/bin/mgo-auth-token.cjs)" || exit 1
   export AUTH_TOKEN
 fi
 

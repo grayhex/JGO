@@ -58,7 +58,7 @@ const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PAT
 try {
   // ---------------------------------------------------------------- /phones
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 }, hasTouch: true });
-  await ctx.addInitScript(()=>localStorage.setItem('jgo.developer-mode','true'));
+  await ctx.addInitScript(()=>localStorage.setItem('mgo.developer-mode','true'));
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
@@ -264,7 +264,7 @@ try {
 
   // mobile: touch the body keys
   const m = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
-  await m.addInitScript(()=>localStorage.setItem('jgo.developer-mode','true'));
+  await m.addInitScript(()=>localStorage.setItem('mgo.developer-mode','true'));
   const mp = await m.newPage();
   await mp.goto(base + '/phones/lab');
   await mp.waitForSelector('[data-testid=phone-nokia-6100] .skin-box');

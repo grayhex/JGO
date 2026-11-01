@@ -1,5 +1,5 @@
 import { t as translateUI } from '../i18n';
-import type { LibraryCheck, LibraryRoot, ScanReport } from '@j2me-web/protocol';
+import type { LibraryCheck, LibraryRoot, ScanReport } from '@mgo/protocol';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, type BrowseResult } from '../api';
 import { setServerSettings, useServerSettings } from '../serverSettings';
@@ -11,9 +11,9 @@ type Toaster = (kind: 'info' | 'error', text: string) => void;
 const fmtBytes = (n: number) => (n > 1073741824 ? `${(n / 1073741824).toFixed(1)} GB` : n > 1048576 ? `${(n / 1048576).toFixed(0)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 
 /** Choosing the folder with the games. Only the locations the server allows are offered; nothing else can be typed in. */
-export function LibrarySource({ toast, onSaved, saveLabel = 'Use this folder' }: { toast: Toaster; onSaved?: (path: string | null) => void; saveLabel?: string }) {
+export function LibrarySource({ toast, onSaved, saveLabel = 'Use this folder', kind }: { kind?: 'j2me' | 'ngage' | 'symbian'; toast: Toaster; onSaved?: (path: string | null) => void; saveLabel?: string }) {
   const server = useServerSettings();
-  const current = server?.settings.libraryPath ?? null;
+  const current = kind ? server?.settings.libraryPaths?.[kind] ?? (kind === 'j2me' ? server?.settings.libraryPath ?? null : null) : server?.settings.libraryPath ?? null;
   const [roots, setRoots] = useState<LibraryRoot[] | null>(null);
   const [path, setPath] = useState(current ?? '');
   const [browse, setBrowse] = useState<BrowseResult | null>(null);
@@ -34,10 +34,10 @@ export function LibrarySource({ toast, onSaved, saveLabel = 'Use this folder' }:
   const save = async (p: string | null) => {
     setBusy(true);
     try {
-      const r = await api.patchSettings({ libraryPath: p });
+      const r = await api.patchSettings(kind ? { libraryPaths: { j2me: null, ngage: null, symbian: null, ...server?.settings.libraryPaths, [kind]: p }, ...(kind === 'j2me' ? { libraryPath: null } : {}) } : { libraryPath: p });
       setServerSettings(r);
       toast('info', p ? 'Library folder saved' : 'Library folder removed');
-      onSaved?.(r.settings.libraryPath);
+      onSaved?.(kind ? r.settings.libraryPaths?.[kind] ?? null : r.settings.libraryPath);
     } catch (e) { toast('error', (e as Error).message); } finally { setBusy(false); }
   };
 
@@ -49,8 +49,8 @@ export function LibrarySource({ toast, onSaved, saveLabel = 'Use this folder' }:
         <div className="note warn">
           <p><strong>{translateUI("No game folder is connected to this server yet.")}</strong> {translateUI("That is fine: you can keep uploading games from the browser. To import a whole collection, share a folder with the container:")}</p>
           <p>{translateUI("On the Proxmox host (read-only, the games are never modified):")}</p>
-          <pre className="codeblock">{translateUI("pct set <CTID> -mp0 /path/on/host/games,mp=/mnt/jgo-library,ro=1")}{'\n'}{translateUI("pct reboot <CTID>")}</pre>
-          <p>{translateUI("or copy the files into")} <code>{translateUI("/var/lib/jgo/import")}</code> {translateUI("inside the container. Details:")} <code>{translateUI("docs/PROXMOX.md")}</code>{translateUI(", “Game library”.")}</p>
+          <pre className="codeblock">{translateUI("pct set <CTID> -mp0 /path/on/host/games,mp=/mnt/mgo-library,ro=1")}{'\n'}{translateUI("pct reboot <CTID>")}</pre>
+          <p>{translateUI("or copy the files into")} <code>{translateUI("/var/lib/mgo/import")}</code> {translateUI("inside the container. Details:")} <code>{translateUI("docs/PROXMOX.md")}</code>{translateUI(", “Game library”.")}</p>
         </div>
       )}
       <div className="root-list" role="list">
@@ -63,7 +63,7 @@ export function LibrarySource({ toast, onSaved, saveLabel = 'Use this folder' }:
       </div>
       <label className="field">
         <span className="label-caps">{translateUI("Folder")}</span>
-        <input className="input mono" value={path} onChange={(e) => { setPath(e.target.value); setCheck(null); }} placeholder={translateUI("/mnt/jgo-library")} spellCheck={false} aria-label={translateUI("Library folder")} />
+        <input className="input mono" value={path} onChange={(e) => { setPath(e.target.value); setCheck(null); }} placeholder={translateUI("/mnt/mgo-library")} spellCheck={false} aria-label={translateUI(kind ? `Library folder (${kind})` : "Library folder")} />
       </label>
       {browse && browse.path && (
         <div className="folder-list" aria-label={translateUI("Sub-folders")}>
@@ -81,7 +81,7 @@ export function LibrarySource({ toast, onSaved, saveLabel = 'Use this folder' }:
       {check && (
         <div className={`note ${check.ok ? 'info' : 'err'}`} role="status">
           {check.ok
-            ? <p><strong>{translateUI("Readable.")}</strong> {check.jarCount.toLocaleString()} {translateUI("JAR and")} {check.jadCount.toLocaleString()} {translateUI("JAD files found (")}{fmtBytes(check.totalBytes)}){translateUI(check.truncated ? ', at least' : '')}.</p>
+            ? <p><strong>{translateUI("Readable.")}</strong> {check.jarCount.toLocaleString()} JAR · {check.packageCount ?? 0} SIS/N-Gage · {translateUI("and")} {check.jadCount.toLocaleString()} {translateUI("JAD files found (")}{fmtBytes(check.totalBytes)}){translateUI(check.truncated ? ', at least' : '')}.</p>
             : <p><strong>{translateUI("Cannot use this folder.")}</strong></p>}
           {[...check.problems, ...check.warnings].map((t) => <p key={t}>{t}</p>)}
         </div>

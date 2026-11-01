@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import type { Readable } from 'node:stream';
-import type { FirmwareInstallRequest } from '@j2me-web/protocol';
+import type { FirmwareInstallRequest } from '@mgo/protocol';
 
 /** Errors of the mgo-symbian service or of EKA2L1 behind it, with the HTTP status and EKA2L1's error code when it sent one. */
 export class AgentError extends Error {
@@ -31,6 +31,8 @@ export interface AgentHealth {
   inbox?: { name: string; size: number }[];
   instance: { running: boolean; saveKey: string | null; since: number | null };
   audio: boolean;
+  audioDiagnostics?: import('@mgo/protocol').AudioDiagnostics;
+  metrics?: import('@mgo/protocol').SymbianStatus['metrics'];
 }
 
 export interface AgentJob {
@@ -203,11 +205,21 @@ export class AgentClient {
     const res = await this.raw('GET', '/agent/audio', { signal, timeoutMs: 24 * 3600_000 });
     if (!res.ok || !res.body) { await res.body?.cancel().catch(() => undefined); throw new AgentError('no audio from the Symbian service', res.status, 'no_audio'); }
     const reader = res.body.getReader();
+    let pending = Buffer.alloc(0);
     try {
       for (;;) {
         const { done, value } = await reader.read();
-        if (done) return;
-        if (value) yield Buffer.from(value);
+        if (done) {
+          if (pending.length && !signal.aborted) throw new AgentError('sound capture ended with an incomplete stereo PCM frame', 502, 'bad_audio');
+          return;
+        }
+        if (value?.length) {
+          // HTTP chunks are arbitrary bytes; the browser consumes 16-bit stereo frames.
+          const data = pending.length ? Buffer.concat([pending, value]) : Buffer.from(value);
+          const complete = data.length - data.length % 4;
+          pending = Buffer.from(data.subarray(complete));
+          if (complete) yield data.subarray(0, complete);
+        }
       }
     } finally {
       reader.cancel().catch(() => undefined);

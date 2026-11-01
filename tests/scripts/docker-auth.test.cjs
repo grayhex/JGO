@@ -10,19 +10,19 @@ const script = path.resolve(__dirname, '../../runtime/scripts/docker-auth-token.
 
 function run(dir, authToken = '', authDir = '') {
   return spawnSync(process.execPath, [script], {
-    env: { ...process.env, DATA_DIR: dir, JGO_AUTH_DIR: authDir || dir, AUTH_TOKEN: authToken },
+    env: { ...process.env, DATA_DIR: dir, MGO_AUTH_DIR: authDir || dir, AUTH_TOKEN: authToken },
     encoding: 'utf8',
   });
 }
 
 test('generates unpredictable 64-character token and never changes it across starts', (t) => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jgo-docker-auth-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mgo-docker-auth-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const one = run(dir);
   assert.equal(one.status, 0, one.stderr);
   assert.match(one.stdout, /^[0-9a-f]{64}$/);
   assert.match(one.stderr, /First-run login token/);
-  const file = path.join(dir, '.jgo-auth-token');
+  const file = path.join(dir, '.mgo-auth-token');
   assert.equal(fs.statSync(file).mode & 0o777, 0o600);
   assert.equal(fs.readFileSync(file, 'utf8').trim(), one.stdout);
   const two = run(dir);
@@ -33,20 +33,20 @@ test('generates unpredictable 64-character token and never changes it across sta
 });
 
 test('explicit AUTH_TOKEN override wins without changing persisted token', (t) => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jgo-docker-auth-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mgo-docker-auth-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const before = run(dir);
   assert.equal(before.status, 0);
   const configured = run(dir, 'manually-selected-valid-secret');
   assert.equal(configured.status, 0, configured.stderr);
   assert.equal(configured.stdout, 'manually-selected-valid-secret');
-  assert.equal(fs.readFileSync(path.join(dir, '.jgo-auth-token'), 'utf8').trim(), before.stdout);
+  assert.equal(fs.readFileSync(path.join(dir, '.mgo-auth-token'), 'utf8').trim(), before.stdout);
 });
 
 test('rejects unsafe or corrupted token files instead of disabling authentication', (t) => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jgo-docker-auth-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mgo-docker-auth-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const file = path.join(dir, '.jgo-auth-token');
+  const file = path.join(dir, '.mgo-auth-token');
   fs.writeFileSync(file, 'not-a-real-token\n', { mode: 0o600 });
   const malformed = run(dir);
   assert.notEqual(malformed.status, 0);
@@ -60,21 +60,21 @@ test('rejects unsafe or corrupted token files instead of disabling authenticatio
 
 
 test('dedicated credential volume avoids NAS folders with incompatible ACLs and retains the same token', (t) => {
-  const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'jgo-docker-auth-volume-'));
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'mgo-docker-auth-volume-'));
   t.after(() => fs.rmSync(parent, { recursive: true, force: true }));
   const data = path.join(parent, 'data');
   const secrets = path.join(parent, 'auth');
   fs.mkdirSync(data);
   fs.mkdirSync(secrets, { mode: 0o1777 });
   // An unsafe pre-existing token in the NAS folder must never be adopted.
-  fs.writeFileSync(path.join(data, '.jgo-auth-token'), 'b'.repeat(64) + '\n', { mode: 0o644 });
+  fs.writeFileSync(path.join(data, '.mgo-auth-token'), 'b'.repeat(64) + '\n', { mode: 0o644 });
   const first = run(data, '', secrets);
   assert.equal(first.status, 0, first.stderr);
   assert.match(first.stdout, /^[a-f0-9]{64}$/);
   assert.notEqual(first.stdout, 'b'.repeat(64));
-  assert.equal(fs.statSync(path.join(secrets, '.jgo-auth-token')).mode & 0o777, 0o600);
+  assert.equal(fs.statSync(path.join(secrets, '.mgo-auth-token')).mode & 0o777, 0o600);
   const second = run(data, '', secrets);
   assert.equal(second.status, 0, second.stderr);
   assert.equal(first.stdout, second.stdout);
-  assert.equal(fs.readFileSync(path.join(data, '.jgo-auth-token'), 'utf8').trim(), 'b'.repeat(64));
+  assert.equal(fs.readFileSync(path.join(data, '.mgo-auth-token'), 'utf8').trim(), 'b'.repeat(64));
 });

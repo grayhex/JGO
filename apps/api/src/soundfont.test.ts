@@ -8,7 +8,7 @@ import { writeSoundfontProperty } from './appSettings.js';
 import { SoundfontStore } from './soundfont.js';
 
 const dirs: string[] = [];
-const tmp = () => { const d = mkdtempSync(path.join(tmpdir(), 'jgo-sf-')); dirs.push(d); return d; };
+const tmp = () => { const d = mkdtempSync(path.join(tmpdir(), 'mgo-sf-')); dirs.push(d); return d; };
 after(() => { for (const d of dirs) rmSync(d, { recursive: true, force: true }); });
 
 function sf2(size: number, declared = size - 8): Buffer {

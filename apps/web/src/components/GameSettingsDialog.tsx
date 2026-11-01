@@ -1,6 +1,6 @@
 import { getLastGame, setLastGame } from '../lastGame';
 import { t as translateUI } from '../i18n';
-import { GAME_PLATFORM_LABELS, SCREEN_PRESETS, KEY_LAYOUTS, type GameMeta, type GameSettings, type LayoutId } from '@j2me-web/protocol';
+import { GAME_PLATFORM_LABELS, SCREEN_PRESETS, KEY_LAYOUTS, type GameMeta, type GameSettings, type LayoutId } from '@mgo/protocol';
 import { useState } from 'react';
 import { api } from '../api';
 import type { Toast } from '../App';

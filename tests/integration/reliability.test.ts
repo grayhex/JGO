@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { startApp,upload,openStream,waitFor } from './helpers.ts';
 it('destroyApp RMS survives safe stop and API restart',async()=>{
- const data=mkdtempSync(path.join(tmpdir(),'jgo-recovery-'));let env=await startApp({},data);let first;
+ const data=mkdtempSync(path.join(tmpdir(),'mgo-recovery-'));let env=await startApp({},data);let first;
  const call=(url:string,method='GET',body?:unknown)=>fetch(env.base+url,{method,...(body?{headers:{'content-type':'application/json'},body:JSON.stringify(body)}:{})});
  try{
   const game=(await upload(env.base,'tests/fixtures/labgames/build/kemshutdown.jar')).body.game;

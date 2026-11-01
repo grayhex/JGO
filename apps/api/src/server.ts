@@ -1,5 +1,6 @@
-import { isGenre, isPlatform, platformOfFile, resolvePhone } from '@j2me-web/protocol';
-import { emulatedDevice, javaPreset, nativePhonePlan, type DevicePreset } from '@j2me-web/protocol';
+import { NgageCatalog } from './ngageCatalog.js';
+import { isGenre, isPlatform, platformOfFile, resolvePhone } from '@mgo/protocol';
+import { emulatedDevice, javaPreset, nativePhonePlan, type DevicePreset } from '@mgo/protocol';
 import { phoneCatalog } from './phones.js';
 import { readSymbianStatus } from './eka2l1/status.js';
 import { execFile } from 'node:child_process';
@@ -11,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import fastifyMultipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import fastifyWebsocket from '@fastify/websocket';
-import type { ClientEvent, GameSettings, HealthStatus } from '@j2me-web/protocol';
+import type { ClientEvent, GameSettings, HealthStatus } from '@mgo/protocol';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { type Config, loadConfig, readKemCommit } from './config.js';
 import { findPreset, loadDevicePresets, recommendPreset } from './devices.js';
@@ -25,13 +26,13 @@ import { MetadataService } from './metadata.js';
 import { DEFAULT_API_BASE, MobyClient } from './mobygames.js';
 import { buildDiagnostics } from './diagnostics.js';
 import { GAME_FILES_QUOTA_BYTES, GameFiles } from './gameFiles.js';
-import { gameDefaults, ScanManager } from './scanner.js';
+import { nativeDefaults, gameDefaults, ScanManager } from './scanner.js';
 import { SettingsStore } from './settingsStore.js';
 import { SoundfontStore } from './soundfont.js';
 import { SessionError, SessionManager, type StreamClient } from './sessions.js';
 
-/** The release being run: JGO_VERSION (set by the systemd unit), else the VERSION file of the release tree, else the dev default. */
-const VERSION = process.env.JGO_VERSION?.trim() || readReleaseVersion() || '0.1.0-beta.1';
+/** The release being run: MGO_VERSION (set by the systemd unit), else the VERSION file of the release tree, else the dev default. */
+const VERSION = process.env.MGO_VERSION?.trim() || readReleaseVersion() || '0.1.0-beta.1';
 
 function readReleaseVersion(): string | null {
   try {
@@ -59,6 +60,7 @@ function javaVersion(javaBin: string): Promise<string | null> {
 }
 
 export interface App {
+  ngageCatalog: NgageCatalog;
   fastify: FastifyInstance;
   cfg: Config;
   library: Library;
@@ -72,6 +74,8 @@ export interface App {
 export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
   const app = Fastify({ logger: { level: cfg.logLevel }, bodyLimit: 64 * 1024, trustProxy: process.env.TRUST_PROXY === '1' });
   const library = new Library(cfg.dataDir);
+  const ngageCatalog = new NgageCatalog(library, cfg.dataDir);
+  library.enrich = game => ngageCatalog.enrich(game);
   // runtime settings (web UI) are layered over the environment; installations without a settings file behave exactly as before
   const settings = new SettingsStore(cfg.dataDir, cfg);
   settings.markLegacyIfPopulated(library.count());
@@ -86,6 +90,7 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
     settings: () => settings.get(),
     explicitPhone: () => settings.explicitPhone(),
     onFinished: (r) => {
+      if (r.state === 'done') ngageCatalog.schedule();
       if (r.state === 'done' && settings.get().autoMetadata && moby.hasKey()) {
         try { metadata.start('missing'); } catch { /* already running */ }
       }
@@ -241,7 +246,8 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
       const platform = platformField && platformField !== 'j2me' ? platformField : platformOfFile(pkg.name) ?? (pkg.name.toLowerCase().endsWith('.zip') ? 'ngage' : null);
       if (!platform || platform === 'j2me') throw new UploadError('bad_file', 'Not a Symbian or N-Gage game');
       if (pkg.buf.length > cfg.maxPackageBytes) throw new UploadError('too_large', `File is larger than the ${Math.round(cfg.maxPackageBytes / 1048576)} MB limit for Symbian/N-Gage games`, 413);
-      const r = library.addPackage(pkg.buf, pkg.name, platform as 'symbian' | 'ngage' | 'ngage2', cfg.libraryQuotaBytes, { origin: 'upload', defaults: gameDefaults(settings.get().phone, settings.explicitPhone()) });
+      const r = library.addPackage(pkg.buf, pkg.name, platform as 'symbian' | 'ngage' | 'ngage2', cfg.libraryQuotaBytes, { origin: 'upload', defaults: nativeDefaults(settings.get(), platform, settings.get().nativePhones?.[platform] ? await readSymbianStatus(cfg) : undefined) });
+      if (platform === 'ngage') ngageCatalog.schedule();
       return reply.code(r.duplicate ? 200 : 201).send(r);
     }
     if (!jar) {
@@ -251,6 +257,16 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
     }
     const { game, duplicate } = library.add(jar, jad, cfg.libraryQuotaBytes, { origin: 'upload', defaults: gameDefaults(settings.get().phone, settings.explicitPhone()) });
     return reply.code(duplicate ? 200 : 201).send({ game, duplicate });
+  });
+
+  app.get('/api/catalog/ngage', async () => ngageCatalog.status());
+  app.post('/api/catalog/ngage/refresh', async (_req, reply) => { void ngageCatalog.refresh(true); return reply.code(202).send(ngageCatalog.status()); });
+  app.get<{ Params: { id: string } }>('/api/games/:id/ngage-cover', async (req, reply) => {
+    const game = library.get(req.params.id); const file = game && ngageCatalog.cover(game.groupKey);
+    if (!file) return reply.code(404).send({ error: 'not_found' });
+    const head = readFileSync(file).subarray(0, 12);
+    const type = head[0] === 137 ? 'image/png' : head.toString('ascii', 0, 4) === 'RIFF' ? 'image/webp' : 'image/jpeg';
+    return reply.header('content-type', type).header('cache-control', 'private, max-age=86400').send(createReadStream(file));
   });
 
   // --- the game's file area (JSR-75 `file:///`): look, download, upload, delete. Paths are relative and checked in gameFiles.ts ---
@@ -387,8 +403,8 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
   app.get<{ Params: { id: string } }>('/api/sessions/:id/diagnostics', async (req, reply) => {
     const s = sessions.get(req.params.id);
     if (!s) throw new SessionError('not_found', 'Session not found', 404);
-    const text = await buildDiagnostics({ status: s.status(), gameName: s.game.name, settings: s.game.settings, logTail: s.logTail.slice(-300), bridgeDir: s.bridgeDir, javaBin: cfg.javaBin, version: VERSION, ...(s.status().backend === 'eka2l1' ? { extra: [{ title: 'Symbian service', body: await symbianDiagnosticsText(cfg) }] } : {}) });
-    return reply.header('Content-Type', 'text/plain; charset=utf-8').header('Content-Disposition', `attachment; filename="jgo-diagnostics-${s.id}.txt"`).header('Cache-Control', 'no-store').send(text);
+    const text = await buildDiagnostics({ status: s.status(), gameName: s.game.name, settings: s.status().backend === 'eka2l1' ? { platform: s.game.platform, skinId: s.settings.skinId, firmware: s.settings.symbianDevice, emulatedDeviceId: s.settings.emulatedDeviceId } : s.settings, logTail: s.logTail.slice(-300), bridgeDir: s.bridgeDir, javaBin: cfg.javaBin, version: VERSION, ...(s.status().backend === 'eka2l1' ? { extra: [{ title: 'Symbian service', body: await symbianDiagnosticsText(cfg) }] } : {}) });
+    return reply.header('Content-Type', 'text/plain; charset=utf-8').header('Content-Disposition', `attachment; filename="mgo-diagnostics-${s.id}.txt"`).header('Cache-Control', 'no-store').send(text);
   });
 
   app.delete<{ Params: { id: string } }>('/api/sessions/:id', async (req, reply) => {
@@ -437,7 +453,7 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
     socket.on('error', gone);
   });
 
-  registerAdminRoutes(app, { cfg, library, store: settings, soundfont, scan, metadata, moby, version: VERSION, java });
+  registerAdminRoutes(app, { cfg, sessions, library, store: settings, soundfont, scan, metadata, moby, version: VERSION, java });
   registerSymbianRoutes(app, { cfg, sessions });
 
   // --- static web UI (production) ---
@@ -458,13 +474,13 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
 
   let closing: Promise<void> | null = null;
   return {
-    fastify: app, cfg, library, sessions, settings, scan, metadata,
+    fastify: app, cfg, library, sessions, settings, scan, metadata, ngageCatalog,
     close() {
       draining=true;
       return closing ??= (async()=>{
-        scan.cancel();metadata.cancel();
+        scan.cancel();metadata.cancel();ngageCatalog.stop();
         // Save MIDlet RMS promptly even if a cancelled metadata request is slow to finish.
-        await Promise.all([sessions.stopAll(),Promise.allSettled([scan.idle(),metadata.idle()])]);
+        await Promise.all([sessions.stopAll(),Promise.allSettled([scan.idle(),metadata.idle(),ngageCatalog.idle()])]);
         await app.close();library.close();
       })();
     },
@@ -485,7 +501,8 @@ async function main(): Promise<void> {
   process.on('SIGINT', () => void shutdown('SIGINT'));
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
   await app.fastify.listen({ host: cfg.host, port: cfg.port });
-  if (app.settings.get().autoScan && app.settings.get().libraryPath) {
+  app.ngageCatalog.start();
+  if (app.settings.get().autoScan && (app.settings.get().libraryPath || Object.values(app.settings.get().libraryPaths ?? {}).some(Boolean))) {
     setTimeout(() => {
       try { app.scan.start('update'); } catch (e) { app.fastify.log.warn(`automatic library scan not started: ${(e as Error).message}`); }
     }, 3000).unref();

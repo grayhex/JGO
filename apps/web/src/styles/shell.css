@@ -69,3 +69,18 @@
 .sidebar-foot .seg.lang button { flex: 1; justify-content: center; }
 .shell-collapsed .sidebar-foot .seg.lang { flex-direction: column; align-self: center; width: 40px; }
 @media (max-width: 860px) { .shell-collapsed .sidebar-foot .seg.lang { flex-direction: row; width: auto; align-self: stretch; } }
+
+.current-game { margin: 6px 0 12px; min-height: 72px; align-items: center; }
+.current-game img { width: 36px; height: 48px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
+.current-game .nav-label { min-width: 0; display: grid; gap: 3px; }
+.current-game strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .82rem; }
+.current-game small { color: var(--muted); font-size: .66rem; }
+.runtime-list { padding: 8px 10px; background: var(--surface-soft); border: 1px solid var(--outline); border-radius: 12px; display: grid; gap: 0; }
+.runtime-list .runtime { padding: 9px 0; border: 0; border-radius: 0; background: transparent; min-width: 0; }
+.runtime-list .runtime + .runtime { border-top: 1px solid var(--outline); }
+.runtime-list .runtime-text { min-width: 0; flex: 1; }
+.runtime-text b { display: flex; justify-content: space-between; align-items: center; gap: 6px; font-size: .76rem; }
+.runtime-text em { font-size: .62rem; color: var(--muted); font-style: normal; font-weight: 400; }
+.runtime-text small { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--muted); font-size: .64rem; margin-top: 3px; }
+.shell-collapsed .current-game .nav-label { display: none; }
+.shell-collapsed .runtime-list { display: grid; padding: 4px; }

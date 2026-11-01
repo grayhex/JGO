@@ -1,5 +1,8 @@
 # MGO в Docker (основной способ: NAS, сервер, мини-ПК)
 
+HTTPS: [HTTPS.md](HTTPS.md). Новые имена MGO, перенос томов и настройки по платформам: [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md).
+
+
 Образ собирается в CI и лежит в GitHub Container Registry. Ничего собирать на NAS не нужно: `docker compose up -d` скачивает готовые образы.
 Подходит для Synology (DSM 7.2+, Container Manager), UGREEN (UGOS), QNAP (Container Station), TrueNAS, Unraid, Portainer и обычного Linux-сервера.
 Контейнер в Proxmox VE — [дополнительный способ](PROXMOX.md).
@@ -19,46 +22,46 @@
 ## Быстрый старт: один YAML без .env
 
 1. Откройте [compose.yaml](../compose.yaml) и скопируйте его содержимое в **Portainer Stack**, **Synology Container Manager → Project** или аналогичное приложение Docker на NAS.
-2. В разделе `volumes` у сервиса `app` замените `${MGO_LIBRARY:-${JGO_LIBRARY:-./games}}` на абсолютный путь к каталогу игр на NAS, например `/volume1/games/j2me` (целиком: `/volume1/games/j2me:/mnt/jgo-library:ro`). Для хранения данных в обычной папке замените левую часть `${MGO_DATA:-${JGO_DATA:-jgo-data}}` на `/volume1/docker/jgo/data` и укажите UID:GID владельца (или пользователя с разрешённой записью) в `user`. Имена `name: jgo` и томов `jgo-data`, `jgo-auth`, `jgo-symbian-data` оставлены прежними намеренно: при обновлении с JGO сохраняются данные, токен и загруженная прошивка. Переменные теперь называются `MGO_TOKEN`, `MGO_VERSION`, `MGO_BIND`, `MGO_PORT`, `MGO_DATA`, `MGO_LIBRARY`; старые `JGO_*` продолжают работать. **Bind mount не меняет владельца папки автоматически:** заранее предоставьте этому UID право на чтение и запись на NAS.
+2. В разделе `volumes` у сервиса `app` замените `${MGO_LIBRARY:-./games}` на абсолютный путь к каталогу игр на NAS, например `/volume1/games/j2me` (целиком: `/volume1/games/j2me:/mnt/mgo-library:ro`). Для хранения данных в обычной папке замените левую часть `${MGO_DATA:-mgo-data}` на `/volume1/docker/mgo/data` и укажите UID:GID владельца (или пользователя с разрешённой записью) в `user`. Compose project и тома теперь используют имя MGO. Для обновления подключите прежние физические тома или перенесите данные по [инструкции миграции](PRODUCTION_READINESS.md#обновление-установки-и-нейминг); смена имени сама не переносит сохранения, токен или прошивки. Переменные называются `MGO_TOKEN`, `MGO_VERSION`, `MGO_BIND`, `MGO_PORT`, `MGO_DATA`, `MGO_LIBRARY`. **Bind mount не меняет владельца папки автоматически:** заранее предоставьте этому UID право на чтение и запись на NAS.
 3. Нажмите **Deploy**. Образы `ghcr.io/grayhex/mgo`, `mgo-gateway` и `mgo-symbian` загрузятся автоматически, без исходников. Сервис `mgo-symbian` (Symbian / N-Gage через EKA2L1) уже включён в файл и ничего не требует настраивать: общий секрет между ним и приложением создаётся сам. Нужны только Java ME-игры — удалите блок `mgo-symbian` и строки `SYMBIAN_*` в `app`. Для Symbian добавьте **свою** прошивку в *Settings → Symbian*; подробнее — [SYMBIAN.md](SYMBIAN.md).
 4. В логах контейнера **app** найдите строку `[MGO] First-run login token:`, скопируйте токен. Это секрет, не публикуйте логи.
-5. Откройте `http://<адрес NAS>:8080`, войдите по токену и пройдите мастер первоначальной настройки (внутренний путь к играм: `/mnt/jgo-library`).
+5. Откройте `http://<адрес NAS>:8080`, войдите по токену и пройдите мастер первоначальной настройки (внутренний путь к играм: `/mnt/mgo-library`).
 
 
 
-**UGREEN и права файла токена.** На некоторых сетевых файловых системах/ACL файл в bind mount `/data/.jgo-auth-token` может выглядеть как `0644` или `0777` даже при корректном UID:GID. MGO намеренно не ослабляет проверку `0600`: новый Compose хранит токен **в отдельном Docker named volume `jgo-auth:/jgo-auth`**, а папка `/volume1/Docker/jgo` остаётся для данных. Ранее созданный `/data/.jgo-auth-token` не используется новым режимом, новый токен появится в логах при первом старте. Не удаляйте старые данные или секреты вслепую, сначала убедитесь, что новая авторизация работает.
+**UGREEN и права файла токена.** На некоторых сетевых файловых системах/ACL файл в bind mount `/data/.mgo-auth-token` может выглядеть как `0644` или `0777` даже при корректном UID:GID. MGO намеренно не ослабляет проверку `0600`: новый Compose хранит токен **в отдельном Docker named volume `mgo-auth:/mgo-auth`**, а папка `/volume1/Docker/mgo` остаётся для данных. Ранее созданный `/data/.mgo-auth-token` не используется новым режимом, новый токен появится в логах при первом старте. Не удаляйте старые данные или секреты вслепую, сначала убедитесь, что новая авторизация работает.
 
 ### Ошибка `EACCES` при создании токена
 
-Если `app` пишет `Cannot provision login token: EACCES` или `Data directory /data is not writable`, ошибка **в правах папки на NAS**, а не в токене. Приложение по умолчанию работает с `user: "10001:10001"`, а каталог `/volume1/Docker/jgo` может принадлежать пользователю NAS `1000:10`.
+Если `app` пишет `Cannot provision login token: EACCES` или `Data directory /data is not writable`, ошибка **в правах папки на NAS**, а не в токене. Приложение по умолчанию работает с `user: "10001:10001"`, а каталог `/volume1/Docker/mgo` может принадлежать пользователю NAS `1000:10`.
 
-Для собственного каталога в `services → app` укажите, например, `user: "1000:10"` и подключите `/volume1/Docker/jgo:/data`; на NAS разрешите **запись** этому UID. Конкретные UID/GID зависят от NAS, не копируйте значения вслепую. Если папка уже содержит файлы от старого UID, проверьте доступ к ним **до** смены пользователя и сделайте резервную копию.
+Для собственного каталога в `services → app` укажите, например, `user: "1000:10"` и подключите `/volume1/Docker/mgo:/data`; на NAS разрешите **запись** этому UID. Конкретные UID/GID зависят от NAS, не копируйте значения вслепую. Если папка уже содержит файлы от старого UID, проверьте доступ к ним **до** смены пользователя и сделайте резервную копию.
 
-Если нужен максимально простой вариант без NAS ACL, используйте **`jgo-data:/data`** вместе со стандартным `user: "10001:10001"`. Если хотите оставить пользовательский путь `/volume1/Docker/jgo:/data`, можно использовать UID/GID NAS, поскольку токен теперь отделён в Docker volume `jgo-auth`. Это Docker-managed volume, а не папка File Station. Существующий каталог данных не удаляйте и не переносите без бэкапа. **Не используйте `chmod 777` и не удаляйте том при обновлении.**
+Если нужен максимально простой вариант без NAS ACL, используйте **`mgo-data:/data`** вместе со стандартным `user: "10001:10001"`. Если хотите оставить пользовательский путь `/volume1/Docker/mgo:/data`, можно использовать UID/GID NAS, поскольку токен теперь отделён в Docker volume `mgo-auth`. Это Docker-managed volume, а не папка File Station. Существующий каталог данных не удаляйте и не переносите без бэкапа. **Не используйте `chmod 777` и не удаляйте том при обновлении.**
 
-MGO генерирует криптографически случайный токен **один раз** и хранит его в отдельном Docker-томе `jgo-auth` по пути `/jgo-auth/.jgo-auth-token` (права 0600). Это защищает токен от конфликтов с ACL общих папок NAS. Он переживает обновления и рестарты вместе с остальными пользовательскими данными. Не удаляйте том `jgo-auth` при обновлении: иначе токен будет сгенерирован заново. Если первый лог недоступен, прочитайте токен из `/jgo-auth/.jgo-auth-token` через консоль контейнера или `docker compose exec app cat /data/.jgo-auth-token`. Без токена доступ не открывается, даже в локальной сети.
+MGO генерирует криптографически случайный токен **один раз** и хранит его в отдельном Docker-томе `mgo-auth` по пути `/mgo-auth/.mgo-auth-token` (права 0600). Это защищает токен от конфликтов с ACL общих папок NAS. Он переживает обновления и рестарты вместе с остальными пользовательскими данными. Не удаляйте том `mgo-auth` при обновлении: иначе токен будет сгенерирован заново. Если первый лог недоступен, прочитайте токен из `/mgo-auth/.mgo-auth-token` через консоль контейнера или `docker compose exec app cat /data/.mgo-auth-token`. Без токена доступ не открывается, даже в локальной сети.
 
 Для Linux с терминалом достаточно:
 
 ```bash
-mkdir jgo && cd jgo
-curl -fsSLO https://raw.githubusercontent.com/grayhex/JGO/main/compose.yaml
+mkdir mgo && cd mgo
+curl -fsSLO https://raw.githubusercontent.com/grayhex/MGO/main/compose.yaml
 docker compose up -d
 docker compose logs app
 ```
 
-Необязательный `.env` по-прежнему поддерживается для автоматизации и старых установок (`JGO_TOKEN`, `JGO_DATA`, `PUID`/`PGID`, `JGO_VERSION`), но **не требуется**. Конфигурация также прикрепляется к [релизам](https://github.com/grayhex/JGO/releases); GitHub `/releases/latest` не показывает prerelease.
+Необязательный `.env` по-прежнему поддерживается для автоматизации и старых установок (`MGO_TOKEN`, `MGO_DATA`, `PUID`/`PGID`, `MGO_VERSION`), но **не требуется**. Конфигурация также прикрепляется к [релизам](https://github.com/grayhex/MGO/releases); GitHub `/releases/latest` не показывает prerelease.
 
 ## Synology (DSM 7.2+)
 
 1. Установите **Container Manager** через Package Center.
-2. Откройте **Container Manager → Project → Create**. Создайте проект `jgo` и вставьте содержимое [compose.yaml](../compose.yaml) (либо сохраните этот единственный файл в каталоге проекта).
-3. В YAML замените путь `./games` на `/volume1/games/j2me` или ваш реальный путь. Для данных можно оставить именованный том `jgo-data`, либо указать `/volume1/docker/jgo/data:/data` и `user: "1026:100"` с подходящими правами.
+2. Откройте **Container Manager → Project → Create**. Создайте проект `mgo` и вставьте содержимое [compose.yaml](../compose.yaml) (либо сохраните этот единственный файл в каталоге проекта).
+3. В YAML замените путь `./games` на `/volume1/games/j2me` или ваш реальный путь. Для данных можно оставить именованный том `mgo-data`, либо указать `/volume1/docker/mgo/data:/data` и `user: "1026:100"` с подходящими правами.
 4. Разверните проект, откройте логи контейнера `app`, скопируйте токен первой установки и войдите по `http://<адрес NAS>:8080`. Порт меняется непосредственно в `ports` сервиса `gateway` (например, `8090:8080`).
 
 ## UGREEN (UGOS)
 
-1. Установите приложение **Docker** и создайте проект `jgo` из одного `compose.yaml` (вставкой YAML или сохранением файла).
+1. Установите приложение **Docker** и создайте проект `mgo` из одного `compose.yaml` (вставкой YAML или сохранением файла).
 2. В YAML замените `./games` на путь вашей папки с играми на NAS. Если используете отдельную папку данных, задайте её владельца через `user` или необязательные `PUID`/`PGID`.
 3. Нажмите Deploy, откройте логи контейнера `app` и скопируйте автоматически созданный токен.
 
@@ -72,11 +75,11 @@ docker compose logs app
 
 | Переменная | По умолчанию | Назначение |
 |---|---|---|
-| `MGO_TOKEN` | автоматически создан в `/jgo-auth/.jgo-auth-token` | необязательный вручную заданный токен входа, ≥ 16 символов |
+| `MGO_TOKEN` | автоматически создан в `/mgo-auth/.mgo-auth-token` | необязательный вручную заданный токен входа, ≥ 16 символов |
 | `MGO_VERSION` | `latest` | версия образа: `latest` — последний официальный релиз; `edge` — самая свежая сборка `main` после зелёного CI (для тестеров); для предсказуемых обновлений укажите конкретную, например `0.1.0-beta.1` |
 | `MGO_PORT` | `8080` | порт на хосте |
 | `MGO_BIND` | `0.0.0.0` | на каком адресе слушать; `127.0.0.1` — только сам хост (когда впереди обратный прокси) |
-| `MGO_DATA` | том `jgo-data` | имя тома или абсолютный путь к папке данных |
+| `MGO_DATA` | том `mgo-data` | имя тома или абсолютный путь к папке данных |
 | `MGO_SYMBIAN_VERSION` | `edge` | версия образа `mgo-symbian` |
 | `SYMBIAN_INBOX` | `./symbian-inbox` | папка с архивами прошивок, слишком большими для браузера (только чтение) |
 | `PUID`, `PGID` | `10001`, `10001` | от чьего имени работает приложение (нужны, когда `MGO_DATA` — папка) |
@@ -88,26 +91,26 @@ docker compose logs app
 | `ALLOWED_ORIGINS` | — | внешний адрес, если интерфейс открывают через обратный прокси |
 | `MOBYGAMES_API_KEY` | — | ключ MobyGames (можно ввести в Settings) |
 
-Остальные параметры приложения (`FRAME_ENCODING`, `KEM_CPU_SECONDS`, …) перечислены в [`packaging/jgo.env.example`](../packaging/jgo.env.example); в `compose.yaml` пробрасывается только часть. Нужен другой — добавьте строку в раздел `environment` сервиса `app`.
+Остальные параметры приложения (`FRAME_ENCODING`, `KEM_CPU_SECONDS`, …) перечислены в [`packaging/mgo.env.example`](../packaging/mgo.env.example); в `compose.yaml` пробрасывается только часть. Нужен другой — добавьте строку в раздел `environment` сервиса `app`.
 
 ## Данные и резервные копии
 
-Библиотека, настройки, сохранения игр (RMS), SoundFont, файлы игр и журналы лежат в `/data` контейнера: в томе `jgo-data` или в папке `JGO_DATA`. **Токен входа хранится отдельно, в именованном томе `jgo-auth`.** Не удаляйте эти два тома при обновлении; резервное копирование должно учитывать оба.
+Библиотека, настройки, сохранения игр (RMS), SoundFont, файлы игр и журналы лежат в `/data` контейнера: в томе `mgo-data` или в папке `MGO_DATA`. **Токен входа хранится отдельно, в именованном томе `mgo-auth`.** Не удаляйте эти два тома при обновлении; резервное копирование должно учитывать оба.
 
 Резервная копия (на время копирования лучше остановить приложение — база SQLite):
 
 ```bash
 docker compose stop app
 # папка MGO_DATA:
-tar czf jgo-backup-$(date +%F).tgz -C /volume1/docker/jgo data
+tar czf mgo-backup-$(date +%F).tgz -C /volume1/docker/mgo data
 # или том Docker:
-docker run --rm -v jgo_jgo-data:/data -v "$PWD":/backup alpine tar czf /backup/jgo-backup-$(date +%F).tgz -C /data .
+docker run --rm -v mgo_mgo-data:/data -v "$PWD":/backup alpine tar czf /backup/mgo-backup-$(date +%F).tgz -C /data .
 docker compose start app
 ```
 
 Папку `MGO_DATA` можно включить в Hyper Backup / Snapshot Replication / любое резервное копирование NAS. Восстановление: остановить, распаковать архив в то же место, запустить.
-Прошивки Symbian лежат в томе `jgo_jgo-symbian-data` (не удаляйте его и включите в резервную копию; прошивки принадлежат вам, MGO их не хранит). Для резервной копии токена дополнительно сохраните отдельный том `jgo_jgo-auth` (или его фактическое имя в Docker), например через NAS Docker Volume Backup. Не храните бэкап токена в публичном доступе.
-Команды `jgo` (update, backup, doctor) в Docker нет — она есть только в контейнере Proxmox.
+Прошивки Symbian лежат в томе `mgo_mgo-symbian-data` (не удаляйте его и включите в резервную копию; прошивки принадлежат вам, MGO их не хранит). Для резервной копии токена дополнительно сохраните отдельный том `mgo_mgo-auth` (или его фактическое имя в Docker), например через NAS Docker Volume Backup. Не храните бэкап токена в публичном доступе.
+Команды `mgo` (update, backup, doctor) в Docker нет — она есть только в контейнере Proxmox.
 
 ## Обновление
 
@@ -116,7 +119,7 @@ docker compose pull
 docker compose up -d
 ```
 
-В Synology Container Manager: *Проект → jgo → Действие → Сборка* (скачивает новые образы и пересоздаёт контейнеры). С `JGO_VERSION=latest` обновление берёт самый новый выпуск; перед обновлением сделайте резервную копию. Откат — вернуть прежний номер в `JGO_VERSION` и выполнить `docker compose up -d`.
+В Synology Container Manager: *Проект → mgo → Действие → Сборка* (скачивает новые образы и пересоздаёт контейнеры). С `MGO_VERSION=latest` обновление берёт самый новый выпуск; перед обновлением сделайте резервную копию. Откат — вернуть прежний номер в `MGO_VERSION` и выполнить `docker compose up -d`.
 
 ## Доступ извне и HTTPS
 
@@ -142,7 +145,7 @@ docker compose -f compose.yaml -f compose.egress.yaml up -d
 
 * Контейнер приложения работает не от root, с файловой системой «только чтение», без привилегий (`cap_drop: ALL`, `no-new-privileges`), с лимитами памяти, процессов и CPU.
 * Порт публикует только шлюз (nginx) — приложение изолировано во внутренней сети.
-* Токен проверяется для всего API; сравнивается безопасно по времени. Автоматически созданный токен хранится в `/jgo-auth/.jgo-auth-token`, а при первом запуске появляется в логах Docker. Не публикуйте этот лог и токен.
+* Токен проверяется для всего API; сравнивается безопасно по времени. Автоматически созданный токен хранится в `/mgo-auth/.mgo-auth-token`, а при первом запуске появляется в логах Docker. Не публикуйте этот лог и токен.
 * Подробности и известные пробелы — [SECURITY.md](SECURITY.md).
 
 ## Если что-то не так
@@ -151,8 +154,8 @@ docker compose -f compose.yaml -f compose.egress.yaml up -d
 |---|---|
 | `Cannot provision login token` | проверьте права записи контейнера в `/data` и наличие места на диске; не удаляйте существующий токен ради обхода ошибки |
 | `AUTH_TOKEN must be at least 16 characters` в журнале | токен короче 16 символов |
-| В журнале `EACCES`, `permission denied` или `Data directory /data is not writable` | В `services.app.user` задайте UID:GID с правом записи в каталог NAS или вернитесь к Docker volume `jgo-data:/data` и `10001:10001`; подробнее см. выше |
-| `port is already allocated` | порт 8080 занят: `JGO_PORT=8090` |
+| В журнале `EACCES`, `permission denied` или `Data directory /data is not writable` | В `services.app.user` задайте UID:GID с правом записи в каталог NAS или вернитесь к Docker volume `mgo-data:/data` и `10001:10001`; подробнее см. выше |
+| `port is already allocated` | порт 8080 занят: `MGO_PORT=8090` |
 | Страница открывается, но игра не стартует, в журнале нет места | мало памяти: проверьте `MEM_LIMIT`, закройте лишние контейнеры |
 | `denied` / `unauthorized` при загрузке образа | пакеты на `ghcr.io` должны быть публичными — владелец репозитория включает это один раз (*Packages → Package settings → Change visibility*) |
 | Интерфейс за обратным прокси: «белый экран» / нет картинки | не пропускается WebSocket или не задан `ALLOWED_ORIGINS` |
@@ -163,7 +166,7 @@ docker compose -f compose.yaml -f compose.egress.yaml up -d
 ## Сборка из исходников
 
 ```bash
-git clone https://github.com/grayhex/JGO && cd MGO
+git clone https://github.com/grayhex/MGO && cd MGO
 docker compose -f compose.yaml -f compose.build.yaml up -d --build
 ```
 

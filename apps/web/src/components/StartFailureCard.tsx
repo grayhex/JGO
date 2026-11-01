@@ -1,5 +1,5 @@
 import { t } from '../i18n';
-import type { StartFailure } from '@j2me-web/protocol';
+import type { StartFailure } from '@mgo/protocol';
 
 const CAUSE: Record<StartFailure['cause'], string> = {
   no_firmware: 'No firmware', device: 'Firmware choice', service: 'Symbian service', install_failed: 'Installation failed',

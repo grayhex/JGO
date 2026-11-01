@@ -1,4 +1,4 @@
-import { decodeFrameHeader, FRAME_ENC_DEFLATE_RAW, type ClientEvent, type ServerEvent, WS_BIN_AUDIO, WS_BIN_FRAME, WS_FRAME_HEADER_BYTES } from '@j2me-web/protocol';
+import { decodeFrameHeader, FRAME_ENC_DEFLATE_RAW, type ClientEvent, type ServerEvent, WS_BIN_AUDIO, WS_BIN_FRAME, WS_FRAME_HEADER_BYTES } from '@mgo/protocol';
 
 export interface StreamHandlers {
   onEvent(ev: ServerEvent): void;

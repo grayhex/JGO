@@ -1,9 +1,9 @@
-import { isPhoneId, isEmulatedDeviceId } from '@j2me-web/protocol';
+import { isPhoneId, isEmulatedDeviceId } from '@mgo/protocol';
 import { createHash, randomBytes } from 'node:crypto';
 import { closeSync, mkdirSync, openSync, readSync, readFileSync, rmSync, writeFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { isPlatform, nativeGameDefaults, sisFormatOf, skinSupportsPlatform, type PackageFormat, type Platform, DEFAULT_SETTINGS, EMULATION_LIMITS, type EmulationTweaks, type GameInfoSummary, type GameMeta, type GameSettings, KEY_LAYOUTS, SCREEN_PRESETS, type LayoutId, type MetaStatus } from '@j2me-web/protocol';
+import { emulatedDevice, PHONE_COMPATIBILITY, isPlatform, nativeGameDefaults, sisFormatOf, skinSupportsPlatform, type PackageFormat, type Platform, DEFAULT_SETTINGS, EMULATION_LIMITS, type EmulationTweaks, type GameInfoSummary, type GameMeta, type GameSettings, KEY_LAYOUTS, SCREEN_PRESETS, type LayoutId, type MetaStatus } from '@mgo/protocol';
 import { parseJad, parseJar, sanitizeText, UploadError } from './jar.js';
 import { Classifications } from './classification.js';
 import { cleanTitle, cleanVendor } from './title.js';
@@ -144,6 +144,7 @@ function infoSummary(m: { status: string; data_json: string }): GameInfoSummary 
 }
 
 export class Library {
+  enrich: (game: GameMeta) => GameMeta = game => game;
   readonly db: DatabaseSync;
   readonly gamesDir: string;
   /** Genres and tags of the games (by group), see classification.ts. */
@@ -169,7 +170,7 @@ export class Library {
 
   /**
    * Additive migrations only (new nullable/defaulted columns, new tables): a database written by this version
-   * stays readable by the previous release, so `jgo rollback` keeps working.
+   * stays readable by the previous release, so `mgo rollback` keeps working.
    */
   private migrate(): void {
     const cols = (this.db.prepare('PRAGMA table_info(games)').all() as unknown as { name: string }[]).map((c) => c.name);
@@ -352,7 +353,7 @@ export class Library {
       if (c) { g.classification = c; if (c.canonicalTitle) g.name = c.canonicalTitle; }
       const t = titles.get(r.group_key);
       if (t) g.name = t; // the title you typed beats every other
-      return g;
+      return this.enrich(g);
     });
     if (!genre) return all;
     return all.filter((g) => (genre === 'unclassified' ? !g.classification : g.classification?.primaryGenre === genre || g.classification?.genres.includes(genre as never)));
@@ -361,7 +362,7 @@ export class Library {
   get(id: string): GameMeta | null {
     if (!/^[0-9a-f]{16}$/.test(id)) return null;
     const r = this.db.prepare('SELECT * FROM games WHERE id = ?').get(id) as unknown as Row | undefined;
-    return r ? this.withExtras(this.toMeta(r), r.origin) : null;
+    return r ? this.enrich(this.withExtras(this.toMeta(r), r.origin)) : null;
   }
 
   /** What `list()` adds to every game (MobyGames summary, genre, "file gone"), for one game: single-game answers must carry it too. */
@@ -432,7 +433,9 @@ export class Library {
     mkdirSync(dir, { recursive: true });
     writeFileSync(path.join(dir, `game.${ext}`), bytes, { mode: 0o600 });
     // the J2ME default phone (a width, a key layout, a skin such as a Sony Ericsson) means nothing to a Symbian / N-Gage game and must not be pinned to it
-    const settings: GameSettings = { ...DEFAULT_SETTINGS, ...nativeGameDefaults(platform) };
+    const nativeProfile = opts.defaults?.emulatedDeviceId ? emulatedDevice(opts.defaults.emulatedDeviceId) : null;
+    const binding = nativeProfile?.engine === 'eka2l1' && nativeProfile.platforms.includes(platform) && (!opts.defaults?.skinId || PHONE_COMPATIBILITY[opts.defaults.skinId].includes(nativeProfile.id)) ? { emulatedDeviceId: nativeProfile.id, symbianDevice: nativeProfile.firmware.product } : {};
+    const settings: GameSettings = { ...DEFAULT_SETTINGS, ...nativeGameDefaults(platform), ...binding, ...(opts.defaults?.skinId && skinSupportsPlatform(opts.defaults.skinId, platform) ? { skinId: opts.defaults.skinId } : {}) };
     const groupKey = createHash('sha1').update(`${vendor.toLowerCase()}\0${name.toLowerCase()}\0${platform}`).digest('hex').slice(0, 12);
     this.db
       .prepare(

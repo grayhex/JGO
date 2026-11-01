@@ -1,6 +1,6 @@
 name: Edge image
 
-# Publishes ghcr.io/<owner>/mgo:edge and mgo-gateway:edge (and, for one transition period, the old jgo / jgo-gateway names) after the CI of a push to main has PASSED.
+# Publishes ghcr.io/<owner>/mgo:edge and mgo-gateway:edge after the CI of a push to main has PASSED.
 #  - edge moves with every successful merge to main (a NAS that follows :edge can update after each PR);
 #  - latest is moved only by Release (an official, non-prerelease version);
 #  - version tags (x.y.z) are never touched here; the immutable sha-<commit> tag is added for rollbacks.
@@ -40,8 +40,8 @@ jobs:
           owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
           {
             echo "version=${base}+edge.${short}"
-            echo "app=ghcr.io/$owner/mgo:edge,ghcr.io/$owner/mgo:sha-${short},ghcr.io/$owner/jgo:edge,ghcr.io/$owner/jgo:sha-${short}"
-            echo "gateway=ghcr.io/$owner/mgo-gateway:edge,ghcr.io/$owner/mgo-gateway:sha-${short},ghcr.io/$owner/jgo-gateway:edge,ghcr.io/$owner/jgo-gateway:sha-${short}"
+            echo "app=ghcr.io/$owner/mgo:edge,ghcr.io/$owner/mgo:sha-${short}"
+            echo "gateway=ghcr.io/$owner/mgo-gateway:edge,ghcr.io/$owner/mgo-gateway:sha-${short}"
           } >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -55,7 +55,7 @@ jobs:
           context: .
           file: runtime/Dockerfile
           build-args: |
-            JGO_VERSION=${{ steps.v.outputs.version }}
+            MGO_VERSION=${{ steps.v.outputs.version }}
           push: true
           tags: ${{ steps.v.outputs.app }}
           labels: |

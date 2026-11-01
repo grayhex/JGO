@@ -7,7 +7,7 @@ import { it } from 'node:test';
 import { factoryDirectory, factoryUploadPath, factoryInstallFiles } from '../../../../symbian/agent/factory.mjs';
 
 it('factory kits retain original names and isolate bundles with identical VPL/FPSX filenames', () => {
-  const root = mkdtempSync(path.join(tmpdir(), 'jgo-factory-'));
+  const root = mkdtempSync(path.join(tmpdir(), 'mgo-factory-'));
   try {
     const a = 'a'.repeat(32), b = 'b'.repeat(32);
     const first = factoryUploadPath(root, a, 'RM-596.core.fpsx', 'fpsx');
@@ -24,7 +24,7 @@ it('factory kits retain original names and isolate bundles with identical VPL/FP
 });
 
 it('factory installation only uses a complete staged kit or plain inbox files, never links', () => {
-  const root = mkdtempSync(path.join(tmpdir(), 'jgo-factory-check-'));
+  const root = mkdtempSync(path.join(tmpdir(), 'mgo-factory-check-'));
   try {
     const bundle = 'a'.repeat(32), dir = factoryDirectory(root, bundle), inbox = path.join(root, 'inbox');
     mkdirSync(dir, { recursive: true }); mkdirSync(inbox);

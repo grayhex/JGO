@@ -34,16 +34,23 @@ WORKDIR /app
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY packages packages
 COPY apps apps
-COPY tools/release/prune.mjs /tmp/jgo-release-prune.mjs
-RUN npm ci && npm run build && npm prune --omit=dev && node /tmp/jgo-release-prune.mjs /app && rm /tmp/jgo-release-prune.mjs
+COPY tools/release/prune.mjs /tmp/mgo-release-prune.mjs
+RUN npm ci && npm run build && npm prune --omit=dev && node /tmp/mgo-release-prune.mjs /app && rm /tmp/mgo-release-prune.mjs
 
 # ---- Gateway (optional image): the only container with a published port ---------------
 # The app container sits on an internal Docker network without a route out, so a MIDlet cannot call the
 # internet or the LAN; this nginx forwards the browser's HTTP and WebSocket traffic to it.
 #   docker build -f runtime/Dockerfile --target gateway -t mgo-gateway .
 FROM ${BASE_REGISTRY}/nginx:1.27-alpine AS gateway
-COPY infrastructure/local/nginx.conf /etc/nginx/conf.d/default.conf
-COPY infrastructure/local/jgo-proxy.conf /etc/nginx/jgo-proxy.conf
+RUN --mount=type=secret,id=extra_ca,required=false \
+    if [ -s /run/secrets/extra_ca ]; then export SSL_CERT_FILE=/run/secrets/extra_ca; fi \
+    && apk add --no-cache openssl ca-certificates
+ENV MGO_HTTPS_PORT=8443 NGINX_ENVSUBST_FILTER=MGO_HTTPS_PORT
+COPY infrastructure/local/nginx-https.conf /etc/nginx/templates/default.conf.template
+COPY infrastructure/local/nginx-aas.conf /etc/nginx/templates/aas.conf.template
+COPY infrastructure/local/05-mgo-tls.sh /docker-entrypoint.d/05-mgo-tls.sh
+RUN chmod +x /docker-entrypoint.d/05-mgo-tls.sh
+COPY infrastructure/local/mgo-proxy.conf /etc/nginx/mgo-proxy.conf
 
 # ---- 4. Runtime (the default target: keep it the last stage) --------------------------------------------------------------------------
 FROM ${BASE_REGISTRY}/ubuntu:24.04 AS runtime
@@ -56,18 +63,18 @@ COPY --from=app-build /usr/local/bin/node /usr/local/bin/node
 # The token volume can be written by NAS-selected UID:GID (e.g. 1000:10 or 10001:10001).
 # It is a sticky directory, like /tmp; the token itself stays a private 0600 file.
 RUN useradd --system --uid 10001 --home-dir /nonexistent --shell /usr/sbin/nologin j2me \
-    && mkdir -p /data /opt/kemulator /jgo-auth /symbian-auth \
+    && mkdir -p /data /opt/kemulator /mgo-auth /symbian-auth \
     && chown j2me /data \
-    && chmod 1777 /jgo-auth && chown j2me /symbian-auth
+    && chmod 1777 /mgo-auth && chown j2me /symbian-auth
 COPY --from=kem-build /out/kemulator /opt/kemulator
 COPY --from=adapter-build /src/target/release/kem-adapter /usr/local/bin/kem-adapter
 COPY --from=app-build /app /app
 COPY runtime/scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
-COPY runtime/scripts/docker-auth-token.cjs /usr/local/bin/jgo-auth-token.cjs
+COPY runtime/scripts/docker-auth-token.cjs /usr/local/bin/mgo-auth-token.cjs
 
 # jdk-headless (not only the JRE) so that the diagnostics report can ask the emulator's JVM for heap and threads (jcmd)
-ARG JGO_VERSION=dev
-ENV JGO_VERSION=${JGO_VERSION} \
+ARG MGO_VERSION=dev
+ENV MGO_VERSION=${MGO_VERSION} \
     NODE_ENV=production \
     HOST=0.0.0.0 PORT=8080 \
     DATA_DIR=/data KEM_DIR=/opt/kemulator ADAPTER_BIN=/usr/local/bin/kem-adapter \
@@ -76,5 +83,5 @@ ENV JGO_VERSION=${JGO_VERSION} \
 USER 10001:10001
 VOLUME /data
 EXPOSE 8080
-HEALTHCHECK --interval=15s --timeout=4s --start-period=10s CMD ["node", "-e", "fetch('http://127.0.0.1:8080/api/health').then(r=>r.json()).then(j=>process.exit(j.ok?0:1)).catch(()=>process.exit(1))"]
+HEALTHCHECK --interval=15s --timeout=4s --start-period=10s CMD ["node", "-e", "fetch('http://127.0.0.1:8080/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

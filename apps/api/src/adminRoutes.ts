@@ -1,6 +1,6 @@
 import { createReadStream } from 'node:fs';
 import type { FastifyInstance } from 'fastify';
-import { isGenre, type LibraryCheck, type SettingsResponse } from '@j2me-web/protocol';
+import { isGenre, type LibraryCheck, type SettingsResponse } from '@mgo/protocol';
 import { CATALOG_MAX_BYTES, Classifications, cleanTags } from './classification.js';
 import type { Config } from './config.js';
 import { UploadError } from './jar.js';
@@ -14,6 +14,7 @@ import { SOUNDFONT_MAX_BYTES, type SoundfontStore } from './soundfont.js';
 import { systemStatus } from './systemStatus.js';
 
 export interface AdminContext {
+  sessions?: import('./sessions.js').SessionManager;
   cfg: Config;
   library: Library;
   store: SettingsStore;
@@ -56,7 +57,7 @@ export function registerAdminRoutes(app: FastifyInstance, c: AdminContext): void
   // --- first-run wizard state ---
   app.get('/api/setup', async () => {
     const s = store.setup();
-    return { status: s.status, completedAt: s.completedAt, legacy: s.legacy, needsWizard: s.status === 'pending', libraryConfigured: !!store.get().libraryPath, mobygamesConfigured: store.mobygamesInfo().configured, games: library.count() };
+    return { status: s.status, completedAt: s.completedAt, legacy: s.legacy, needsWizard: s.status === 'pending', libraryConfigured: !!store.get().libraryPath || Object.values(store.get().libraryPaths ?? {}).some(Boolean), mobygamesConfigured: store.mobygamesInfo().configured, games: library.count() };
   });
   app.post('/api/setup/complete', async () => { store.setSetup('completed'); return settingsResponse().setup; });
   app.post('/api/setup/skip', async () => { store.setSetup('skipped'); return settingsResponse().setup; });
@@ -72,6 +73,14 @@ export function registerAdminRoutes(app: FastifyInstance, c: AdminContext): void
       const hit = resolveInsideRoots(cfg, p);
       if (!hit) throw new UploadError('library_outside_roots', 'That directory does not exist or is outside the allowed library locations', 400);
       body.libraryPath = hit.real; // always store the resolved path: a later symlink swap cannot redirect the scan
+    }
+    if (body?.libraryPaths && typeof body.libraryPaths === 'object') {
+      for (const [kind, value] of Object.entries(body.libraryPaths)) {
+        if (!value) continue;
+        const hit = resolveInsideRoots(cfg, str(value, `libraryPaths.${kind}`));
+        if (!hit) throw new UploadError('library_outside_roots', 'That directory does not exist or is outside the allowed library locations', 400);
+        (body.libraryPaths as Record<string, unknown>)[kind] = hit.real;
+      }
     }
     store.update(body);
     return settingsResponse();
@@ -110,7 +119,11 @@ export function registerAdminRoutes(app: FastifyInstance, c: AdminContext): void
     }
   });
 
-  app.get('/api/system/status', async () => systemStatus(cfg, library, store, c.java, c.version));
+  app.get('/api/system/status', async () => {
+    const status = await systemStatus(cfg, library, store, c.java, c.version);
+    if (status.monitoring && c.sessions) { const sessions = c.sessions.active().map(s => s.status()); status.monitoring.sessions = sessions.length; status.monitoring.frames = sessions.reduce((n,s) => n+s.framesReceived,0); status.monitoring.audioBytes = sessions.reduce((n,s) => n+s.audioBytes,0); }
+    return status;
+  });
 
   // --- library directory ---
   app.get('/api/library/roots', async () => ({ roots: listRoots(cfg), current: store.get().libraryPath }));
@@ -141,7 +154,7 @@ export function registerAdminRoutes(app: FastifyInstance, c: AdminContext): void
   app.post<{ Body: unknown }>('/api/library/catalog/import', catalogOpts, async (req) => library.classes.importCatalog(Classifications.parse(req.body), bySha));
   app.get('/api/library/catalog/export', async (_req, reply) => {
     const files = (library.db.prepare('SELECT sha256, group_key AS groupKey, name FROM games ORDER BY name COLLATE NOCASE').all() as unknown) as { sha256: string; groupKey: string; name: string }[];
-    return reply.header('content-disposition', 'attachment; filename="jgo_catalog.json"').send(library.classes.exportCatalog(files));
+    return reply.header('content-disposition', 'attachment; filename="mgo_catalog.json"').send(library.classes.exportCatalog(files));
   });
   const groupExists = (groupKey: string): void => {
     if (!/^[0-9a-f]{12}$/.test(groupKey) || library.gamesInGroup(groupKey).length === 0) throw new UploadError('not_found', 'No such game', 404);

@@ -14,11 +14,11 @@ import {
   type TextArea,
   type SessionStatus,
   WS_BIN_AUDIO,
-} from '@j2me-web/protocol';
+} from '@mgo/protocol';
 import { ResourceMeter } from './procstats.js';
 import { writeMidletsIni, writeSoundfontProperty } from './appSettings.js';
 import { findPreset, loadDevicePresets } from './devices.js';
-import { emulatedDevice, nativePhonePlan, type StartFailure } from '@j2me-web/protocol';
+import { emulatedDevice, nativePhonePlan, type StartFailure } from '@mgo/protocol';
 import { readSymbianStatus } from './eka2l1/status.js';
 import { KEmulatorAdapter, type ExitInfo, type FrameMsg } from './kemulator/adapter.js';
 import type { EmulatorAdapter } from './emulator.js';
@@ -151,7 +151,7 @@ export class Session {
       audioBytes: this.audioBytes,
       firstFrameMs: st.firstFrameAt ? st.firstFrameAt - this.createdAt : null,
       resources: this.meter.peakRssKb ? this.meter.usage() : null,
-      device: this.settings.device ?? null,
+      device: this.game.platform && this.game.platform !== 'j2me' ? this.settings.symbianDevice ?? null : this.settings.device ?? null,
       layout: this.settings.layout,
       heapMb: this.settings.heapMb,
       encoding: this.cfg.frameEncoding,

@@ -6,10 +6,10 @@ name: Symbian service (EKA2L1)
 # Slow (EKA2L1 and FFmpeg are compiled), so it only runs when the service changes. On main the image is published as :edge.
 on:
   pull_request:
-    paths: ['symbian/**', 'compose.yaml', '.github/workflows/symbian.yml', 'tests/scripts/vpl-real-smoke.mjs', 'tests/fixtures/factory-kit.mjs']
+    paths: ['symbian/**', 'compose.yaml', '.github/workflows/symbian.yml', 'tests/scripts/vpl-real-smoke.mjs', 'tests/fixtures/factory-kit.mjs', 'tests/scripts/pulse-smoke.mjs']
   push:
     branches: [main]
-    paths: ['symbian/**', 'compose.yaml', '.github/workflows/symbian.yml', 'tests/scripts/vpl-real-smoke.mjs', 'tests/fixtures/factory-kit.mjs']
+    paths: ['symbian/**', 'compose.yaml', '.github/workflows/symbian.yml', 'tests/scripts/vpl-real-smoke.mjs', 'tests/fixtures/factory-kit.mjs', 'tests/scripts/pulse-smoke.mjs']
   workflow_dispatch:
 
 permissions:
@@ -68,6 +68,7 @@ jobs:
           # manifests/invalid FPSX only: verifies format dispatch and failures,
           # variant choice and missing/unsafe paths without proprietary firmware.
           AGENT_URL=http://127.0.0.1:8766 AGENT_TOKEN=ci-token-0123456789abcdef node tests/scripts/vpl-real-smoke.mjs
+          docker exec -i sym node --input-type=module < tests/scripts/pulse-smoke.mjs
           docker logs sym | tail -20
           docker rm -f sym
       - name: Version file
@@ -83,8 +84,7 @@ jobs:
         run: |
           owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
           short="${GITHUB_SHA:0:7}"
-          # mgo-symbian is the name; jgo-symbian is kept as an alias for one transition period (existing compose files still pull it)
-          for name in mgo-symbian jgo-symbian; do
+          for name in mgo-symbian; do
             for t in edge "sha-$short"; do
               docker tag mgo-symbian:ci "ghcr.io/$owner/$name:$t"
               docker push "ghcr.io/$owner/$name:$t"

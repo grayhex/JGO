@@ -1,6 +1,6 @@
 import { accessSync, constants, lstatSync, opendirSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
-import type { LibraryCheck, LibraryRoot } from '@j2me-web/protocol';
+import type { LibraryCheck, LibraryRoot } from '@mgo/protocol';
 import type { Config } from './config.js';
 
 /**
@@ -59,7 +59,7 @@ export function listRoots(cfg: Pick<Config, 'libraryRoots' | 'dataDir'>): Librar
     try { isDir = statSync(real).isDirectory(); } catch { /* gone */ }
     const readable = isDir && can(real, constants.R_OK | constants.X_OK);
     const writable = isDir && can(real, constants.W_OK);
-    return { path: r, exists: isDir, readable, writable, note: !isDir ? 'not a directory' : !readable ? 'not readable by the jgo user' : writable ? 'writable (a read-only mount is safer; MGO never writes here)' : null };
+    return { path: r, exists: isDir, readable, writable, note: !isDir ? 'not a directory' : !readable ? 'not readable by the mgo user' : writable ? 'writable (a read-only mount is safer; MGO never writes here)' : null };
   });
 }
 
@@ -82,7 +82,7 @@ export interface WalkStats {
 const SKIP_DIRS = new Set(['__MACOSX', '.git', '.svn', '$RECYCLE.BIN', 'System Volume Information', 'lost+found']);
 
 /** Recursive walk that stays inside `root`: symlinks are skipped, depth and entry count are bounded. */
-export async function* walkLibrary(root: string, stats: WalkStats, isCancelled: () => boolean = () => false): AsyncGenerator<WalkEntry> {
+export async function* walkLibrary(root: string, stats: WalkStats, isCancelled: () => boolean = () => false, ngageZip = false): AsyncGenerator<WalkEntry> {
   const stack: { dir: string; depth: number }[] = [{ dir: root, depth: 0 }];
   while (stack.length) {
     if (isCancelled()) return;
@@ -107,7 +107,7 @@ export async function* walkLibrary(root: string, stats: WalkStats, isCancelled: 
         }
         if (!ent.isFile() || name.startsWith('._')) continue; // "._x.jar" are macOS resource forks
         const lower = name.toLowerCase();
-        const kind = lower.endsWith('.jar') ? 'jar' : lower.endsWith('.jad') ? 'jad' : /\.(sisx?|n-gage)$/.test(lower) ? 'pkg' : null;
+        const kind = lower.endsWith('.jar') ? 'jar' : lower.endsWith('.jad') ? 'jad' : (/\.(sisx?|n-gage)$/.test(lower) || (ngageZip && lower.endsWith('.zip'))) ? 'pkg' : null;
         if (!kind) continue;
         let st;
         try { st = lstatSync(abs); } catch { continue; }
@@ -123,7 +123,7 @@ export async function* walkLibrary(root: string, stats: WalkStats, isCancelled: 
 
 /** Is the path usable as the game library? Also counts what is in there (bounded, so a huge tree cannot stall the API). */
 export async function checkLibraryDir(cfg: Pick<Config, 'libraryRoots' | 'dataDir'>, p: string): Promise<LibraryCheck> {
-  const out: LibraryCheck = { ok: false, path: p, exists: false, isDirectory: false, readable: false, writable: false, insideRoot: false, jarCount: 0, jadCount: 0, totalBytes: 0, truncated: false, problems: [], warnings: [] };
+  const out: LibraryCheck = { ok: false, path: p, exists: false, isDirectory: false, readable: false, writable: false, insideRoot: false, jarCount: 0, jadCount: 0, packageCount: 0, totalBytes: 0, truncated: false, problems: [], warnings: [] };
   if (typeof p !== 'string' || !path.isAbsolute(p) || p.includes('\0')) {
     out.problems.push('The path must be absolute.');
     return out;
@@ -131,7 +131,7 @@ export async function checkLibraryDir(cfg: Pick<Config, 'libraryRoots' | 'dataDi
   // Whether something exists outside the allowed locations is none of the caller's business: one answer for "missing" and "forbidden".
   const hit = resolveInsideRoots(cfg, p);
   if (!hit) {
-    out.problems.push(`The directory does not exist, is not visible to the jgo user, or is outside the allowed library locations (${allowedRoots(cfg).join(', ')}). Mount the folder into the container at one of them.`);
+    out.problems.push(`The directory does not exist, is not visible to the mgo user, or is outside the allowed library locations (${allowedRoots(cfg).join(', ')}). Mount the folder into the container at one of them.`);
     return out;
   }
   const real = hit.real;
@@ -147,21 +147,21 @@ export async function checkLibraryDir(cfg: Pick<Config, 'libraryRoots' | 'dataDi
   out.readable = can(real, constants.R_OK | constants.X_OK);
   out.writable = can(real, constants.W_OK);
   if (!out.readable) {
-    out.problems.push('The jgo user cannot read this directory. In an unprivileged container the host files must be readable by "others" (or mapped to the container uid), see docs/PROXMOX.md.');
+    out.problems.push('The mgo user cannot read this directory. In an unprivileged container the host files must be readable by "others" (or mapped to the container uid), see docs/PROXMOX.md.');
     return out;
   }
   if (out.writable) out.warnings.push('The directory is writable. MGO never writes there; a read-only bind mount (ro=1) is recommended.');
   const stats: WalkStats = { entries: 0, symlinksSkipped: 0, truncated: false, unreadableDirs: [] };
   const t0 = Date.now();
-  for await (const e of walkLibrary(real, stats)) {
-    if (e.kind === 'jar' || e.kind === 'pkg') { out.jarCount++; out.totalBytes += e.size; } else out.jadCount++;
+  for await (const e of walkLibrary(real, stats, () => false, true)) {
+    if (e.kind === 'jar' || e.kind === 'pkg') { if (e.kind === 'pkg') out.packageCount = (out.packageCount ?? 0) + 1; else out.jarCount++; out.totalBytes += e.size; } else out.jadCount++;
     if (Date.now() - t0 > CHECK_BUDGET_MS) { stats.truncated = true; break; }
   }
   out.truncated = stats.truncated;
   if (stats.truncated) out.warnings.push('The directory is large: the numbers above are a partial count.');
   if (stats.symlinksSkipped) out.warnings.push(`${stats.symlinksSkipped} symbolic link(s) are ignored: MGO never follows links out of the library directory.`);
   if (stats.unreadableDirs.length) out.warnings.push(`${stats.unreadableDirs.length} sub-director${stats.unreadableDirs.length === 1 ? 'y is' : 'ies are'} not readable and will be skipped.`);
-  if (out.jarCount === 0) out.warnings.push('No .jar files found (searched recursively).');
+  if (out.jarCount === 0 && !out.packageCount) out.warnings.push('No game files found (searched recursively).');
   out.ok = true;
   out.path = real;
   return out;

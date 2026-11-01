@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright';
 
-const dir = mkdtempSync(path.join(tmpdir(), 'jgo-sym-e2e-'));
+const dir = mkdtempSync(path.join(tmpdir(), 'mgo-sym-e2e-'));
 const free = () => new Promise((res) => { const s = createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => res(p)); }); });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const wait = async (fn, what, n = 300) => { for (let i = 0; i < n; i++) { try { const v = await fn(); if (v) return v; } catch {} await sleep(100); } throw Error(`timeout: ${what}`); };
@@ -111,12 +111,14 @@ try {
   assert.equal(await p.getByText('Game speed').count(), 0, 'no J2ME speed control for a Symbian game');
   assert.equal(await p.getByTestId('phone-profile-match').count(), 0, 'no J2ME profile panel');
   await p.locator('.skin-box[data-skin="nokia-n70"]').waitFor();
-  // A phone of another firmware is not run: choosing the N8 on /phones brings the game back to the phone of its firmware
+  // Choosing an unavailable model must request its real firmware, never boot the old one under a new picture.
   await p.getByTestId('change-phone').click();
   await p.getByRole('button', { name: 'Nokia N8', exact: true }).click();
-  await p.locator('.skin-box[data-skin="nokia-n70"]').waitFor({ timeout: 15000 });
-  await wait(async () => (await (await fetch(base + '/api/games/' + game.id)).json()).settings.skinId === 'nokia-n70', 'the game goes back to the N70');
-  assert.equal((await (await fetch(base + '/api/games/' + game.id)).json()).settings.symbianDevice ?? 'RM-84', 'RM-84');
+  await wait(async () => (await p.getByTestId('native-readiness').innerText()).includes('not installed'), 'N8 firmware is missing');
+  assert.equal((await (await fetch(base + '/api/games/' + game.id)).json()).settings.symbianDevice, 'RM-596');
+  await p.getByTestId('change-phone').click();
+  await p.getByRole('button', { name: 'Nokia N70', exact: true }).click();
+  await wait(async () => await p.getByTestId('native-readiness').getAttribute('data-ready') === '1', 'installed N70');
   await p.getByRole('button', { name: 'Start', exact: true }).first().click();
   await wait(async () => (await p.getByTestId('frame-size').innerText()) === '176×208', 'the game picture at its own size', 600);
   const st = await wait(async () => (await (await fetch(base + '/api/sessions')).json()).find(s => s.state === 'running'), 'running session');
@@ -173,7 +175,7 @@ try {
   await second.getByTestId('fw-install').click();
   const payload = (await request).postDataJSON();
   assert.match(payload.archive, /RM-596\.zip$/); assert.equal(payload.rom, undefined); assert.equal(payload.vpl, undefined);
-  await wait(async () => await p.evaluate(() => !!localStorage.getItem('jgo.symbian.job.v1')), 'firmware job retained');
+  await wait(async () => await p.evaluate(() => !!localStorage.getItem('mgo.symbian.job.v1')), 'firmware job retained');
   await p.route('**/api/symbian/jobs/*', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'unavailable', message: 'Temporary monitoring interruption' }) }), { times: 1 });
   await p.reload();
   await p.getByRole('button', { name: 'Resume monitoring', exact: true }).click();

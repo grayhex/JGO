@@ -18,7 +18,7 @@ const { chromium } = require('playwright');
 const gamesDir = process.env.GAMES_DIR;
 if (!gamesDir) { console.error('Set GAMES_DIR to a folder with a few .jar files.'); process.exit(2); }
 const outDir = path.join(root, 'docs/img');
-const work = mkdtempSync(path.join(tmpdir(), 'jgo-readme-'));
+const work = mkdtempSync(path.join(tmpdir(), 'mgo-readme-'));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const jars = readdirSync(gamesDir).filter((f) => /\.jar$/i.test(f));
 
@@ -123,14 +123,14 @@ try {
   // ---- first run: the wizard on an empty server, then Settings after an import --------------------------------
   if (!only || only === 'wizard') {
     // paths as on an installed container, when this machine allows creating them (they are removed again)
-    const realPaths = process.getuid?.() === 0 && !existsSync('/mnt/jgo-library') && !existsSync('/var/lib/jgo');
-    const lib = realPaths ? '/mnt/jgo-library' : path.join(work, 'collection');
+    const realPaths = process.getuid?.() === 0 && !existsSync('/mnt/mgo-library') && !existsSync('/var/lib/mgo');
+    const lib = realPaths ? '/mnt/mgo-library' : path.join(work, 'collection');
     mkdirSync(path.join(lib, 'Gameloft'), { recursive: true });
     for (const f of jars) copyFileSync(path.join(gamesDir, f), path.join(lib, 'Gameloft', f));
     // a virtual display, as on an installed container, so that the system check shows the 3D prerequisites as present
     const xvfb = existsSync('/usr/bin/Xvfb') ? spawn('Xvfb', [':96', '-screen', '0', '640x480x24', '+extension', 'GLX', '-nolisten', 'tcp'], { stdio: 'ignore' }) : null;
     if (xvfb) for (let i = 0; i < 50 && !existsSync('/tmp/.X11-unix/X96'); i++) await sleep(100);
-    const { base, server } = await boot({ LIBRARY_ROOTS: lib, ...(xvfb ? { KEM_DISPLAY: ':96', LIBGL_ALWAYS_SOFTWARE: '1' } : {}) }, realPaths ? '/var/lib/jgo' : null);
+    const { base, server } = await boot({ LIBRARY_ROOTS: lib, ...(xvfb ? { KEM_DISPLAY: ':96', LIBGL_ALWAYS_SOFTWARE: '1' } : {}) }, realPaths ? '/var/lib/mgo' : null);
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 820 } });
     const p = await ctx.newPage();
     await p.goto(base);
@@ -155,7 +155,7 @@ try {
     server.kill('SIGTERM');
     xvfb?.kill('SIGTERM');
     await sleep(500);
-    if (realPaths) { rmSync('/mnt/jgo-library', { recursive: true, force: true }); rmSync('/var/lib/jgo', { recursive: true, force: true }); }
+    if (realPaths) { rmSync('/mnt/mgo-library', { recursive: true, force: true }); rmSync('/var/lib/mgo', { recursive: true, force: true }); }
   }
 } finally {
   await browser.close();

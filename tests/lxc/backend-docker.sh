@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 # Backend: a privileged Docker container with systemd as PID 1 (local runs, fast). Sourced by run.sh.
 NET="${DOCKER_NET:-bridge}"
-IMAGE="jgo-lxc-test-base"
+IMAGE="mgo-lxc-test-base"
 
 be_prepare() { docker build -q --network host --build-arg "BASE=${BASE_IMAGE:-debian:trixie}" -t "$IMAGE" "$here" >/dev/null; }
 
@@ -15,8 +15,8 @@ be_start() { # be_start NAME [snapshot token]
   docker run -d --name "$name" --privileged --cgroupns=host --network "$NET" \
     -v /sys/fs/cgroup:/sys/fs/cgroup:rw --tmpfs /run --tmpfs /run/lock \
     --add-host "api.github.com:$ip" --add-host "github.com:$ip" --add-host "codeload.github.com:$ip" --add-host "objects.githubusercontent.com:$ip" \
-    -v "$CORE_DIR:/opt/cs-core:ro" -v "$root/ct:/opt/jgo-src/ct:ro" -v "$root/install:/opt/jgo-src/install:ro" -v "$root/json:/opt/jgo-src/json:ro" \
-    -v "$WORK/tls/ca.crt:/usr/local/share/ca-certificates/jgo-test-ca.crt:ro" \
+    -v "$CORE_DIR:/opt/cs-core:ro" -v "$root/ct:/opt/mgo-src/ct:ro" -v "$root/install:/opt/mgo-src/install:ro" -v "$root/json:/opt/mgo-src/json:ro" \
+    -v "$WORK/tls/ca.crt:/usr/local/share/ca-certificates/mgo-test-ca.crt:ro" \
     ${EXTRA_CA:+-v "$EXTRA_CA:/usr/local/share/ca-certificates/egress-proxy.crt:ro"} \
     "$image" >/dev/null
   for i in {1..40}; do
@@ -33,6 +33,6 @@ be_exec() { local name=$1; shift; docker exec -i "${PROXY_ENV[@]}" "$name" "$@";
 be_cp_to() { docker cp "$2" "$1:$3"; }
 be_cp_from() { docker cp "$1:$2" "$3"; }
 be_restart() { docker restart -t 20 "$1" >/dev/null; }
-be_snapshot() { docker commit "$1" jgo-lxc-test-fresh >/dev/null && echo jgo-lxc-test-fresh; }
+be_snapshot() { docker commit "$1" mgo-lxc-test-fresh >/dev/null && echo mgo-lxc-test-fresh; }
 be_rm() { docker rm -f "$@" >/dev/null 2>&1 || true; }
 be_describe() { echo "Docker (privileged, systemd as PID 1)"; }

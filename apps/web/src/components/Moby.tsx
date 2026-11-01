@@ -1,5 +1,5 @@
 import { t as translateUI } from '../i18n';
-import type { GameInfo, MetadataJob, MobyCandidate } from '@j2me-web/protocol';
+import type { GameInfo, MetadataJob, MobyCandidate } from '@mgo/protocol';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
 import { loadServerSettings, setServerSettings, useServerSettings } from '../serverSettings';
@@ -107,7 +107,7 @@ export function MobyPanel({ toast }: { toast: Toaster }) {
           <button className="btn primary" type="button" disabled={busy || key.trim().length < 8} onClick={() => void saveKey()}>{translateUI("Save key")}</button>
         </div>
       </label>
-      <p className="muted small">{translateUI("The key is stored only on the server (file readable by the jgo user only) and is never sent back to the browser.")}</p>
+      <p className="muted small">{translateUI("The key is stored only on the server (file readable by the mgo user only) and is never sent back to the browser.")}</p>
       {configured && (
         <div className="btn-row">
           <button className="btn" type="button" disabled={busy} onClick={() => void runTest()}>{translateUI("Test key")}</button>

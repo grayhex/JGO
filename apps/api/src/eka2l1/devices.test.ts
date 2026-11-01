@@ -47,7 +47,7 @@ describe('several devices and the inbox, against the agent with a fake EKA2L1', 
   const key = 'e'.repeat(32);
 
   before(async () => {
-    data = mkdtempSync(path.join(tmpdir(), 'jgo-dev-'));
+    data = mkdtempSync(path.join(tmpdir(), 'mgo-dev-'));
     inbox = path.join(data, 'inbox-dir');
     mkdirSync(inbox);
     const port = await free();
@@ -154,7 +154,7 @@ function makeZip(entries: Record<string, string>): Buffer {
 describe('N-Gage 1.0 card upload', () => {
   let proc: ChildProcess, data: string, agent: AgentClient;
   before(async () => {
-    data = mkdtempSync(path.join(tmpdir(), 'jgo-card-'));
+    data = mkdtempSync(path.join(tmpdir(), 'mgo-card-'));
     const port = await free();
     proc = spawn(process.execPath, [path.join(root, 'symbian/agent/agent.mjs')], { env: { PATH: process.env.PATH ?? '', AGENT_TOKEN: TOKEN, AGENT_PORT: String(port), AGENT_HOST: '127.0.0.1', CONTROL_PORT: String(await free()), DATA_DIR: data, EKA2L1_BIN: path.join(root, 'tests/fixtures/fake-eka2l1/fake-eka2l1.mjs') }, stdio: 'ignore' });
     const base = `http://127.0.0.1:${port}`;
@@ -193,7 +193,7 @@ import http from 'node:http';
 describe('free space guard', () => {
   let proc: ChildProcess, data: string, base: string, agent: AgentClient;
   before(async () => {
-    data = mkdtempSync(path.join(tmpdir(), 'jgo-disk-'));
+    data = mkdtempSync(path.join(tmpdir(), 'mgo-disk-'));
     const port = await free();
     base = `http://127.0.0.1:${port}`;
     proc = spawn(process.execPath, [path.join(root, 'symbian/agent/agent.mjs')], { env: { PATH: process.env.PATH ?? '', AGENT_TOKEN: TOKEN, AGENT_PORT: String(port), AGENT_HOST: '127.0.0.1', CONTROL_PORT: String(await free()), DATA_DIR: data, EKA2L1_BIN: path.join(root, 'tests/fixtures/fake-eka2l1/fake-eka2l1.mjs'), MAX_FIRMWARE_BYTES: String(1e15), INSTALL_SPACE_FACTOR: '1e12' }, stdio: 'ignore' });
@@ -231,7 +231,7 @@ import { resolveAgentToken } from './agentClient.js';
 describe('shared secret in a file', () => {
   let proc: ChildProcess, data: string, base: string;
   before(async () => {
-    data = mkdtempSync(path.join(tmpdir(), 'jgo-tok-'));
+    data = mkdtempSync(path.join(tmpdir(), 'mgo-tok-'));
     const port = await free();
     base = `http://127.0.0.1:${port}`;
     proc = spawn(process.execPath, [path.join(root, 'symbian/agent/agent.mjs')], { env: { PATH: process.env.PATH ?? '', AGENT_TOKEN_FILE: path.join(data, 'secrets', 'symbian.token'), AGENT_PORT: String(port), AGENT_HOST: '127.0.0.1', CONTROL_PORT: String(await free()), DATA_DIR: path.join(data, 'd'), EKA2L1_BIN: path.join(root, 'tests/fixtures/fake-eka2l1/fake-eka2l1.mjs') }, stdio: 'ignore' });

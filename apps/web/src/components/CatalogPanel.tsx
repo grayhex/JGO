@@ -1,12 +1,12 @@
 import { t as translateUI } from '../i18n';
-import { normalizeCatalog, type CatalogReport, type GenreSummary } from '@j2me-web/protocol';
+import { normalizeCatalog, type CatalogReport, type GenreSummary } from '@mgo/protocol';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 
 type Toaster = (kind: 'info' | 'error', text: string) => void;
 const MAX_BYTES = 2 * 1024 * 1024;
 
-/** Settings → Library: import a genre catalog (jgo_catalog.json, matched by SHA-256), see the numbers, export. */
+/** Settings → Library: import a genre catalog (mgo_catalog.json, matched by SHA-256), see the numbers, export. */
 export function CatalogPanel({ toast, onChanged }: { toast: Toaster; onChanged: () => void }) {
   const input = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<{ name: string; json: unknown } | null>(null);
@@ -45,13 +45,13 @@ export function CatalogPanel({ toast, onChanged }: { toast: Toaster; onChanged: 
 
   return (
     <div className="catalog-panel" data-testid="catalog-panel">
-      <p className="hint">{translateUI("A genre catalog (jgo_catalog.json) lists games by SHA-256 hash and genre. Only the hash, title and genre are sent to the server, never file paths. Only games already in the library are changed; nothing is added or deleted, and genres you set by hand are kept.")}</p>
+      <p className="hint">{translateUI("A genre catalog (mgo_catalog.json) lists games by SHA-256 hash and genre. Only the hash, title and genre are sent to the server, never file paths. Only games already in the library are changed; nothing is added or deleted, and genres you set by hand are kept.")}</p>
       <div className="btn-row">
         <button className="btn" disabled={busy} onClick={() => input.current?.click()}>{translateUI("Choose catalog file…")}</button>
         <input ref={input} type="file" accept=".json,application/json" hidden data-testid="catalog-file" onChange={(e) => { void pick(e.target.files?.[0]); e.target.value = ''; }} />
         {report && !applied && file && <button className="btn primary" disabled={busy || report.ok === 0} onClick={() => void confirm()} data-testid="catalog-confirm">{translateUI("Import {n} games", { n: report.ok })}</button>}
         <button className="btn" disabled={busy} onClick={() => void fromFolders()} title={translateUI("A game in a folder named like a genre (Racing, Action…) gets that genre. Genres from a catalog, MobyGames or your own choice are kept.")} data-testid="genres-from-folders">{translateUI("Genres from folder names")}</button>
-        <a className="btn ghost" href="/api/library/catalog/export" download="jgo_catalog.json">{translateUI("Export genres")}</a>
+        <a className="btn ghost" href="/api/library/catalog/export" download="mgo_catalog.json">{translateUI("Export genres")}</a>
       </div>
       {report && (
         <div className="note info" role="status" data-testid="catalog-report">

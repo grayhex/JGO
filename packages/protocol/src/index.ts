@@ -1,3 +1,4 @@
+import type { PhoneSkinId } from './phoneSkins.js';
 export * from './phones.js';
 export * from './catalog.js';
 export * from './phoneSkins.js';
@@ -97,6 +98,7 @@ export interface GameMeta {
   sourceMissing?: boolean;
   /** Short MobyGames summary, when the game has been matched. */
   info?: GameInfoSummary;
+  ngageInfo?: NgageInfo;
   /** Genre of the game (shared by all versions of the group), when it has been classified. */
   classification?: GameClassification;
 }
@@ -107,7 +109,7 @@ export type Genre = (typeof GENRES)[number];
 export const isGenre = (v: unknown): v is Genre => typeof v === 'string' && (GENRES as readonly string[]).includes(v);
 
 /** Where a classification came from, strongest first: the user's own choice, MobyGames, the curated catalog, a guess. */
-/** `folder`: the genre is the name of a folder the file sits in (JGO-Top500/Racing/...). */
+/** `folder`: the genre is the name of a folder the file sits in (MGO-Top500/Racing/...). */
 export type ClassificationSource = 'manual' | 'mobygames' | 'curator' | 'folder' | 'heuristic';
 export type ClassificationConfidence = 'manual' | 'verified' | 'curated' | 'heuristic' | 'unclassified';
 
@@ -132,7 +134,7 @@ export interface GenreSummary {
   total: number;
 }
 
-/** One entry of a genre catalog file (`jgo_catalog.json`). Files are matched by SHA-256 only; paths never travel. */
+/** One entry of a genre catalog file (`mgo_catalog.json`). Files are matched by SHA-256 only; paths never travel. */
 export interface CatalogEntry {
   sha256: string;
   title?: string;
@@ -216,6 +218,8 @@ export type SetupStatus = 'pending' | 'completed' | 'skipped';
 export interface PublicSettings {
   /** Absolute path of the library directory (always inside one of the server's library roots) or null. */
   libraryPath: string | null;
+  libraryPaths?: { j2me: string | null; ngage: string | null; symbian: string | null };
+  nativePhones?: Partial<Record<'symbian' | 'ngage' | 'ngage2', PhoneSkinId | null>>;
   autoScan: boolean;
   /** Look the games up on MobyGames after a scan (only when a key is configured). */
   autoMetadata: boolean;
@@ -238,7 +242,7 @@ export interface SettingsResponse {
   soundfont: SoundfontInfo | null;
   /** Secrets are never returned: only whether they are set. */
   secrets: { mobygames: { configured: boolean; hint: string | null } };
-  /** Values that come from /etc/jgo/jgo.env and cannot be changed from the web UI. */
+  /** Values that come from /etc/mgo/mgo.env and cannot be changed from the web UI. */
   readonly: { host: string; port: number; auth: 'none' | 'token'; dataDirName: string };
   /** Environment defaults the server settings fall back to. */
   envDefaults: PublicSettings['server'];
@@ -257,6 +261,8 @@ export interface SystemCheck {
 
 export interface SystemStatus {
   version: string;
+  sampledAt?: string;
+  monitoring?: { uptimeSeconds: number; cpuPercent: number | null; cpuCores: number; memoryBytes: number; memoryLimitBytes: number; sessions: number; frames: number; audioBytes: number; nodeVersion: string; platform: string };
   checks: SystemCheck[];
   storage: { totalBytes: number; freeBytes: number; libraryBytes: number; quotaBytes: number };
 }
@@ -281,6 +287,7 @@ export interface LibraryCheck {
   insideRoot: boolean;
   jarCount: number;
   jadCount: number;
+  packageCount?: number;
   totalBytes: number;
   /** True when the count stopped at the safety limit. */
   truncated: boolean;
@@ -399,7 +406,7 @@ export interface SessionStatus {
   resources: ResourceUsage | null;
   /** Effective device preset id, if any. */
   device: string | null;
-  /** PCM bytes the emulator has produced so far (0 = the game never made a sound). */
+  /** PCM bytes the emulator has produced so far (0 = no PCM has reached MGO; received bytes may contain silence). */
   audioBytes: number;
   /** Width/height of frames actually produced. */
   encoding: 'raw' | 'deflate';
@@ -610,7 +617,10 @@ export interface DevicePreset {
 }
 
 /** State of the optional mgo-symbian service (EKA2L1), as `/api/symbian/status` reports it. Experimental. */
+export interface AudioDiagnostics { ready: boolean; backend: string; version: string | null; sink: string | null; error: string | null; streams: number; bytes: number; lastError: string | null }
 export interface SymbianStatus {
+  audioDiagnostics?: AudioDiagnostics;
+  metrics?: { cpuPercent: number | null; memoryBytes: number; memoryLimitBytes: number | null } | null;
   experimental: true;
   /** SYMBIAN_AGENT_URL is set. */
   configured: boolean;
@@ -651,3 +661,5 @@ export interface FirmwareInstallRequest {
   variant?: number;
   source?: 'inbox';
 }
+
+export interface NgageInfo { title: string; sourceUrl: string; attribution: string; genre: string; publisher: string; developer: string | null; year: number | null; released: string | null; multiplayer: string | null; productCode: string | null; rating: number | null; hasCover: boolean; fetchedAt: string }

@@ -1,4 +1,4 @@
-import type { StartFailure, StartFailureCause } from '@j2me-web/protocol';
+import type { StartFailure, StartFailureCause } from '@mgo/protocol';
 
 export type ScreenshotProbe =
   | { kind: 'ok'; frame: number }

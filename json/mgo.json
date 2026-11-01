@@ -1,6 +1,6 @@
 {
-  "name": "JGO",
-  "slug": "jgo",
+  "name": "MGO",
+  "slug": "mgo",
   "categories": [
     24
   ],
@@ -9,22 +9,22 @@
   "updateable": true,
   "privileged": false,
   "interface_port": 8080,
-  "documentation": "https://github.com/grayhex/JGO/blob/main/docs/PROXMOX.md",
-  "website": "https://github.com/grayhex/JGO",
-  "repository": "https://github.com/grayhex/JGO",
+  "documentation": "https://github.com/grayhex/MGO/blob/main/docs/PROXMOX.md",
+  "website": "https://github.com/grayhex/MGO",
+  "repository": "https://github.com/grayhex/MGO",
   "architectures": [
     "amd64"
   ],
   "platforms": [
     "pve"
   ],
-  "logo": "https://cdn.jsdelivr.net/gh/selfhst/icons@main/webp/jgo.webp",
+  "logo": "https://cdn.jsdelivr.net/gh/selfhst/icons@main/webp/mgo.webp",
   "description": "Self-hosted web player for Java ME (J2ME) games. KEmulator nnmod runs the JAR on the server and streams the picture, sound and input to any browser. Native install, no Docker.",
   "install_methods": [
     {
       "type": "default",
-      "script": "ct/jgo.sh",
-      "config_path": "/etc/jgo/jgo.env",
+      "script": "ct/mgo.sh",
+      "config_path": "/etc/mgo/mgo.env",
       "resources": {
         "cpu": 4,
         "ram": 4096,
@@ -40,7 +40,7 @@
   },
   "notes": [
     {
-      "text": "The access token is printed at the end of the install; show it again with `jgo token` inside the container.",
+      "text": "The access token is printed at the end of the install; show it again with `mgo token` inside the container.",
       "type": "info"
     },
     {
@@ -48,7 +48,7 @@
       "type": "warning"
     },
     {
-      "text": "Games run as the unprivileged user jgo, without network access, with memory/CPU limits. Needs the container feature nesting (the default).",
+      "text": "Games run as the unprivileged user mgo, without network access, with memory/CPU limits. Needs the container feature nesting (the default).",
       "type": "info"
     }
   ]

@@ -95,7 +95,7 @@ export function loadConfig(env = process.env): Config {
     cpuSeconds: int(env, 'KEM_CPU_SECONDS', 0),
     display: env.KEM_DISPLAY ?? env.DISPLAY ?? '',
     logLevel: env.LOG_LEVEL ?? 'info',
-    libraryRoots: (env.LIBRARY_ROOTS === undefined ? ['/mnt/jgo-library', '/srv/jgo-library'] : list(env, 'LIBRARY_ROOTS'))
+    libraryRoots: (env.LIBRARY_ROOTS === undefined ? ['/mnt/mgo-library', '/srv/mgo-library'] : list(env, 'LIBRARY_ROOTS'))
       .filter((p) => path.isAbsolute(p))
       .map((p) => path.resolve(p)),
     jvmExtraArgs: list(env, 'KEM_JVM_ARGS'),

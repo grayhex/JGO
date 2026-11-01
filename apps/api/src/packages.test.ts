@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
-import { platformOfFile, backendOf, isPlatform, PLATFORMS } from '@j2me-web/protocol';
+import { platformOfFile, backendOf, isPlatform, PLATFORMS } from '@mgo/protocol';
 import { Library } from './library.js';
 import { ScanManager } from './scanner.js';
 import { SettingsStore } from './settingsStore.js';
@@ -29,7 +29,7 @@ describe('platforms', () => {
 });
 
 describe('Library.addPackage', () => {
-  const lib = () => new Library(tmpDir('jgo-pkg-'));
+  const lib = () => new Library(tmpDir('mgo-pkg-'));
 
   it('stores a .sis with its platform, a readable name and no J2ME data', () => {
     const l = lib();
@@ -78,7 +78,7 @@ describe('Library.addPackage', () => {
   });
 
   it('migrates an existing database: old games become j2me', () => {
-    const dir = tmpDir('jgo-mig-');
+    const dir = tmpDir('mgo-mig-');
     const l1 = new Library(dir);
     const jar = makeJar('Old');
     const old = l1.add(jar, null, noQuota).game;
@@ -90,7 +90,7 @@ describe('Library.addPackage', () => {
 
 describe('library scan of Symbian and N-Gage files', () => {
   function setup() {
-    const root = tmpDir('jgo-scan-');
+    const root = tmpDir('mgo-scan-');
     const cfg = testConfig({ roots: [root] });
     const store = new SettingsStore(cfg.dataDir, cfg, {});
     const library = new Library(cfg.dataDir);

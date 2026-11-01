@@ -1,6 +1,6 @@
 import { t as translateUI } from '../i18n';
-import type { GameInfo, GameMeta } from '@j2me-web/protocol';
-import { useEffect, useState } from 'react';
+import type { GameInfo, GameMeta } from '@mgo/protocol';
+import { Fragment, useEffect, useState } from 'react';
 import { api } from '../api';
 import { useServerSettings } from '../serverSettings';
 import { Candidates } from './Moby';
@@ -21,6 +21,10 @@ export function GameInfoDialog({ game, toast, onClose, onChanged }: { game: Game
   const has = info && (info.status === 'matched' || info.status === 'manual');
   return (
     <Modal title={translateUI(info?.title ?? game.name)} onClose={onClose} wide>
+      {game.ngageInfo && <div className="info-grid">
+        {game.ngageInfo.hasCover && <img className="info-cover" src={`/api/games/${game.id}/ngage-cover`} alt={game.ngageInfo.title} />}
+        <div><h3>{game.ngageInfo.title}</h3><dl className="facts">{Object.entries({ Genre: game.ngageInfo.genre, Publisher: game.ngageInfo.publisher, Developer: game.ngageInfo.developer, Released: game.ngageInfo.released ?? game.ngageInfo.year, Multiplayer: game.ngageInfo.multiplayer, Rating: game.ngageInfo.rating === null ? null : `${game.ngageInfo.rating}%`, 'Product code': game.ngageInfo.productCode }).map(([label,value]) => value !== null && value !== '' ? <Fragment key={label}><dt>{translateUI(label)}</dt><dd>{value}</dd></Fragment> : null)}</dl><a href={game.ngageInfo.sourceUrl} target="_blank" rel="noreferrer">All About Symbian ↗</a></div>
+      </div>}
       {!info && <p className="muted">{translateUI("Loading…")}</p>}
       {info && has && (
         <div className="info-grid">
@@ -43,7 +47,7 @@ export function GameInfoDialog({ game, toast, onClose, onChanged }: { game: Game
           {Array.from({ length: info.screenshots }, (_, i) => <a key={i} href={api.shotUrl(game.id, i + 1)} target="_blank" rel="noreferrer"><img src={api.shotUrl(game.id, i + 1)} alt={`Screenshot ${i + 1}`} loading="lazy" /></a>)}
         </div>
       )}
-      {info && !has && (
+      {info && !has && !game.ngageInfo && (
         <div className="stack">
           <dl className="facts"><dt>{translateUI("Name")}</dt><dd>{game.name}</dd><dt>{translateUI("Vendor")}</dt><dd>{game.vendor}</dd><dt>{translateUI("Version")}</dt><dd>{game.version || '—'}</dd></dl>
           <p className="muted">{translateUI(info.status === 'ambiguous' ? 'MobyGames has several possible matches. Choose the right one:' : info.status === 'unmatched' ? 'MobyGames has no clear match for this title.' : hasKey ? 'No information from MobyGames yet.' : 'This game only has the information inside its JAR file. Add a MobyGames API key in Settings to fetch covers and descriptions.')}</p>

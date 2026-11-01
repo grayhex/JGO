@@ -31,7 +31,7 @@ describe('settings store', () => {
     assert.equal(s.get().audio.volume, 30, 'a rejected patch changes nothing');
   });
 
-  it('only pins server values that differ from the environment, so editing jgo.env keeps working', () => {
+  it('only pins server values that differ from the environment, so editing mgo.env keeps working', () => {
     const cfg = testConfig();
     const s = new SettingsStore(cfg.dataDir, cfg, {});
     s.update({ server: { maxSessions: cfg.maxSessions, sessionIdleMinutes: 17 } });

@@ -3,7 +3,7 @@ import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
-import { DEFAULT_SETTINGS, EMULATED_DEVICES, PHONE_SKIN_IDS, PHONE_COMPATIBILITY, emulatedDevice, profilesForSkin, selectPhone, nativePhonePlan, skinsForPlatform, sisFormatOf, generationOfOs, type SymbianStatus, type PhoneSkinId } from '@j2me-web/protocol';
+import { DEFAULT_SETTINGS, EMULATED_DEVICES, PHONE_SKIN_IDS, PHONE_COMPATIBILITY, emulatedDevice, profilesForSkin, selectPhone, nativePhonePlan, skinsForPlatform, sisFormatOf, generationOfOs, type SymbianStatus, type PhoneSkinId } from '@mgo/protocol';
 import { phoneCatalog } from './phones.js';
 import { validateSettings, Library } from './library.js';
 import { buildApp } from './server.js';
@@ -159,7 +159,7 @@ describe('independent skins, emulated devices and game platforms', () => {
     assert.equal(validateSettings({ emulatedDeviceId: null }, s).emulatedDeviceId, undefined);
   });
   it('rejects native launch before replacing a session or touching Java saves', async () => {
-    const root = mkdtempSync(path.join(tmpdir(), 'jgo-platform-'));
+    const root = mkdtempSync(path.join(tmpdir(), 'mgo-platform-'));
     const cfg = testConfig({ dataDir: root, runDir: path.join(root, 'run') });
     const lib = new Library(root);
     try {
@@ -176,7 +176,7 @@ describe('independent skins, emulated devices and game platforms', () => {
 });
 
 it('persists native selections, rejects forged native launches and exposes authenticated availability without KEmulator', async () => {
-  const root = mkdtempSync(path.join(tmpdir(), 'jgo-native-api-'));
+  const root = mkdtempSync(path.join(tmpdir(), 'mgo-native-api-'));
   const token = 'phone-test-token-0123456789';
   const app = await buildApp(testConfig({ dataDir: root, runDir: path.join(root, 'run'), kemDir: path.join(root, 'missing-kem'), authToken: token }));
   const headers = { authorization: `Bearer ${token}` };
@@ -203,4 +203,12 @@ it('persists native selections, rejects forged native launches and exposes authe
     assert.equal(java.statusCode, 200, java.body);
     assert.equal(java.json().settings.emulatedDeviceId, undefined);
   } finally { await app.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+it('recognizes the installed N95 8GB from the field diagnostics and bypasses an incompatible platform default for a Symbian 9 package', () => {
+  const status = { ...installed('RM-84', 'NEM-4', 'RM-320'), defaults: { symbian: 'RM-84' } };
+  const plan = nativePhonePlan('symbian', { ...DEFAULT_SETTINGS, skinId: 'nokia-n95' }, status, 'sis9');
+  assert.equal(plan.ready, true, plan.message); assert.equal(plan.firmwareCode, 'RM-320'); assert.equal(plan.deviceId, 'eka2l1-n95-8gb');
+  const explicit = nativePhonePlan('symbian', { ...DEFAULT_SETTINGS, symbianDevice: 'RM-84' }, status, 'sis9');
+  assert.equal(explicit.code, 'incompatible_package', 'an explicit game choice must still be respected');
 });

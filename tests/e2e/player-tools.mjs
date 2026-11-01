@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright';
 
-const dir = mkdtempSync(path.join(tmpdir(), 'jgo-tools-'));
+const dir = mkdtempSync(path.join(tmpdir(), 'mgo-tools-'));
 const port = 21200 + Math.floor(Math.random() * 300);
 const base = `http://127.0.0.1:${port}`;
 const server = spawn('node', ['apps/api/dist/server.js'], { env: { ...process.env, PORT: String(port), DATA_DIR: dir, HOST: '127.0.0.1', LOG_LEVEL: 'warn' }, stdio: ['ignore', 'inherit', 'inherit'] });
@@ -75,7 +75,7 @@ try {
 
   const [saved] = await Promise.all([p.waitForEvent('download'), p.getByRole('button', { name: 'Save…' }).click()]);
   const rec = JSON.parse(readFileSync(await saved.path(), 'utf8'));
-  assert.equal(rec.format, 'jgo-input-recording');
+  assert.equal(rec.format, 'mgo-input-recording');
   assert.deepEqual([rec.width, rec.height], [240, 320]);
   assert.equal(rec.events.filter((e) => e.ev.t === 'key').length, 2);
 

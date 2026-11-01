@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import type { GameMeta } from '@j2me-web/protocol';
+import type { GameMeta } from '@mgo/protocol';
 import { compareGroups, matchesStatus } from './libraryView';
 
 let n = 0;

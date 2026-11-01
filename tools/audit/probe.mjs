@@ -196,7 +196,7 @@ const scenarios = {
     const source = process.env.SF2 ?? '/root/.gervill/soundbank-emg.sf2';
     if (!existsSync(source)) return { skipped: `no SoundFont at ${source} (set SF2=...)` };
     // a copy under a unique name, so that opening it can only be the effect of the setting
-    const sf2 = path.join(tmpdir(), 'jgo-audit-custom.sf2');
+    const sf2 = path.join(tmpdir(), 'mgo-audit-custom.sf2');
     writeFileSync(sf2, readFileSync(source));
     const trace = path.join(tmpdir(), `kem-strace-${process.pid}.txt`);
     const run = async (files) => {
@@ -213,7 +213,7 @@ const scenarios = {
     const withProp = await run({ 'property.txt': `SoundfontPath=${sf2}\n` });
     rmSync(trace, { force: true });
     rmSync(sf2, { force: true });
-    return { soundFontCopy: 'jgo-audit-custom.sf2', withoutSetting: without, withPropertyTxt: withProp };
+    return { soundFontCopy: 'mgo-audit-custom.sf2', withoutSetting: without, withPropertyTxt: withProp };
   },
 };
 

@@ -54,7 +54,7 @@ jobs:
           [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.]+)?$ ]] || { echo "bad version: $v"; exit 1; }
           echo "version=$v" >> "$GITHUB_OUTPUT"
       - name: Lint the Community Scripts files
-        run: sudo apt-get install -y --no-install-recommends shellcheck >/dev/null && shellcheck -S warning packaging/bin/jgo packaging/build-release.sh packaging/devscripts/*.sh && packaging/devscripts/lint.sh
+        run: sudo apt-get install -y --no-install-recommends shellcheck >/dev/null && shellcheck -S warning packaging/bin/mgo packaging/build-release.sh packaging/devscripts/*.sh && packaging/devscripts/lint.sh
       - name: Build (KEmulator from the pinned commit + patches, Bridge supervisor, API, web)
         run: |
           npm ci
@@ -70,16 +70,16 @@ jobs:
           git init -q kem-src && git -C kem-src remote add origin https://github.com/shinovon/KEmulator
           git -C kem-src fetch -q --depth 1 origin "$commit" && git -C kem-src checkout -q FETCH_HEAD
           # git -C resolves -o relative to kem-src, not the workflow workspace.
-          source_archive="$PWD/dist-release/jgo-kemulator-source-$commit.tar.gz"
+          source_archive="$PWD/dist-release/mgo-kemulator-source-$commit.tar.gz"
           git -C kem-src archive --prefix="kemulator-$commit/" -o "$source_archive" HEAD
           test -s "$source_archive"
           tar -tzf "$source_archive" > /dev/null
           cp compose.yaml compose.egress.yaml dist-release/
           cp .env.example dist-release/env.example   # GitHub renames release assets that start with a dot
-          (cd dist-release && sha256sum jgo-kemulator-source-*.tar.gz compose.yaml compose.egress.yaml env.example >> SHA256SUMS && cat SHA256SUMS)
+          (cd dist-release && sha256sum mgo-kemulator-source-*.tar.gz compose.yaml compose.egress.yaml env.example >> SHA256SUMS && cat SHA256SUMS)
       - uses: actions/upload-artifact@v4
         with:
-          name: jgo-${{ steps.v.outputs.version }}
+          name: mgo-${{ steps.v.outputs.version }}
           path: dist-release/*
       - name: Attach assets to the existing GitHub Release
         if: steps.v.outputs.publish == 'true'
@@ -114,10 +114,10 @@ jobs:
           fi
           [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.]+)?$ ]] || { echo "bad version: $v"; exit 1; }
           owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
-          tags_app="ghcr.io/$owner/mgo:$v,ghcr.io/$owner/jgo:$v"; tags_gw="ghcr.io/$owner/mgo-gateway:$v,ghcr.io/$owner/jgo-gateway:$v" # jgo / jgo-gateway: the old names, kept as aliases for one transition period
+          tags_app="ghcr.io/$owner/mgo:$v"; tags_gw="ghcr.io/$owner/mgo-gateway:$v"
           # official = no pre-release suffix in the version and the GitHub Release is not marked as a pre-release
           if [[ "$v" != *-* && "$IS_PRERELEASE" != "true" ]]; then
-            tags_app="$tags_app,ghcr.io/$owner/mgo:latest,ghcr.io/$owner/jgo:latest"; tags_gw="$tags_gw,ghcr.io/$owner/mgo-gateway:latest,ghcr.io/$owner/jgo-gateway:latest"
+            tags_app="$tags_app,ghcr.io/$owner/mgo:latest"; tags_gw="$tags_gw,ghcr.io/$owner/mgo-gateway:latest"
           fi
           echo "owner=$owner" >> "$GITHUB_OUTPUT"
           { echo "version=$v"; echo "app=$tags_app"; echo "gateway=$tags_gw"; } >> "$GITHUB_OUTPUT"
@@ -145,7 +145,7 @@ jobs:
           context: .
           file: runtime/Dockerfile
           build-args: |
-            JGO_VERSION=${{ steps.v.outputs.version }}
+            MGO_VERSION=${{ steps.v.outputs.version }}
           push: ${{ steps.v.outputs.publish == 'true' && steps.exists.outputs.mgo != 'true' }}
           tags: ${{ steps.v.outputs.app }}
           labels: |

@@ -10,7 +10,7 @@ services:
       dockerfile: runtime/Dockerfile
       args:
         BASE_REGISTRY: ${BASE_REGISTRY:-docker.io/library}
-        JGO_VERSION: ${MGO_VERSION:-${JGO_VERSION:-dev}}
+        MGO_VERSION: ${MGO_VERSION:-dev}
   gateway:
     build:
       context: .

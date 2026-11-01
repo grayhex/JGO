@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import type { DevicePreset, KeyCodes, LayoutId } from '@j2me-web/protocol';
+import type { DevicePreset, KeyCodes, LayoutId } from '@mgo/protocol';
 import { unzipSync } from 'fflate';
 
 /**

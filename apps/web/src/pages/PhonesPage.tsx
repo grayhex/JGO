@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { isPhoneId, resolvePhone, selectPhone, profilesForSkin, skinSupportsPlatform, EMULATED_DEVICES, PHONE_COMPATIBILITY, PACKAGE_FORMAT_LABEL, GAME_PLATFORMS, GAME_PLATFORM_LABELS, type DevicePreset, type GameMeta, type GamePlatform, type PhoneCatalog, type PhoneSkinId } from '@j2me-web/protocol';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { isPhoneId, resolvePhone, selectPhone, profilesForSkin, skinSupportsPlatform, EMULATED_DEVICES, PHONE_COMPATIBILITY, PACKAGE_FORMAT_LABEL, GAME_PLATFORMS, GAME_PLATFORM_LABELS, type DevicePreset, type GameMeta, type GamePlatform, type PhoneCatalog, type PhoneSkinId } from '@mgo/protocol';
 import type { Toast } from '../App';
 import { api } from '../api';
 import { t as translateUI } from '../i18n';
@@ -47,6 +47,7 @@ function nativeFirmware(id: PhoneSkinId, catalog: PhoneCatalog | null) {
 
 function PhoneCard({ skin, frame, current, disabled, onPick, catalog, fit }: { skin: NonNullable<ReturnType<typeof useCatalog>['skins']>[number]; frame: ImageData | null; current: boolean; disabled: boolean; onPick: () => void; catalog: PhoneCatalog | null; fit: Fit }) {
   const { config: c } = skin;
+  const thumbnail = useMemo(() => ({ ...skin, config: { ...c, views: { ...c.views, full: { ...c.views.full, body: c.assets.preview ?? c.views.full.body } } } }), [skin]);
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const size = frame ? { w: frame.width, h: frame.height } : { w: c.screen.width, h: c.screen.height };
   useEffect(() => {
@@ -61,15 +62,14 @@ function PhoneCard({ skin, frame, current, disabled, onPick, catalog, fit }: { s
   const known = isPhoneId(c.id);
   const fw = known ? nativeFirmware(id, catalog) : { devices: [], loaded: [] };
   const platforms = known ? GAME_PLATFORMS.filter(p => profilesForSkin(id, p).length) : [];
-  const incompatible = !!fit.native && !fit.compatible;
   return (
     <button type="button" className={`card phone-preview phone-pick${current ? ' on' : ''}${fit.native ? (fit.compatible ? ' fits' : ' no-fit') : ''}`} aria-pressed={current} disabled={disabled} onClick={onPick} aria-label={`${c.manufacturer} ${c.model}`} data-fit={fit.native ? (fit.compatible ? 'yes' : 'no') : undefined}>
       <div className="phone-pick-skin" data-testid={`phone-card-${c.id}`} data-live={frame ? '1' : '0'}>
-        <PhoneSkin skin={skin} view="full" frame={size} canvasRef={(el) => { canvas.current = el; }} interactive={false} integer={false} />
+        <PhoneSkin skin={thumbnail} view="full" frame={size} canvasRef={(el) => { canvas.current = el; }} interactive={false} integer={false} />
       </div>
       <h2>{c.manufacturer} {c.model}</h2>
       <p>{c.screen.width} × {c.screen.height}</p>
-      <p className="chips phone-platforms">{platforms.map(p => <span key={p} className={`chip${fit.native === p ? ' on' : ''}`}>{GAME_PLATFORM_LABELS[p]}</span>)}</p>
+      <p className="chips phone-platforms">{platforms.map(p => <span key={p} className={`chip${fit.native === p ? ' on' : ''}`}>{({ j2me: 'Java ME', symbian: 'Symbian', ngage: 'N-Gage', ngage2: 'N-Gage 2' })[p]}</span>)}</p>
       {fw.devices.length > 0 && (
         <p className={`phone-firmware ${fw.loaded.length ? 'loaded' : 'missing'}`} data-testid={`phone-firmware-${c.id}`} data-loaded={fw.loaded.length ? '1' : '0'}
           title={translateUI(fw.loaded.length ? 'The firmware for this phone is installed in the Symbian service, so its games can run here.' : 'No firmware for this phone is installed. Add it in Settings → Symbian; the picture alone cannot run Symbian games.')}>
@@ -78,8 +78,8 @@ function PhoneCard({ skin, frame, current, disabled, onPick, catalog, fit }: { s
             : `${translateUI('Firmware not loaded')} · ${fw.devices.map(d => d.firmware.product).join(', ')}`}
         </p>
       )}
-      {incompatible && <p className="phone-nofit" data-testid={`phone-incompatible-${c.id}`}>{translateUI('Cannot run {platform} games', { platform: GAME_PLATFORM_LABELS[fit.native!] })}</p>}
-      {fit.native && fit.compatible && <p className="phone-fit" data-testid={`phone-compatible-${c.id}`}>{translateUI('Runs {platform} games', { platform: GAME_PLATFORM_LABELS[fit.native] })}</p>}
+
+
     </button>
   );
 }
@@ -116,7 +116,11 @@ export function PhonesPage({ toast }: { toast: (k: Toast['kind'], t: string) => 
         if ((game.platform ?? 'j2me') !== 'j2me') {
           const selection = selectPhone({ platform: game.platform!, skinId: id });
           if (!selection.ok) throw new Error(selection.message);
-          const g = await api.patchGame(game.id, { settings: { skinId: id } });
+          const loaded = nativeFirmware(id, catalog).loaded.filter(d => d.platforms.includes(game.platform!));
+          const profile = loaded.find(d => d.engine === 'eka2l1' && d.firmware.product.toLowerCase() === game.settings.symbianDevice?.toLowerCase()) ?? (loaded.length === 1 ? loaded[0] : null);
+          const desired = profile ?? (loaded.length === 0 ? selection.device : null);
+          const g = await api.patchGame(game.id, { settings: { skinId: id, symbianDevice: desired?.engine === 'eka2l1' ? desired.firmware.product : null, emulatedDeviceId: desired?.engine === 'eka2l1' ? desired.id : null } });
+          if (!desired) toast('info', translateUI('Several firmware variants are installed. Choose one in the player.'));
           setGame(g); navigate(`/play/${game.id}`); return;
         }
         // advanced mode keeps the profile the user chose; automatic mode follows the phone (screen size, keys, platform)
@@ -136,9 +140,11 @@ export function PhonesPage({ toast }: { toast: (k: Toast['kind'], t: string) => 
   return (
     <section>
       <h1>{translateUI('Phones')}</h1>
-      <p>{game ? translateUI('Click a phone to use it for “{game}”: Java ME follows the phone; native games keep their selected firmware.', { game: game.name }) : translateUI('Click a phone to make it the default for new games. Open a game first to change its own phone.')}</p>
-      {nativePlatform && game?.packageFormat && game.packageFormat !== 'unknown' && <p className="note warn" data-testid="phones-package-note">{translateUI('The package of this game was built for {generation}: only phones of that generation can install it.', { generation: PACKAGE_FORMAT_LABEL[game.packageFormat] })}</p>}
-      {nativePlatform && <p className="note" data-testid="phones-native-note">{translateUI('“{game}” is a {platform} game: only phones that have a matching Symbian / N-Gage profile can run it. The others are dimmed; a green “Firmware loaded” means the firmware for that phone is installed.', { game: game!.name, platform: GAME_PLATFORM_LABELS[nativePlatform] })}</p>}
+      <p className="note phones-intro" data-testid="phones-native-note">{game
+        ? nativePlatform
+          ? translateUI('Choose a phone for “{game}” ({format}). An installed firmware is selected with the phone; unavailable or incompatible models are marked below.', { game: game.name, format: game.packageFormat && game.packageFormat !== 'unknown' ? PACKAGE_FORMAT_LABEL[game.packageFormat] : GAME_PLATFORM_LABELS[nativePlatform] })
+          : translateUI('Choose a phone for “{game}”. Its screen and controls will be used for this Java ME game.', { game: game.name })
+        : translateUI('Choose the default phone for new Java ME games. Defaults for other platforms are in Settings.')}</p>
       {error && <p role="alert">{error}</p>}
       <div className="phones-models">
         {skins?.map((s) => (

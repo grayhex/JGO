@@ -11,7 +11,7 @@ import {
   type Genre,
   type GameClassification,
   type GenreSummary,
-} from '@j2me-web/protocol';
+} from '@mgo/protocol';
 import { sanitizeText, UploadError } from './jar.js';
 
 export const CATALOG_MAX_BYTES = 2 * 1024 * 1024;
@@ -148,6 +148,10 @@ export class Classifications {
   }
 
   /** The user's choice: always wins, and from then on nothing else may change it. Omitted fields keep their current value. */
+  setCurated(groupKey: string, genre: Genre, title: string): void {
+    if (!this.refusal(groupKey, 'curator')) this.write(groupKey, { primaryGenre: genre, canonicalTitle: title, tags: ['All About Symbian'] }, 'curator', false);
+  }
+
   setManual(groupKey: string, patch: { primaryGenre?: Genre; genres?: Genre[]; tags?: string[]; canonicalTitle?: string | null }): GameClassification {
     const cur = this.get(groupKey);
     const primary = patch.primaryGenre ?? cur?.primaryGenre ?? 'Other';

@@ -1,4 +1,4 @@
-import type { CatalogReport, DevicePreset, GameClassification, Genre, GenreSummary, EmulationTweaks, GameFileEntry, GameInfo, GameMeta, GameSettings, HealthStatus, LibraryCheck, LibraryRoot, MetadataJob, MobyCandidate, PublicSettings, Platform, ScanReport, SessionStatus, SettingsResponse, SymbianJob, SymbianStatus, SystemStatus } from '@j2me-web/protocol';
+import type { CatalogReport, DevicePreset, GameClassification, Genre, GenreSummary, EmulationTweaks, GameFileEntry, GameInfo, GameMeta, GameSettings, HealthStatus, LibraryCheck, LibraryRoot, MetadataJob, MobyCandidate, PublicSettings, Platform, ScanReport, SessionStatus, SettingsResponse, SymbianJob, SymbianStatus, SystemStatus } from '@mgo/protocol';
 
 export type GameSettingsPatch = Partial<Omit<GameSettings, 'device' | 'emulation' | 'symbianDevice' | 'emulatedDeviceId'>> & { device?: string | null; emulation?: EmulationTweaks | null; symbianDevice?: string | null; emulatedDeviceId?: string | null };
 
@@ -8,7 +8,7 @@ export class ApiError extends Error {
     public code: string,
     message: string,
     /** Machine-readable facts the server attached to the error (for example why a Symbian start failed). */
-    public details?: { failure?: import('@j2me-web/protocol').StartFailure; sessionId?: string } & Record<string, unknown>,
+    public details?: { failure?: import('@mgo/protocol').StartFailure; sessionId?: string } & Record<string, unknown>,
   ) {
     super(message);
   }
@@ -62,6 +62,8 @@ export const api = {
     fd.append('file', file, file.name);
     return req<{ game: GameMeta; duplicate: boolean }>('/api/games', { method: 'POST', body: fd });
   },
+  ngageCatalog: () => req<{ running: boolean; entries: number; matched: number; updatedAt: string | null; error: string | null }>('/api/catalog/ngage'),
+  ngageCatalogRefresh: () => req<{ running: boolean; entries: number; matched: number; updatedAt: string | null; error: string | null }>('/api/catalog/ngage/refresh', { method: 'POST' }),
   symbianStatus: () => req<SymbianStatus>('/api/symbian/status'),
   /** One firmware file; the answer names it for symbianInstall. */
   symbianUpload: (slot: 'rom' | 'rpkg' | 'archive' | 'vpl' | 'fpsx', file: File, options?: { progress: (percent: number) => void; signal: AbortSignal; bundle?: string }) => {
@@ -89,7 +91,7 @@ export const api = {
     });
     return req<{ file: string }>(`/api/symbian/firmware?slot=${slot}`, { method: 'POST', body: fd });
   },
-  symbianInstall: (files: import('@j2me-web/protocol').FirmwareInstallRequest) => req<SymbianJob>('/api/symbian/firmware/install', jsonInit('POST', files)),
+  symbianInstall: (files: import('@mgo/protocol').FirmwareInstallRequest) => req<SymbianJob>('/api/symbian/firmware/install', jsonInit('POST', files)),
   symbianDiscardBundle: (bundle: string) => req<void>(`/api/symbian/firmware/bundles/${bundle}`, { method: 'DELETE' }),
   symbianDefault: (platform: 'symbian' | 'ngage' | 'ngage2', code: string | null) => req<{ defaults: Record<string, string> }>('/api/symbian/defaults', jsonInit('PUT', { platform, code })),
   symbianJob: (id: string) => req<SymbianJob>(`/api/symbian/jobs/${id}`),
@@ -99,8 +101,8 @@ export const api = {
   iconUrl: (id: string) => `/api/games/${id}/icon`,
   startSession: (gameId: string, settings?: GameSettingsPatch) => req<SessionStatus>('/api/sessions', jsonInit('POST', { gameId, settings })),
   devices: () => req<{ presets: DevicePreset[]; defaultName: string | null }>('/api/devices'),
-  phones: () => req<import('@j2me-web/protocol').PhoneCatalog>('/api/phones'),
-  phonePlan: (id: string) => req<{ status: SymbianStatus; plan: import('@j2me-web/protocol').NativePhonePlan }>(`/api/games/${id}/phone`),
+  phones: () => req<import('@mgo/protocol').PhoneCatalog>('/api/phones'),
+  phonePlan: (id: string) => req<{ status: SymbianStatus; plan: import('@mgo/protocol').NativePhonePlan }>(`/api/games/${id}/phone`),
   analysis: (id: string) => req<{ analysis: JarAnalysisView; recommendedDevice: string | null }>(`/api/games/${id}/analysis`),
   sessions: () => req<SessionStatus[]>('/api/sessions'),
   session: (id: string) => req<SessionStatus>(`/api/sessions/${id}`),

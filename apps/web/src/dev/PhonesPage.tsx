@@ -1,4 +1,4 @@
-import { KEY_LAYOUTS, type LayoutId } from '@j2me-web/protocol';
+import { KEY_LAYOUTS, type LayoutId } from '@mgo/protocol';
 import './phones.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '../components/Icon';

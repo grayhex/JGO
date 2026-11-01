@@ -74,3 +74,42 @@
   .check .badge { grid-column: 2; justify-self: start; }
   .wizard-body { max-height: 52vh; }
 }
+
+/* Settings tabs preserve mounted drafts and provide keyboard navigation. */
+.settings [hidden] { display: none !important; }
+.settings-tabs { position: static; gap: 4px; border-bottom: 1px solid var(--outline); padding-bottom: 10px; }
+.settings-tabs button { display: inline-flex; align-items: center; gap: 6px; padding: 10px 14px; background: transparent; color: var(--muted); border: 1px solid transparent; border-radius: var(--r-md); font: inherit; cursor: pointer; }
+.settings-tabs button[aria-selected=true] { color: var(--primary); background: var(--surface-elevated); border-color: var(--outline); }
+.library-sources, .platform-defaults { display: grid; gap: 16px; }
+.source-folder { padding: 16px; border: 1px solid var(--outline); border-radius: var(--r-md); }
+.source-folder summary { cursor: pointer; font-weight: 650; margin-bottom: 14px; }
+.catalog-source { padding: 20px; border: 1px solid var(--outline); border-radius: var(--r-md); margin-bottom: 20px; }
+.system-dashboard { display: grid; gap: 20px; }
+.system-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.system-toolbar button { margin-left: auto; }
+.system-metrics { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
+.metric { background: var(--surface-soft); border: 1px solid var(--outline); border-radius: 14px; padding: 18px; display: grid; gap: 8px; overflow: hidden; position: relative; }
+.metric > span { color: var(--muted); font-size: .82rem; }
+.metric strong { font-size: clamp(1.3rem,2.2vw,2rem); font-variant-numeric: tabular-nums; }
+.metric small { color: var(--muted); }
+.metric svg { height: 42px; width: 100%; color: var(--primary); }
+.metric progress { margin-top: 12px; width: 100%; height: 7px; accent-color: var(--primary); }
+.system-engines { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
+.system-engines article { border: 1px solid var(--outline); padding: 18px; border-radius: 12px; overflow-wrap: anywhere; }
+.system-engines h3 { display: flex; flex-wrap: wrap; gap: 8px; }
+.system-engines p { color: var(--muted); font-size: .8rem; margin: 8px 0; }
+.system-session { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 12px; border: 1px solid var(--outline); border-radius: 10px; font-size: .8rem; }
+@media(max-width: 800px) { .system-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); } .system-engines { grid-template-columns: 1fr; } }
+@media(max-width: 480px) { .settings-tabs { display: grid; grid-template-columns: 1fr 1fr; } .settings-tabs button { padding: 9px; font-size: .8rem; } }
+.library-sources { grid-template-columns: minmax(0,1fr); }
+.library-sources > *, .source-folder .stack, .source-folder .root-list, .source-folder .root { min-width: 0; max-width: 100%; }
+.source-folder .root code { min-width: 0; }
+.source-folder .note code { overflow-wrap: anywhere; }
+@media(max-width: 600px) { .source-folder { padding: 12px; } .source-folder .root { flex-wrap: wrap; } .source-folder .root .badge { font-size: .65rem; } }
+
+.settings .page-head { flex-wrap: nowrap; margin-bottom: 0; align-items: center; }
+.settings .page-head > div { min-width: 0; }
+.settings .page-head .btn { flex-shrink: 0; }
+.source-folder summary small { display: block; color: var(--muted); font-size: .72rem; margin-top: 4px; font-weight: normal; overflow-wrap: anywhere; }
+.source-folder:not([open]) summary { margin-bottom: 0; }
+@media(max-width: 600px) { .settings .page-head { flex-wrap: wrap; } }

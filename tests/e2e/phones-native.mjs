@@ -13,7 +13,7 @@ function makeZip(entries) { const files = [], central = []; let offset = 0; for 
 const free = () => new Promise((res) => { const s = createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => res(p)); }); });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const wait = async (fn, what, n = 300) => { for (let i = 0; i < n; i++) { try { const v = await fn(); if (v) return v; } catch {} await sleep(100); } throw Error('timeout ' + what); };
-const dir = mkdtempSync(path.join(tmpdir(), 'jgo-phones-'));
+const dir = mkdtempSync(path.join(tmpdir(), 'mgo-phones-'));
 const token = 'e2e-token-0123456789abcdef';
 const ap = await free(), port = await free(), cp = await free();
 const fx = path.join(cwd, 'tests/fixtures/fake-eka2l1');
@@ -68,7 +68,7 @@ try {
   assert.deepEqual(cards.filter((c) => c.fit === 'yes').map((c) => c.id).sort(), ['nokia-n-gage-classic', 'nokia-n-gage-qd']);
   assert.ok(cards.filter((c) => c.fit === 'no').every((c) => c.disabled), 'a phone that cannot run N-Gage games cannot be chosen for it');
   for (const id of ['sony-ericsson-k790i', 'sony-ericsson-w995', 'motorola-razr-v3', 'samsung-s5230', 'nokia-6100']) {
-    assert.equal(await p.getByTestId(`phone-incompatible-${id}`).count(), 1, `${id} is marked as unable to run N-Gage games`);
+    assert.equal(await p.getByTestId(`phone-card-${id}`).locator('..').getAttribute('data-fit'), 'no', `${id} is marked as unable to run N-Gage games`);
   }
   assert.equal(await p.getByTestId('phone-firmware-nokia-n-gage-classic').getAttribute('data-loaded'), '1', 'the installed NEM-4 firmware is shown for the N-Gage Classic');
   for (const id of ['nokia-n-gage-qd', 'nokia-n70', 'nokia-n95']) assert.equal(await p.getByTestId(`phone-firmware-${id}`).getAttribute('data-loaded'), '0', `${id}: its firmware is not installed`);

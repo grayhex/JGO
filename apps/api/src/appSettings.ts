@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import type { DevicePreset, EmulationTweaks, KeyCodes } from '@j2me-web/protocol';
+import type { DevicePreset, EmulationTweaks, KeyCodes } from '@mgo/protocol';
 
 /**
  * KEmulator keeps per-application settings in <userpath>/midlets.ini, one `[<jarhash>:<jarpath>]`

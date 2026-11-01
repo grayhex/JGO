@@ -1,7 +1,8 @@
+import { readSymbianStatus } from './eka2l1/status.js';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { isPhoneId, platformOfFile, type GameSettings, type PublicSettings, type ScanReport } from '@j2me-web/protocol';
+import { isPhoneId, platformOfFile, selectPhone, profilesForSkin, type SymbianStatus, type GameSettings, type PublicSettings, type ScanReport } from '@mgo/protocol';
 import type { Config } from './config.js';
 import { UploadError } from './jar.js';
 import type { Library } from './library.js';
@@ -56,18 +57,26 @@ export class ScanManager {
   /** Starts a scan in the background; resolves the returned report object as it progresses. */
   start(mode: 'update' | 'full'): ScanReport {
     if (this.running) throw new UploadError('scan_running', 'A scan is already running', 409);
-    const libPath = this.hooks.settings().libraryPath;
-    if (!libPath) throw new UploadError('no_library', 'No library directory is configured (Settings > Library)', 400);
-    const hit = resolveInsideRoots(this.cfg, libPath);
-    if (!hit) throw new UploadError('library_unavailable', 'The library directory is missing, unreadable or outside the allowed locations', 400);
+    const settings = this.hooks.settings();
+    const roots: { real: string; prefix: string; kind: string | null }[] = [];
+    const unavailable: string[] = [];
+    const add = (dir: string, kind: string | null) => {
+      const hit = resolveInsideRoots(this.cfg, dir);
+      if (!hit) { unavailable.push(dir); return; }
+      roots.push({ real: hit.real, kind, prefix: kind ? `${kind}/${createHash('sha256').update(hit.real).digest('hex').slice(0, 8)}/` : '' });
+    };
+    if (settings.libraryPath) add(settings.libraryPath, null);
+    for (const kind of ['j2me', 'ngage', 'symbian'] as const) if (settings.libraryPaths?.[kind]) add(settings.libraryPaths[kind]!, kind);
+    if (!roots.length && unavailable.length) throw new UploadError('library_unavailable', 'The configured library directories are missing or outside the allowed locations', 400);
+    if (!roots.length) throw new UploadError('no_library', 'No library directory is configured (Settings > Library)', 400);
     const r: ScanReport = {
-      id: newId(6), mode, state: 'running', root: hit.real, startedAt: new Date().toISOString(), finishedAt: null,
+      id: newId(6), mode, state: 'running', root: roots.map(r => r.real).join(' · '), startedAt: new Date().toISOString(), finishedAt: null,
       filesSeen: 0, jars: 0, added: 0, updated: 0, unchanged: 0, duplicates: 0, newVersions: 0, missing: 0, skipped: 0,
-      errors: [], duplicateGroups: [], versionGroups: [], current: null, error: null,
+      errors: unavailable.map(dir => ({ path: dir, code: 'library_unavailable', message: 'This directory was not scanned; existing games were kept.' })), duplicateGroups: [], versionGroups: [], current: null, error: null,
     };
     this.report = r;
     this.cancelled = false;
-    this.running = this.run(r, hit.real).finally(() => {
+    this.running = this.run(r, roots).finally(() => {
       this.running = null;
     });
     return r;
@@ -85,13 +94,19 @@ export class ScanManager {
     if (r.errors.length < MAX_REPORTED_ERRORS) r.errors.push({ path: path_, code, message });
   }
 
-  private async run(r: ScanReport, root: string): Promise<void> {
+  private async run(r: ScanReport, roots: { real: string; prefix: string; kind: string | null }[]): Promise<void> {
     try {
       const stats: WalkStats = { entries: 0, symlinksSkipped: 0, truncated: false, unreadableDirs: [] };
       const jars = new Map<string, WalkEntry>();
       const jads = new Map<string, WalkEntry>();
       const pkgs = new Map<string, WalkEntry>();
-      for await (const e of walkLibrary(root, stats, () => this.cancelled)) {
+      const counts = new Map(roots.map(root => [root.prefix, 0]));
+      for (const source of roots) for await (const found of walkLibrary(source.real, stats, () => this.cancelled, source.kind === 'ngage')) {
+        const platform = (source.kind === 'ngage' && found.rel.toLowerCase().endsWith('.zip') ? 'ngage' : platformOfFile(found.rel)) ?? (found.kind === 'jar' || found.kind === 'jad' ? 'j2me' : null);
+        if (source.kind && (source.kind === 'ngage' ? platform !== 'ngage' && platform !== 'ngage2' : platform !== source.kind)) continue;
+        counts.set(source.prefix, (counts.get(source.prefix) ?? 0) + 1);
+        const e = { ...found, rel: source.prefix + found.rel };
+
         r.filesSeen++;
         if (e.kind === 'jar') jars.set(e.rel, e);
         else if (e.kind === 'pkg') pkgs.set(e.rel, e);
@@ -105,6 +120,7 @@ export class ScanManager {
 
       const settings = this.hooks.settings();
       const defaults = gameDefaults(settings.phone, this.hooks.explicitPhone?.());
+      const nativeStatus = pkgs.size && Object.values(settings.nativePhones ?? {}).some(Boolean) ? await readSymbianStatus(this.cfg) : undefined;
       const seen = new Set<string>();
       const sorted = [...jars.values()].sort((a, b) => a.rel.localeCompare(b.rel));
       const dirCounts = new Map<string, { jars: number; jad: WalkEntry | null }>();
@@ -141,7 +157,7 @@ export class ScanManager {
         r.current = pkg.rel;
         seen.add(pkg.rel);
         try {
-          await this.importPackage(r, pkg, defaults);
+          await this.importPackage(r, pkg, defaults, nativeStatus);
         } catch (e) {
           this.fail(r, pkg.rel, e);
         }
@@ -151,11 +167,12 @@ export class ScanManager {
       if (this.cancelled) return this.finish(r, 'cancelled');
 
       // sources that were not seen: flag, never delete
-      const known = this.library.allSources();
+      const inScope = (rel: string) => roots.some(root => root.prefix ? rel.startsWith(root.prefix) : !/^(j2me|ngage|symbian)\/[a-f0-9]{8}\//.test(rel));
+      const known = this.library.allSources().filter(s => inScope(s.rel_path));
       if (seen.size === 0 && known.length > 0) {
         r.error = 'The library directory looks empty although it was scanned before: is the folder mounted? Nothing was marked as missing.';
       } else if (!stats.truncated) {
-        for (const s of known) if (!seen.has(s.rel_path) && !s.missing) this.library.markMissing(s.rel_path);
+        for (const s of known) if (roots.some(root => (root.prefix ? s.rel_path.startsWith(root.prefix) : !/^(j2me|ngage|symbian)\/[a-f0-9]{8}\//.test(s.rel_path)) && (counts.get(root.prefix) ?? 0) > 0) && !seen.has(s.rel_path) && !s.missing) this.library.markMissing(s.rel_path);
       }
       r.missing = this.library.allSources().filter((s) => s.missing).length;
       this.collectGroups(r, seen);
@@ -166,7 +183,7 @@ export class ScanManager {
     }
   }
 
-  private async importPackage(r: ScanReport, pkg: WalkEntry, defaults: Partial<GameSettings>): Promise<void> {
+  private async importPackage(r: ScanReport, pkg: WalkEntry, defaults: Partial<GameSettings>, nativeStatus?: SymbianStatus): Promise<void> {
     const prev = this.library.getSource(pkg.rel);
     if (r.mode === 'update' && prev && prev.size === pkg.size && prev.mtime_ms === pkg.mtimeMs && this.library.get(prev.game_id)) {
       this.library.touchSource(pkg.rel);
@@ -184,9 +201,9 @@ export class ScanManager {
       if (prev) r.updated += prev.sha256 === sha ? 0 : 1;
       r.unchanged += prev && prev.sha256 !== sha ? 0 : 1;
     } else {
-      const platform = platformOfFile(pkg.rel);
+      const platform = platformOfFile(pkg.rel) ?? (pkg.rel.startsWith('ngage/') && pkg.rel.toLowerCase().endsWith('.zip') ? 'ngage' : null);
       if (!platform || platform === 'j2me') throw new UploadError('bad_file', 'Not a Symbian or N-Gage package');
-      const { game } = this.library.addPackage(bytes, path.basename(pkg.rel), platform, this.cfg.libraryQuotaBytes, { origin: 'import', defaults });
+      const { game } = this.library.addPackage(bytes, path.basename(pkg.rel), platform, this.cfg.libraryQuotaBytes, { origin: 'import', defaults: nativeDefaults(this.hooks.settings(), platform, nativeStatus) });
       gameId = game.id;
       if (prev) r.updated++;
       else r.added++;
@@ -270,4 +287,17 @@ export class ScanManager {
     this.library.saveScan(r.id, r.startedAt, r.finishedAt, r);
     try { this.hooks.onFinished?.(r); } catch { /* a hook must not break the scan */ }
   }
+}
+
+/** Native defaults pin the requested body; firmware readiness is resolved against installed devices at launch. */
+export function nativeDefaults(settings: PublicSettings, platform: 'symbian' | 'ngage' | 'ngage2', status?: SymbianStatus): Partial<GameSettings> {
+  const skinId = settings.nativePhones?.[platform];
+  if (!skinId) return {};
+  const selection = selectPhone({ platform, skinId });
+  if (!selection.ok || selection.device.engine !== 'eka2l1') return {};
+  const installed = profilesForSkin(skinId, platform).filter(d => d.engine === 'eka2l1' && status?.firmware.devices.some(f => f.code.toLowerCase() === d.firmware.product.toLowerCase()));
+  // Prefer the depicted model. A sole installed family variant (N95 8GB) can
+  // use the same artwork, while retaining its own real device/firmware identity.
+  const device = installed.find(d => d.id === selection.device.id) ?? (installed.length === 1 ? installed[0]! : selection.device);
+  return { skinId, emulatedDeviceId: device.id, ...(device.engine === 'eka2l1' ? { symbianDevice: device.firmware.product } : {}) };
 }

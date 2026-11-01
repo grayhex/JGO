@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import type { ClientEvent } from '@j2me-web/protocol';
+import type { ClientEvent } from '@mgo/protocol';
 import { t as translateUI } from '../i18n';
 import { parseRecording, type Recorder, type Recording, type Replayer } from '../recording';
 import { downloadBlob, fileSafe } from '../snapshot';
@@ -49,7 +49,7 @@ export function RecordingPanel({ gameId, gameName, frame, live, recorder, replay
           : <button className="btn sm" disabled={!live || !rec || mode === 'recording'} onClick={play}>{translateUI('▶ Play')}</button>}
       </div>
       <div className="btn-row">
-        <button className="btn ghost sm" disabled={!rec} onClick={() => rec && downloadBlob(new Blob([JSON.stringify(rec)], { type: 'application/json' }), `${fileSafe(gameName)}.jgo-rec.json`)}>{translateUI('Save…')}</button>
+        <button className="btn ghost sm" disabled={!rec} onClick={() => rec && downloadBlob(new Blob([JSON.stringify(rec)], { type: 'application/json' }), `${fileSafe(gameName)}.mgo-rec.json`)}>{translateUI('Save…')}</button>
         <button className="btn ghost sm" onClick={() => file.current?.click()}>{translateUI('Load…')}</button>
         <input ref={file} type="file" accept=".json,application/json" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void load(f); }} />
       </div>

@@ -20,8 +20,8 @@ describe('setup, settings, library and MobyGames over the API', () => {
     fake = await new FakeMoby().start();
     process.env.MOBYGAMES_API_BASE = fake.base;
     process.env.MOBYGAMES_MIN_INTERVAL_MS = '0';
-    root = tmpDir('jgo-api-lib-');
-    outside = tmpDir('jgo-api-out-');
+    root = tmpDir('mgo-api-lib-');
+    outside = tmpDir('mgo-api-out-');
     put(outside, 'secret.jar', makeJar('Secret'));
     symlinkSync(outside, path.join(root, 'escape'));
     app = await buildApp(testConfig({ roots: [root], authToken: TOKEN }));
@@ -205,7 +205,7 @@ describe('setup, settings, library and MobyGames over the API', () => {
   });
 
   it('games whose files are gone can be removed in one go, and the whole library can be emptied (only with confirmation)', async () => {
-    const lib = tmpDir('jgo-cleanup-');
+    const lib = tmpDir('mgo-cleanup-');
     for (const n of ['Keep One', 'Gone One', 'Gone Two']) put(lib, `${n}.jar`, makeJar(n, { vendor: 'Cleanup' }));
     const original = app.cfg.libraryRoots;
     app.cfg.libraryRoots.push(lib);

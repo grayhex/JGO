@@ -12,8 +12,8 @@ const crypto = require('node:crypto');
 // a dedicated Docker-managed volume so NAS SMB/ACL policies cannot make the
 // credential group/world-readable or interfere with mode 0600.
 const dataDir = path.resolve(process.env.DATA_DIR || '/data');
-const authDir = path.resolve(process.env.JGO_AUTH_DIR || dataDir);
-const file = path.join(authDir, '.jgo-auth-token');
+const authDir = path.resolve(process.env.MGO_AUTH_DIR || dataDir);
+const file = path.join(authDir, '.mgo-auth-token');
 
 try {
   if (process.env.AUTH_TOKEN) {

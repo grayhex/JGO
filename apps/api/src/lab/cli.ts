@@ -142,7 +142,7 @@ async function main() {
     writeFileSync(path.join(outDir, 'results.json'), JSON.stringify({ meta: metaOf(defaults.device), results }, null, 2)); // incremental: a crash keeps what was done
   }
   function metaOf(dev: string): ReportMeta {
-    return { generatedAt: new Date().toISOString(), emulatorCommit: readKemCommit(cfg0.kemDir), host: `${os.type()} ${os.release()} · ${os.cpus().length} vCPU · ${Math.round(os.totalmem() / 2 ** 30)} GiB`, defaultsDevice: dev, title: String(flags.title ?? 'J2ME Web compatibility lab') };
+    return { generatedAt: new Date().toISOString(), emulatorCommit: readKemCommit(cfg0.kemDir), host: `${os.type()} ${os.release()} · ${os.cpus().length} vCPU · ${Math.round(os.totalmem() / 2 ** 30)} GiB`, defaultsDevice: dev, title: String(flags.title ?? 'MGO compatibility lab') };
   }
   const file = writeReport(outDir, results, metaOf(defaults.device), ratings);
   console.log(`\nlab: ${results.filter((r) => r.auto.status === 'pass').length} pass, ${results.filter((r) => r.auto.status === 'warn').length} warn, ${results.filter((r) => r.auto.status === 'fail').length} fail`);

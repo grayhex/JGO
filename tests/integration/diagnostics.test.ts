@@ -19,7 +19,7 @@ describe('session diagnostics', () => {
     const res = await fetch(`${env.base}/api/sessions/${s.id}/diagnostics`);
     assert.equal(res.status, 200);
     assert.match(res.headers.get('content-type') ?? '', /text\/plain/);
-    assert.match(res.headers.get('content-disposition') ?? '', /attachment; filename="jgo-diagnostics-/);
+    assert.match(res.headers.get('content-disposition') ?? '', /attachment; filename="mgo-diagnostics-/);
     const text = await res.text();
     assert.match(text, /==== session ====/);
     assert.match(text, /"state": "running"/);

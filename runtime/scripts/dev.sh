@@ -3,6 +3,6 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 trap 'kill 0' EXIT
-npm run dev -w @j2me-web/api &
-npm run dev -w @j2me-web/web &
+npm run dev -w @mgo/api &
+npm run dev -w @mgo/web &
 wait

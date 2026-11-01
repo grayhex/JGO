@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright';
 
-const dir = mkdtempSync(path.join(tmpdir(), 'jgo-ux-'));
+const dir = mkdtempSync(path.join(tmpdir(), 'mgo-ux-'));
 const port = 22500 + Math.floor(Math.random() * 300);
 const base = `http://127.0.0.1:${port}`;
 const server = spawn('node', ['apps/api/dist/server.js'], { env: { ...process.env, PORT: String(port), DATA_DIR: dir, HOST: '127.0.0.1', LOG_LEVEL: 'warn' }, stdio: ['ignore', 'inherit', 'inherit'] });
@@ -35,13 +35,13 @@ try {
   // ---- the sidebar item "Game" appears once a game was opened and leads back to it ----
   await p.goto(base + '/');
   await p.locator('.game-card').first().waitFor();
-  assert.equal(await p.locator('.sidebar').getByRole('link', { name: 'Game', exact: true }).count(), 0, 'no game opened yet: no item');
+  assert.equal(await p.locator('.sidebar').getByTestId('current-game').count(), 0, 'no game opened yet: no item');
   await p.locator('.game-card', { hasText: 'KemGame' }).locator('button.card-main').click();
   await p.waitForURL('**/play/' + game.id);
   await p.locator('.skin-box').waitFor();
   await p.locator('.sidebar').getByRole('link', { name: 'Library', exact: true }).click();
   await p.locator('.game-card').first().waitFor();
-  const back = p.locator('.sidebar').getByRole('link', { name: 'Game', exact: true });
+  const back = p.locator('.sidebar').getByTestId('current-game');
   assert.equal(await back.count(), 1);
   await back.click();
   await p.waitForURL('**/play/' + game.id);

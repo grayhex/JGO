@@ -1,4 +1,4 @@
-import type { MobyCandidate } from '@j2me-web/protocol';
+import type { MobyCandidate } from '@mgo/protocol';
 
 /**
  * Client for the MobyGames API v2 (https://api.mobygames.com/v2, `api_key` query parameter).

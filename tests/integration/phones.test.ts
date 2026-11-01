@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { PHONE_PROFILES, resolvePhone } from '@j2me-web/protocol';
+import { PHONE_PROFILES, resolvePhone } from '@mgo/protocol';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { cleanup, jar1, jar2, openStream, startApp, upload, waitFor } from './helpers.ts';

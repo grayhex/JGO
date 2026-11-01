@@ -4,7 +4,7 @@ import path from 'node:path';
 import { inflateRawSync } from 'node:zlib';
 import {
   decodeFrameHeader, FRAME_ENC_DEFLATE_RAW, type GameMeta, KEY_LAYOUTS, type KeyCodes, type LayoutId, type SessionStatus, WS_BIN_AUDIO, WS_BIN_FRAME, WS_FRAME_HEADER_BYTES,
-} from '@j2me-web/protocol';
+} from '@mgo/protocol';
 import type { JarAnalysis } from '../analysis/analyze.js';
 import { frameStats, type FrameStats } from './frames.js';
 import { encodePng } from './png.js';

@@ -12,7 +12,7 @@ const root = process.cwd();
 const { makeJar } = await import(pathToFileURL(path.join(root, 'apps/api/src/dev/testing.ts')).href);
 const outDir = path.join(root, 'test-results');
 mkdirSync(outDir, { recursive: true });
-const dir = mkdtempSync(path.join(tmpdir(), 'jgo-orient-'));
+const dir = mkdtempSync(path.join(tmpdir(), 'mgo-orient-'));
 const port = 20100 + Math.floor(Math.random() * 300);
 const base = `http://127.0.0.1:${port}`;
 const server = spawn('node', ['apps/api/dist/server.js'], { env: { ...process.env, PORT: String(port), DATA_DIR: dir, HOST: '127.0.0.1', LOG_LEVEL: 'warn' }, stdio: ['ignore', 'inherit', 'inherit'] });

@@ -29,14 +29,14 @@ RUN --mount=type=secret,id=extra_ca,required=false \
     && git init -q . && git remote add origin "$EKA2L1_REPO" \
     && git fetch -q --depth 1 origin "$EKA2L1_COMMIT" && git checkout -q FETCH_HEAD \
     && git submodule update --init --recursive --depth 1 --jobs 4
-COPY symbian/patches/ /tmp/jgo-eka2l1-patches/
-RUN for patch in /tmp/jgo-eka2l1-patches/*.patch; do git apply --check "$patch" && git apply "$patch"; done
+COPY symbian/patches/ /tmp/mgo-eka2l1-patches/
+RUN for patch in /tmp/mgo-eka2l1-patches/*.patch; do git apply --check "$patch" && git apply "$patch"; done
 RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
       -DEKA2L1_BUILD_TESTS=OFF -DEKA2L1_BUILD_TOOLS=OFF -DEKA2L1_SCRIPTING_LUA=OFF \
     && cmake --build build --target eka2l1_qt -j"$(nproc)" \
     && mkdir -p /out && cp -a build/bin/. /out/ \
     && rm -f /out/*.a \
-    && echo "EKA2L1 master-$(echo "$EKA2L1_COMMIT" | cut -c1-7)+jgo-vpl1" > /out/VERSION
+    && echo "EKA2L1 master-$(echo "$EKA2L1_COMMIT" | cut -c1-7)+mgo-vpl2" > /out/VERSION
 
 # ---- 2. node binary for the agent (the agent has no dependencies) --------------------------------------------------------------
 FROM ${BASE_REGISTRY}/node:22-bookworm-slim AS node
@@ -50,11 +50,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libsdl2-2.0-0 libpulse0 libasound2t64 libgl1 libegl1 libglu1-mesa libgl1-mesa-dri libglx-mesa0 libvulkan1 \
       libxcb-cursor0 libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-xinerama0 libxcb-xkb1 libxcb-shape0 libxcb-xfixes0 \
     && rm -rf /var/lib/apt/lists/* \
-    && useradd --system --uid 10001 --create-home --home-dir /home/jgo --shell /usr/sbin/nologin jgo \
-    && mkdir -p /data /symbian-auth /opt/eka2l1 /opt/mgo-symbian && chown jgo:jgo /data /symbian-auth
+    && useradd --system --uid 10001 --create-home --home-dir /home/mgo --shell /usr/sbin/nologin mgo \
+    && mkdir -p /data /symbian-auth /opt/eka2l1 /opt/mgo-symbian && chown mgo:mgo /data /symbian-auth
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY --from=eka-build /out/ /opt/eka2l1/
-COPY symbian/agent/agent.mjs symbian/agent/policy.mjs symbian/agent/factory.mjs /opt/mgo-symbian/
+COPY symbian/agent/agent.mjs symbian/agent/policy.mjs symbian/agent/factory.mjs symbian/agent/audio.mjs symbian/agent/diagnostics.mjs /opt/mgo-symbian/
 COPY symbian/entrypoint.sh /opt/mgo-symbian/entrypoint.sh
 
 ENV EKA2L1_BIN=/opt/eka2l1/eka2l1_qt \
@@ -64,7 +64,7 @@ ENV EKA2L1_BIN=/opt/eka2l1/eka2l1_qt \
     QT_QPA_PLATFORM=xcb \
     LIBGL_ALWAYS_SOFTWARE=1 \
     DISPLAY=:99
-USER jgo
+USER mgo
 WORKDIR /data
 VOLUME ["/data"]
 EXPOSE 8766

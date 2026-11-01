@@ -16,7 +16,7 @@
 ## 1. Запуск
 
 ```bash
-git clone -b feat/eka2l1-symbian https://github.com/grayhex/JGO.git && cd MGO
+git clone -b feat/eka2l1-symbian https://github.com/grayhex/MGO.git && cd MGO
 ```
 
 ```bash
@@ -120,7 +120,7 @@ docker compose exec mgo-symbian ls -R /data/saves | head -40
 | «The package installed, but no application appeared» | пакет не поставился (не та прошивка/версия Symbian, нет зависимостей) | диагностика; попробуйте другую прошивку |
 | «lists N applications and MGO cannot tell which one is the game» | в установленной системе уже есть несистемные приложения | пришлите диагностику (список приложений в `EKA2L1.log`); MGO не станет угадывать |
 | Чёрный экран / артефакты | программный OpenGL | в диагностике ищите строки `Driver.Graphics`; пришлите |
-| Нет звука | цепочка EKA2L1 → PulseAudio → parec **не проверена** | `docker compose exec mgo-symbian pactl list short sinks` (должен быть `jgo_sink`), `… pactl list short sink-inputs` во время игры |
+| Нет звука | цепочка EKA2L1 → PulseAudio → parec **не проверена** | `docker compose exec mgo-symbian pactl list short sinks` (должен быть `mgo_sink`), `… pactl list short sink-inputs` во время игры |
 | Установка заводского комплекта: `bad_request`/`variant_required`/`fpsx_corrupt`/`firmware_file_missing` | см. [FACTORY_FIRMWARE.md](FACTORY_FIRMWARE.md): не тот вариант, повреждён или не хватает образа | диагностика + имена файлов комплекта |
 | Очень медленно | программный OpenGL | пришлите FPS и `docker stats` |
 

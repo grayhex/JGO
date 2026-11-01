@@ -7,7 +7,7 @@ import path from 'node:path';
 import { chromium } from 'playwright';
 
 const ids = ['sony-ericsson-w995', 'sony-ericsson-k790i', 'motorola-razr-v3', 'nokia-5800', 'samsung-s5230', 'nokia-n-gage-classic', 'nokia-n-gage-qd', 'nokia-n70', 'nokia-5320-xpressmusic', 'nokia-n8'];
-const data = mkdtempSync(path.join(tmpdir(), 'jgo-phones-'));
+const data = mkdtempSync(path.join(tmpdir(), 'mgo-phones-'));
 const port = 20500 + Math.floor(Math.random() * 300), base = `http://127.0.0.1:${port}`;
 mkdirSync('test-results', { recursive: true });
 const server = spawn('node', ['apps/api/dist/server.js'], {

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Assembles the release tarball that `jgo update` and install/jgo-install.sh deploy:
-#   jgo-<version>-linux-amd64.tar.gz  +  SHA256SUMS            (written to <outdir>, default dist-release/)
+# Assembles the release tarball that `mgo update` and install/mgo-install.sh deploy:
+#   mgo-<version>-linux-amd64.tar.gz  +  SHA256SUMS            (written to <outdir>, default dist-release/)
 #
 # Needs the project built already (npm run setup does it, CI does the same steps):
 #   apps/api/dist, apps/web/dist, packages/protocol/dist, runtime/build/kemulator, bridge/kemulator-adapter/target/release
@@ -21,7 +21,7 @@ node tests/scripts/production.mjs
 
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
-root="$stage/jgo-$version"
+root="$stage/mgo-$version"
 mkdir -p "$root"/{app/packages/protocol,app/apps/api,app/apps/web,bin,kemulator,share/systemd,share/source}
 
 # application: the production tree (workspace layout, runtime dependencies only)
@@ -40,9 +40,9 @@ node tools/release/prune.mjs "$root/app"
 # KEmulator (built from the pinned upstream commit + runtime/patches) and the Bridge supervisor
 cp -r runtime/build/kemulator/. "$root/kemulator/"
 install -m 755 bridge/kemulator-adapter/target/release/kem-adapter "$root/bin/kem-adapter"
-install -m 755 packaging/bin/jgo "$root/bin/jgo"
-install -m 644 packaging/systemd/jgo.service packaging/systemd/jgo-xvfb.service "$root/share/systemd/"
-install -m 644 packaging/jgo.env.example "$root/share/jgo.env.example"
+install -m 755 packaging/bin/mgo "$root/bin/mgo"
+install -m 644 packaging/systemd/mgo.service packaging/systemd/mgo-xvfb.service "$root/share/systemd/"
+install -m 644 packaging/mgo.env.example "$root/share/mgo.env.example"
 
 # KEmulator is GPL/Apache/EPL: the corresponding source (patches, build script, upstream pin) ships with the binary
 cp -r runtime/patches "$root/share/source/patches"
@@ -55,16 +55,16 @@ cat >"$root/share/source/SOURCE.md" <<S
 Upstream:  https://github.com/shinovon/KEmulator  at commit $(cat runtime/build/kemulator/KEM_COMMIT)
 Changes:   patches/*.patch (applied in order) and audio/ (Java Sound mixer) in this directory
 Build:     build-kemulator.sh (needs JDK 21 and git); it prints the commit it built
-The complete upstream tree of that commit is also published as the release asset jgo-kemulator-source-<commit>.tar.gz.
+The complete upstream tree of that commit is also published as the release asset mgo-kemulator-source-<commit>.tar.gz.
 S
 
 echo "$version" >"$root/VERSION"
 chmod -R go-w "$root"
 
 mkdir -p "$out"
-name="jgo-$version-linux-amd64.tar.gz"
+name="mgo-$version-linux-amd64.tar.gz"
 tar --sort=name --owner=0 --group=0 --numeric-owner --mtime="@${SOURCE_DATE_EPOCH:-$(git log -1 --format=%ct 2>/dev/null || date +%s)}" \
-  -C "$stage" -czf "$out/$name" "jgo-$version"
+  -C "$stage" -czf "$out/$name" "mgo-$version"
 (cd "$out" && sha256sum "$name" >SHA256SUMS)
 echo "$out/$name  ($(du -h "$out/$name" | cut -f1))"
 cat "$out/SHA256SUMS"

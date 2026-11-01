@@ -38,6 +38,7 @@ export const EMULATED_DEVICES: readonly EmulatedDevice[] = [
   native('eka2l1-n70', 'Nokia N70', 'Symbian 8.1a / S60 2nd Edition FP3', 'RM-84', 176, 208, 's60-keypad', ['symbian']),
   native('eka2l1-5320', 'Nokia 5320 XpressMusic', 'Symbian 9.3 / S60 3rd Edition FP2', 'RM-409', 240, 320, 's60-keypad', ['symbian', 'ngage2']),
   native('eka2l1-n95', 'Nokia N95-1', 'Symbian 9.2 / S60 3rd Edition FP1', 'RM-159', 240, 320, 's60-keypad', ['symbian', 'ngage2']),
+  native('eka2l1-n95-8gb', 'Nokia N95 8GB', 'Symbian 9.2 / S60 3rd Edition FP1', 'RM-320', 240, 320, 's60-keypad', ['symbian', 'ngage2']),
   native('eka2l1-e71', 'Nokia E71', 'Symbian 9.2 / S60 3rd Edition FP1', 'RM-346', 320, 240, 's60-qwerty', ['symbian']),
   native('eka2l1-5800', 'Nokia 5800 XpressMusic', 'Symbian 9.4 / S60 5th Edition', 'RM-356', 360, 640, 's60-touch', ['symbian']),
   native('eka2l1-n8', 'Nokia N8', 'Symbian³', 'RM-596', 360, 640, 's60-touch', ['symbian']),
@@ -51,7 +52,7 @@ const NATIVE_PROFILES: Partial<Record<PhoneSkinId, string>> = {
 };
 /** A relation, not a property of the artwork. One skin serves several platforms. */
 export const PHONE_COMPATIBILITY: Readonly<Record<PhoneSkinId, readonly string[]>> = Object.fromEntries(
-  PHONE_SKIN_IDS.map(id => [id, [javaDeviceId(id), ...(NATIVE_PROFILES[id] ? [NATIVE_PROFILES[id]!] : [])]]),
+  PHONE_SKIN_IDS.map(id => [id, [javaDeviceId(id), ...(NATIVE_PROFILES[id] ? [NATIVE_PROFILES[id]!] : []), ...(id === 'nokia-n95' ? ['eka2l1-n95-8gb'] : [])]]),
 ) as unknown as Record<PhoneSkinId, readonly string[]>;
 
 export function profilesForSkin(id: PhoneSkinId, platform: GamePlatform): EmulatedDevice[] {
@@ -119,8 +120,12 @@ export function nativePhonePlan(platform: Exclude<GamePlatform, 'j2me'>, setting
   const genOf = (code: string) => { const d = catalogFor(code); return d ? generationOfOs(d.os) : null; };
   /** An installed firmware whose generation is known and different from the package's cannot install it; an unknown one is not judged. */
   const fits = (code: string) => !need || genOf(code) === null || genOf(code) === need;
-  let requested = settings.symbianDevice || profileCode || status.defaults[platform];
-  plan.source = settings.symbianDevice || profileCode ? 'game' : status.defaults[platform] ? 'platform' : 'only';
+  const explicitCode = settings.symbianDevice || profileCode;
+  const preferred = status.defaults[platform];
+  // A platform default is a preference. A known incompatible generation cannot
+  // override the package's requirement; an explicit game choice remains binding.
+  let requested = explicitCode || (preferred && fits(preferred) ? preferred : undefined);
+  plan.source = explicitCode ? 'game' : requested ? 'platform' : 'only';
   if (!requested && need) {
     // the package says which Symbian generation it needs: when exactly one installed firmware is of that generation, that is the one
     const fitting = status.firmware.devices.filter(d => fits(d.code));

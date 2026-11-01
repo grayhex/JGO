@@ -2,10 +2,10 @@
 
 # MGO — Mobile Games Online
 
-**Self-hosted веб-плеер для игр Java ME (J2ME).**
-Игры работают в настоящем эмуляторе [KEmulator nnmod](https://github.com/shinovon/KEmulator) на вашем сервере и открываются в любом браузере.
+**Веб-плеер для Java ME, Symbian S60 и N-Gage на вашем сервере.**
+Java ME работает в [KEmulator nnmod](https://github.com/shinovon/KEmulator), Symbian и N-Gage — в [EKA2L1](https://github.com/EKA2L1/EKA2L1). Игры открываются в браузере; нативным платформам нужна ваша прошивка.
 
-[![CI](https://github.com/grayhex/JGO/actions/workflows/ci.yml/badge.svg)](https://github.com/grayhex/JGO/actions/workflows/ci.yml)
+[![CI](https://github.com/grayhex/MGO/actions/workflows/ci.yml/badge.svg)](https://github.com/grayhex/MGO/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](#лицензия)
 ![Proxmox VE](https://img.shields.io/badge/Proxmox%20VE-LXC-E57000)
 
@@ -15,26 +15,28 @@
 
 </div>
 
+На снимках — демонстрационные MIDlet из тестовых материалов проекта.
+
 ## Возможности
 
 - **Настоящий эмулятор.** Игры исполняет KEmulator nnmod на сервере; в браузер передаются кадры, звук и ввод.
 - **2D, звук, 3D.** MIDP 2.0 / CLDC 1.1, MMAPI, RMS-сохранения, M3G (JSR-184) на программном OpenGL.
 - **59 профилей устройств:** разрешение, раскладка клавиш, полноэкранный режим.
 - **Сессии на сервере.** Обновление страницы и обрыв сети не прерывают игру.
-- **Десять телефонов** на выбор: Nokia 6100, 6230i, N95-1, E71, 5800 XpressMusic; Sony Ericsson K750i, W995, K790i; Motorola RAZR V3; Samsung S5230 Star. У каждого есть полный вид и приближение экрана.
+- **Пятнадцать телефонов** на выбор: Nokia 6100, 6230i, N95-1, E71, 5800 XpressMusic; Sony Ericsson K750i, W995, K790i; Motorola RAZR V3; Samsung S5230 Star; Nokia N-Gage Classic, N-Gage QD, N70, 5320 XpressMusic, N8. У каждого есть полный вид и приближение экрана.
 - **Управление:** кнопки корпуса, экранная клавиатура, клавиатура ПК, геймпад, мультитач.
 - **Ввод текста** в `TextField`/`TextBox`, **пауза**, **скорость** игры, снимок экрана, **запись и воспроизведение** ввода, **файлы игры** (JSR-75), загрузка **SoundFont** для MIDI.
 - **Экран:** поворот картинки, альбомный режим «Lights Out», полный экран, телефон на всю высоту окна, тёмная тема WattVision, русский и английский интерфейс (переключатель в боковой панели).
 - **Библиотека:** загрузка JAR/JAD перетаскиванием или импорт каталога; поиск дубликатов; плитки или ровная таблица; поиск, сортировка (название, добавление, запуск, время в игре, жанр) и фильтры; **время в игре** на каждой карточке; переименование игр; необязательные метаданные [MobyGames](https://www.mobygames.com).
-- **Жанры:** жанр — свойство игры, а не папки. Назначается из каталога `jgo_catalog.json` (по SHA-256, с предпросмотром), из названий папок (`…/Racing/…`) или вручную; ручной выбор никто не перезаписывает. Названия очищаются от имён релиз-групп и сайтов.
+- **Жанры:** жанр — свойство игры, а не папки. Назначается из каталога `mgo_catalog.json` (по SHA-256, с предпросмотром), из названий папок (`…/Racing/…`) или вручную; ручной выбор никто не перезаписывает. Названия очищаются от имён релиз-групп и сайтов.
 - **Порядок в библиотеке:** игры с пропавшими файлами и всю библиотеку можно удалить разом (сохранения — по вашему выбору).
-- **Установка в один шаг:** готовый образ Docker для NAS (Synology, UGREEN, QNAP) и серверов; дополнительно — LXC-контейнер Proxmox VE с командой `jgo` для обновлений и резервных копий.
+- **Установка в один шаг:** готовый образ Docker для NAS (Synology, UGREEN, QNAP) и серверов; дополнительно — LXC-контейнер Proxmox VE с командой `mgo` для обновлений и резервных копий.
 - **Безопасность:** игра — недоверенный код: отдельный пользователь, изоляция контейнера, лимиты ресурсов, нет доступа к сети.
 
 <div align="center">
 <img src="docs/img/library.png" alt="Библиотека: плитки с жанрами и временем в игре" width="760">
 <img src="docs/img/library-list.png" alt="Библиотека: список-таблица" width="760">
-<img src="docs/img/phones.png" alt="Десять телефонов на выбор" width="760">
+<img src="docs/img/phones.png" alt="Пятнадцать телефонов на выбор" width="760">
 </div>
 
 ## Быстрый старт
@@ -48,15 +50,17 @@
 Для обычного Linux:
 
 ```bash
-mkdir jgo && cd jgo
-curl -fsSLO https://raw.githubusercontent.com/grayhex/JGO/main/compose.yaml
+mkdir mgo && cd mgo
+curl -fsSLO https://raw.githubusercontent.com/grayhex/MGO/main/compose.yaml
 docker compose up -d
 docker compose logs app
 ```
 
-При первом запуске MGO автоматически создаст случайный токен входа в отдельном постоянном Docker-томе `jgo-auth`, в файле `/jgo-auth/.jgo-auth-token`. Этот том сохраняет строгие права на секрет даже на NAS с ACL. Он выводится **один раз** в лог контейнера `app` (строка `First-run login token`). Позднее можно прочитать его через `docker compose exec app cat /jgo-auth/.jgo-auth-token`. Логи с токеном не публикуйте.
+При первом запуске MGO автоматически создаст случайный токен входа в отдельном постоянном Docker-томе `mgo-auth`, в файле `/mgo-auth/.mgo-auth-token`. Этот том сохраняет строгие права на секрет даже на NAS с ACL. Он выводится **один раз** в лог контейнера `app` (строка `First-run login token`). Позднее можно прочитать его через `docker compose exec app cat /mgo-auth/.mgo-auth-token`. Логи с токеном не публикуйте.
 
-Тот же файл поднимает и `mgo-symbian` (Symbian / N-Gage через EKA2L1, экспериментально): нужна **ваша** прошивка в *Settings → Symbian*; для одних Java ME-игр удалите этот блок. Откройте `http://<адрес NAS>:8080`, введите токен и пройдите мастер первого запуска. Обновление: `docker compose pull && docker compose up -d`. Готовые файлы также прикрепляются к [релизам](https://github.com/grayhex/JGO/releases). Для фиксированной версии замените `:latest` в YAML или задайте `JGO_VERSION` через необязательный `.env`. `JGO_VERSION=edge` — самая свежая сборка `main`, прошедшая CI (для тестеров); `latest` двигается только при официальном релизе.
+HTTPS и сертификат для адреса вашего NAS: [инструкция](docs/HTTPS.md). Настройка вкладок, раздельных каталогов, метаданных N-Gage и мониторинга: [руководство](docs/PRODUCTION_READINESS.md).
+
+Тот же файл поднимает и `mgo-symbian` (Symbian / N-Gage через EKA2L1, экспериментально): нужна **ваша** прошивка в *Settings → Symbian*; для одних Java ME-игр удалите этот блок. Откройте `https://<адрес NAS>:8443`, введите токен и пройдите мастер первого запуска. Обновление: `docker compose pull && docker compose up -d`. Готовые файлы также прикрепляются к [релизам](https://github.com/grayhex/MGO/releases). Для фиксированной версии замените `:latest` в YAML или задайте `MGO_VERSION` через необязательный `.env`. `MGO_VERSION=edge` — самая свежая сборка `main`, прошедшая CI (для тестеров); `latest` двигается только при официальном релизе.
 
 Пошаговые инструкции для Synology и UGREEN, права на папки, резервные копии, HTTPS и разбор неполадок — в [docs/DOCKER.md](docs/DOCKER.md).
 
@@ -67,16 +71,16 @@ docker compose logs app
 Выполните в оболочке хоста Proxmox VE:
 
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/grayhex/JGO/main/ct/jgo.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/grayhex/MGO/main/ct/mgo.sh)"
 ```
 
-Будет создан непривилегированный LXC на Debian 13 (4 CPU, 4 ГБ RAM, 20 ГБ диска), без Docker. Токен доступа выводится в конце установки, позже его покажет `jgo token`. Откройте `http://<IP контейнера>:8080`.
+Будет создан непривилегированный LXC на Debian 13 (4 CPU, 4 ГБ RAM, 20 ГБ диска), без Docker. Токен доступа выводится в конце установки, позже его покажет `mgo token`. Откройте `http://<IP контейнера>:8080`.
 
 | Путь | Назначение |
 |---|---|
-| `/opt/jgo` | приложение |
-| `/var/lib/jgo` | библиотека, сохранения, настройки |
-| `/etc/jgo/jgo.env` | конфигурация и токен |
+| `/opt/mgo` | приложение |
+| `/var/lib/mgo` | библиотека, сохранения, настройки |
+| `/etc/mgo/mgo.env` | конфигурация и токен |
 
 Подробности: [docs/PROXMOX.md](docs/PROXMOX.md), резервные копии — [docs/BACKUP.md](docs/BACKUP.md).
 
@@ -94,7 +98,7 @@ npm start          # http://127.0.0.1:8080
 
 ## Использование
 
-1. **Добавьте игры:** перетащите `.jar` (и `.jad`) в окно или подключите каталог — *Settings → Game library*. Для Proxmox: `tools/proxmox/jgo-library-mount.sh <CTID> /путь/на/хосте` ([docs/LIBRARY.md](docs/LIBRARY.md)).
+1. **Добавьте игры:** перетащите `.jar` (и `.jad`) в окно или подключите каталог — *Settings → Game library*. Для Proxmox: `tools/proxmox/mgo-library-mount.sh <CTID> /путь/на/хосте` ([docs/LIBRARY.md](docs/LIBRARY.md)).
 2. **Запустите** игру кнопкой *Start*. Звук включается после первого действия пользователя — так требует браузер.
 3. **Управляйте** цифрами и стрелками (Enter — «Fire»), кнопками телефона, экранной клавиатурой или геймпадом. Раскладка — кнопка *Keys…*.
 4. **Подберите экран.** Если манифест игры называет размер экрана, MGO выставит его сам. Если игра нарисована «боком» — нажмите кнопку поворота в шапке плеера: картинка повернётся, а телефон сменится на Nokia E71 с альбомным экраном (повторные нажатия вернут всё обратно).
@@ -105,14 +109,14 @@ npm start          # http://127.0.0.1:8080
 Поддерживаются MIDP 2.0 / CLDC 1.0–1.1 и class-файлы версии ≤ 48 (настоящие J2ME-JAR). Известные ограничения:
 
 - нет поддержки: датчиков и геолокации, SMS, камеры и Bluetooth (игры получают штатную ошибку), видео;
-- у игр нет доступа к сети (`jgo network allow` отключает изоляцию);
+- у игр нет доступа к сети (`mgo network allow` отключает изоляцию);
 - не проверялись Mascot Capsule 3D, видео и камера.
 
 Полная матрица функций — [docs/EMULATOR_FEATURE_MATRIX.md](docs/EMULATOR_FEATURE_MATRIX.md); подробности — [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md).
 
 ## Конфигурация
 
-Большинство параметров меняется в *Settings*. Низкоуровневые значения: в Docker — в файле `.env` (список переменных — [docs/DOCKER.md](docs/DOCKER.md#настройки)), в Proxmox — в `/etc/jgo/jgo.env` (после правки: `systemctl restart jgo`). Переменные приложения (в Docker `compose.yaml` пробрасывает часть из них):
+Большинство параметров меняется в *Settings*. Низкоуровневые значения: в Docker — в файле `.env` (список переменных — [docs/DOCKER.md](docs/DOCKER.md#настройки)), в Proxmox — в `/etc/mgo/mgo.env` (после правки: `systemctl restart mgo`). Переменные приложения (в Docker `compose.yaml` пробрасывает часть из них):
 
 | Переменная | По умолчанию | Назначение |
 |---|---|---|
@@ -122,26 +126,26 @@ npm start          # http://127.0.0.1:8080
 | `MAX_SESSIONS` | `1` | число одновременных игр |
 | `SESSION_MAX_MINUTES`, `SESSION_IDLE_MINUTES` | `120`, `5` | предел длительности и таймаут простоя |
 | `MAX_UPLOAD_MB`, `LIBRARY_QUOTA_MB` | `32`, `2048` (в Docker и Proxmox ставится `4096`) | размер файла и квота библиотеки |
-| `LIBRARY_ROOTS` | `/mnt/jgo-library /srv/jgo-library` | каталоги, откуда можно импортировать игры |
+| `LIBRARY_ROOTS` | `/mnt/mgo-library /srv/mgo-library` | каталоги, откуда можно импортировать игры |
 | `MOBYGAMES_API_KEY` | — | ключ MobyGames (обычно вводится в Settings) |
 
-Полный список — `packaging/jgo.env.example`.
+Полный список — `packaging/mgo.env.example`.
 
-## Команда `jgo` (Proxmox)
+## Команда `mgo` (Proxmox)
 
 Есть только в контейнере Proxmox. В Docker обновление — `docker compose pull && docker compose up -d`, резервная копия — копирование папки данных ([docs/DOCKER.md](docs/DOCKER.md#данные-и-резервные-копии)).
 
 | Команда | Действие |
 |---|---|
-| `jgo status` | версия, службы, адрес, health |
-| `jgo update [--check] [--to vX.Y.Z]` | обновление с проверкой SHA-256 и автоматическим откатом |
-| `jgo backup` / `jgo restore FILE` | резервная копия и восстановление |
-| `jgo rollback` | вернуться к предыдущему релизу |
-| `jgo doctor [--online]` | диагностика системы |
-| `jgo library` | состояние каталогов библиотеки |
-| `jgo token [--rotate]` | показать или заменить токен |
-| `jgo network [deny\|allow]` | сетевой доступ игр |
-| `jgo logs [-f]` | журнал служб |
+| `mgo status` | версия, службы, адрес, health |
+| `mgo update [--check] [--to vX.Y.Z]` | обновление с проверкой SHA-256 и автоматическим откатом |
+| `mgo backup` / `mgo restore FILE` | резервная копия и восстановление |
+| `mgo rollback` | вернуться к предыдущему релизу |
+| `mgo doctor [--online]` | диагностика системы |
+| `mgo library` | состояние каталогов библиотеки |
+| `mgo token [--rotate]` | показать или заменить токен |
+| `mgo network [deny\|allow]` | сетевой доступ игр |
+| `mgo logs [-f]` | журнал служб |
 
 ## Архитектура
 
@@ -156,13 +160,13 @@ npm start          # http://127.0.0.1:8080
 | `bridge/kemulator-adapter` | Rust: связь с KEmulator Bridge |
 | `packages/protocol` | общие типы протокола |
 | `runtime/` | сборка KEmulator и патчи |
-| `packaging/`, `ct/`, `install/` | релиз, команда `jgo`, установка Proxmox VE |
+| `packaging/`, `ct/`, `install/` | релиз, команда `mgo`, установка Proxmox VE |
 
 Подробнее: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). KEmulator nnmod v2.22 (коммит `9ec1005`) собирается из исходников с небольшими патчами ([docs/BRIDGE.md](docs/BRIDGE.md)); его код в репозиторий не входит.
 
 ## Безопасность
 
-- Сервис работает от пользователя `jgo` без capabilities, с `NoNewPrivileges`, фильтром системных вызовов и лимитами; каждая игра — в собственном сетевом пространстве имён без интерфейсов.
+- Сервис работает от пользователя `mgo` без capabilities, с `NoNewPrivileges`, фильтром системных вызовов и лимитами; каждая игра — в собственном сетевом пространстве имён без интерфейсов.
 - Токен или cookie для всех эндпоинтов API, кроме `/api/health`; проверки `Host` и `Origin`.
 - API не читает файлы вне разрешённых каталогов; ключ MobyGames хранится с правами 0600 и не возвращается клиенту.
 - MGO не скачивает игры из интернета.

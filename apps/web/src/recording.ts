@@ -1,10 +1,10 @@
-import type { ClientEvent } from '@j2me-web/protocol';
+import type { ClientEvent } from '@mgo/protocol';
 
 /** What a recording keeps: the player's input. Audio, pause and visibility are not input. */
 export type RecordedEvent = Extract<ClientEvent, { t: 'key' } | { t: 'pointer' } | { t: 'cmd' } | { t: 'text' }>;
 
 export interface Recording {
-  format: 'jgo-input-recording';
+  format: 'mgo-input-recording';
   version: 1;
   gameId: string;
   gameName: string;
@@ -39,7 +39,7 @@ export class Recorder {
   stop(meta: Pick<Recording, 'gameId' | 'gameName' | 'width' | 'height'>, now = performance.now()): Recording {
     const durationMs = this.t0 === null ? 0 : Math.round(now - this.t0);
     this.t0 = null;
-    return { format: 'jgo-input-recording', version: 1, ...meta, durationMs, events: this.events };
+    return { format: 'mgo-input-recording', version: 1, ...meta, durationMs, events: this.events };
   }
 }
 
@@ -81,7 +81,7 @@ export function parseRecording(text: string, gameId: string): Recording {
   let raw: unknown;
   try { raw = JSON.parse(text); } catch { throw new Error('This is not a recording file'); }
   const r = raw as Partial<Recording> | null;
-  if (!r || r.format !== 'jgo-input-recording' || r.version !== 1 || !Array.isArray(r.events)) throw new Error('This is not a recording file');
+  if (!r || r.format !== 'mgo-input-recording' || r.version !== 1 || !Array.isArray(r.events)) throw new Error('This is not a recording file');
   if (r.gameId !== gameId) throw new Error(`This recording belongs to another game (${String(r.gameName ?? r.gameId).slice(0, 60)})`);
   if (r.events.length > MAX_RECORDED_EVENTS) throw new Error('The recording is too long');
   let last = 0;

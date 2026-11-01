@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { GameMeta } from '@j2me-web/protocol';
+import type { GameMeta } from '@mgo/protocol';
 import { api } from './api';
 
 /** Poll serially: an unreachable service can take longer than one refresh interval. */
