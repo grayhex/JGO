@@ -732,5 +732,13 @@
   "Choose a firmware archive": "Выберите архив прошивки",
   ".zip, .7z, .rar or .rpkg": ".zip, .7z, .rar или .rpkg",
   "up to": "до",
-  "Files found in the service's inbox folder. They are read in place, never uploaded through the browser and never deleted. Use it for very large firmware or when a proxy blocks big uploads.": "Файлы из папки inbox службы. Они читаются на месте, не загружаются через браузер и никогда не удаляются. Используйте для очень больших прошивок или если прокси блокирует большие загрузки."
+  "Files found in the service's inbox folder. They are read in place, never uploaded through the browser and never deleted. Use it for very large firmware or when a proxy blocks big uploads.": "Файлы из папки inbox службы. Они читаются на месте, не загружаются через браузер и никогда не удаляются. Используйте для очень больших прошивок или если прокси блокирует большие загрузки.",
+  "Symbian emulator": "Эмулятор Symbian",
+  "experimental": "экспериментально",
+  "Experimental: not every game works": "Экспериментально: работают не все игры",
+  "Cannot check the Symbian service. Try again in a moment.": "Не удалось проверить службу Symbian. Повторите через минуту.",
+  "Checking…": "Проверка…",
+  "Runs on": "Запускается на",
+  "Automatic": "Автоматически",
+  "Open firmware settings": "Открыть настройки прошивки"
 }

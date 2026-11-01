@@ -58,6 +58,8 @@ try {
     return { id: el.getAttribute('data-testid').replace('phone-card-', ''), box: r('.skin-box'), body: r('.skin-body'), lcd: r('.skin-lcd'), fit: btn.getAttribute('data-fit'), disabled: btn.disabled };
   }));
   assert.equal(cards.length, 15);
+  const unloaded = await p.evaluate(() => [...document.querySelectorAll('[data-testid^=phone-card-]')].filter((el) => { const i = el.querySelector('img.skin-body'); return !i || !i.complete || i.naturalWidth === 0; }).map((el) => el.getAttribute('data-testid')));
+  assert.deepEqual(unloaded, [], 'every phone body picture loads');
   for (const c of cards) {
     // the regression: a legacy "height: 280px" rule on every image of the card pulled wide phones (N-Gage) away from their screen
     assert.ok(Math.abs(c.body.w - c.box.w) <= 1 && Math.abs(c.body.h - c.box.h) <= 1, `${c.id}: the body picture fills its box (${JSON.stringify(c.body)} vs ${JSON.stringify(c.box)})`);

@@ -102,29 +102,21 @@ try {
   assert.equal(game.platform, 'symbian');
   await p.goto(base + '/play/' + game.id);
   await p.locator('.skin-box').waitFor();
-  await p.getByTestId('symbian-note').waitFor();
-  assert.equal(await p.getByTestId('symbian-device').inputValue(), '', 'automatic device by default');
-  assert.ok(await p.getByTestId('symbian-session-diagnostics').isVisible(), 'a diagnostics link next to the game');
+  // the player says what a player needs: whether it can start and on which phone's firmware; no service internals
+  await wait(async () => await p.getByTestId('native-readiness').getAttribute('data-ready') === '1', 'native ready');
+  assert.match(await p.getByTestId('native-readiness').innerText(), /Runs on\s+Nokia N70/);
+  const panelText = await p.locator('.ctrl-col').innerText();
+  for (const noise of ['Installed devices', 'Test readiness', 'Service connected', 'First frame', 'Refresh status', 'Use matching skin', 'EKA2L1 master', 'The skin changes appearance', 'Emulated device']) assert.ok(!panelText.includes(noise), `no "${noise}" in the player`);
+  assert.equal(await p.getByTestId('symbian-device').count(), 0, 'one installed firmware: nothing to choose');
   assert.equal(await p.getByText('Game speed').count(), 0, 'no J2ME speed control for a Symbian game');
   assert.equal(await p.getByTestId('phone-profile-match').count(), 0, 'no J2ME profile panel');
-  await wait(async () => await p.getByTestId('native-readiness').getAttribute('data-ready') === '1', 'native ready');
   await p.locator('.skin-box[data-skin="nokia-n70"]').waitFor();
-  await p.getByLabel('Emulated device', { exact: true }).selectOption('eka2l1-n8');
-  await wait(async () => (await p.getByTestId('native-readiness').innerText()).includes('not installed'), 'missing N8 profile');
-  assert.ok(await p.locator('.ctrl-col').getByRole('button', { name: 'Start', exact: true }).isDisabled());
-  assert.equal((await (await fetch(base + '/api/games/' + game.id)).json()).settings.symbianDevice, 'RM-596');
-  await p.getByLabel('Emulated device', { exact: true }).selectOption('eka2l1-n70');
-  await wait(async () => await p.getByTestId('native-readiness').getAttribute('data-ready') === '1', 'N70 profile');
-  await p.reload();
-  await wait(async () => await p.getByTestId('native-readiness').getAttribute('data-ready') === '1', 'ready after reload');
-  assert.equal(await p.getByLabel('Emulated device', { exact: true }).inputValue(), 'eka2l1-n70');
-  // Picking another Symbian skin changes no actual firmware.
+  // A phone of another firmware is not run: choosing the N8 on /phones brings the game back to the phone of its firmware
   await p.getByTestId('change-phone').click();
   await p.getByRole('button', { name: 'Nokia N8', exact: true }).click();
-  await p.locator('.skin-box[data-skin="nokia-n8"]').waitFor();
-  assert.equal((await (await fetch(base + '/api/games/' + game.id)).json()).settings.symbianDevice, 'RM-84');
-  await p.getByRole('button', { name: 'Use matching skin', exact: true }).click();
-  await p.locator('.skin-box[data-skin="nokia-n70"]').waitFor();
+  await p.locator('.skin-box[data-skin="nokia-n70"]').waitFor({ timeout: 15000 });
+  await wait(async () => (await (await fetch(base + '/api/games/' + game.id)).json()).settings.skinId === 'nokia-n70', 'the game goes back to the N70');
+  assert.equal((await (await fetch(base + '/api/games/' + game.id)).json()).settings.symbianDevice ?? 'RM-84', 'RM-84');
   await p.getByRole('button', { name: 'Start', exact: true }).first().click();
   await wait(async () => (await p.getByTestId('frame-size').innerText()) === '176×208', 'the game picture at its own size', 600);
   const st = await wait(async () => (await (await fetch(base + '/api/sessions')).json()).find(s => s.state === 'running'), 'running session');
