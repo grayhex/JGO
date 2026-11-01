@@ -1,5 +1,5 @@
 diff --git a/src/emu/control/src/native.cpp b/src/emu/control/src/native.cpp
-index 81615ba..38addb9 100644
+index 81615ba..119bf02 100644
 --- a/src/emu/control/src/native.cpp
 +++ b/src/emu/control/src/native.cpp
 @@ -27,6 +27,7 @@
@@ -19,7 +19,7 @@ index 81615ba..38addb9 100644
              if (req.method == "RESOLVE" && p == std::vector<std::string>{ "v1", "files" }) {
                  const auto raw = req.param("path");
                  require(!raw.empty(), "bad_request", "path query parameter required", 400);
-@@ -312,8 +313,28 @@ namespace eka2l1::control {
+@@ -312,8 +313,31 @@ namespace eka2l1::control {
                      const auto storage = sys().get_config()->storage;
                      const auto roms = add_path(storage, "roms/"), drives = add_path(storage, "drives/z/");
                      const bool isolate = body["isolateDrives"].boolean();
@@ -28,8 +28,11 @@ index 81615ba..38addb9 100644
 +                    device_installation_error result;
 +                    if (body.contains("vpl")) {
 +                        require(!body.contains("rom") && !body.contains("rpkg") && !body.contains("archive"), "bad_request", "vpl cannot be combined with rom, rpkg or archive", 400);
-+                        const auto variant = body["variant"].number(-1);
-+                        require(!body.contains("variant") || (body["variant"].is_number() && std::isfinite(variant) && variant >= 0 && variant <= 65535 && std::floor(variant) == variant), "bad_request", "variant must be a zero-based integer", 400);
++                        // Ask whether the member exists BEFORE reading it: the non-const operator[] of control::json inserts a null member,
++                        // which would make an absent variant look present (and then "not a number").
++                        const bool has_variant = body.contains("variant");
++                        const auto variant = has_variant ? body["variant"].number(-1) : -1;
++                        require(!has_variant || (body["variant"].is_number() && std::isfinite(variant) && variant >= 0 && variant <= 65535 && std::floor(variant) == variant), "bad_request", "variant must be a zero-based integer", 400);
 +                        result = install_firmware(manager, required_string(body, "vpl"), storage, roms, isolate,
 +                            [variant](const std::vector<std::string> &variants) {
 +                                require(!variants.empty(), "vpl_invalid", "the VPL has no variants");
