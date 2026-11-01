@@ -47,13 +47,13 @@ try {
 
     if (created) {
       // Only the initial startup logs the token. Keep Docker logs private.
-      process.stderr.write(`[JGO] First-run login token: ${token}\n[JGO] Token saved at ${file} (0600). Keep container logs private.\n`);
+      process.stderr.write(`[MGO] First-run login token: ${token}\n[MGO] Token saved at ${file} (0600). Keep container logs private.\n`);
     } else {
-      process.stderr.write(`[JGO] Using persistent login token from ${file}. To retrieve it: docker compose exec app cat ${file}\n`);
+      process.stderr.write(`[MGO] Using persistent login token from ${file}. To retrieve it: docker compose exec app cat ${file}\n`);
     }
     process.stdout.write(token);
   }
 } catch (e) {
-  process.stderr.write(`[JGO] Cannot provision login token: ${e.message}\n`);
+  process.stderr.write(`[MGO] Cannot provision login token: ${e.message}\n`);
   process.exit(1);
 }

@@ -54,7 +54,7 @@ try {
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('console', (m) => { if (m.type() === 'error' && !/401/.test(m.text())) errors.push(m.text()); });
-  const dialog = page.getByRole('dialog', { name: 'Set up JGO' });
+  const dialog = page.getByRole('dialog', { name: 'Set up MGO' });
 
   // ---- the existing token still gates everything
   await page.goto(base);
@@ -144,7 +144,7 @@ try {
   // ---- the wizard is gone, defaults are applied
   await page.reload();
   await page.waitForSelector('article.game-card');
-  ok('the wizard does not come back after it was finished', (await page.getByRole('dialog', { name: 'Set up JGO' }).count()) === 0);
+  ok('the wizard does not come back after it was finished', (await page.getByRole('dialog', { name: 'Set up MGO' }).count()) === 0);
   const stored = await page.evaluate(() => ({ ...localStorage }));
   ok('the secret is not in the browser storage', !JSON.stringify(stored).includes(KEY));
   await page.locator('article.game-card').first().locator('button.card-main').click();
@@ -179,7 +179,7 @@ try {
   await dialog.waitFor();
   await dialog.getByRole('button', { name: 'Skip setup' }).click();
   await dialog.waitFor({ state: 'hidden' });
-  ok('the wizard can be run again and skipped', (await page.getByRole('dialog', { name: 'Set up JGO' }).count()) === 0);
+  ok('the wizard can be run again and skipped', (await page.getByRole('dialog', { name: 'Set up MGO' }).count()) === 0);
 
   // ---- delete the MobyGames data: games stay
   await page.locator('#mobygames').getByRole('button', { name: /Delete all MobyGames data/ }).waitFor();

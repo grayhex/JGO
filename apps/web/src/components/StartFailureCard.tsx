@@ -16,7 +16,7 @@ export function StartFailureCard({ failure, sessionId }: { failure: StartFailure
       {failure.likelyIncompatibleGame && (
         <p className="note warn" data-testid="incompatible-game">
           <strong>{t('This game is probably not compatible with this firmware / EKA2L1.')}</strong>{' '}
-          {t('The emulator itself reported the failure; it is not a JGO setting. Try another game, or firmware of the generation the game was made for.')}
+          {t('The emulator itself reported the failure; it is not an MGO setting. Try another game, or firmware of the generation the game was made for.')}
         </p>
       )}
       <dl className="facts">

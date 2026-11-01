@@ -25,7 +25,7 @@ function toHttp(e: unknown): never {
 
 /**
  * Settings for the optional Symbian service: its state and the user's own firmware. The service lives in another container
- * (jgo-symbian); JGO only streams the firmware files to it, they are never stored here and never pass through the repository.
+ * (mgo-symbian); MGO only streams the firmware files to it, they are never stored here and never pass through the repository.
  */
 export function registerSymbianRoutes(app: FastifyInstance, c: { cfg: Config; sessions: SessionManager }): void {
   const { cfg, sessions } = c;
@@ -52,7 +52,7 @@ export function registerSymbianRoutes(app: FastifyInstance, c: { cfg: Config; se
 
   // A plain-text report to attach to a bug report: versions, devices (codes only), the service log and the emulator's last words.
   app.get('/api/symbian/diagnostics', async (_req, reply) => {
-    return reply.header('content-type', 'text/plain; charset=utf-8').header('content-disposition', 'attachment; filename="jgo-symbian-diagnostics.txt"').send(await symbianDiagnosticsText(cfg));
+    return reply.header('content-type', 'text/plain; charset=utf-8').header('content-disposition', 'attachment; filename="mgo-symbian-diagnostics.txt"').send(await symbianDiagnosticsText(cfg));
   });
 
   app.get('/api/symbian/status', async () => {

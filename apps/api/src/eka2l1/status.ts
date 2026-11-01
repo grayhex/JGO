@@ -17,7 +17,7 @@ export async function readSymbianStatus(cfg: Config, inspect?: (health: AgentHea
 /** The plain-text report about the Symbian service: versions, devices (codes only), limits, the service log and the emulator's last words. */
 export async function symbianDiagnosticsText(cfg: Config): Promise<string> {
   const agent = agentFromConfig(cfg);
-  const out: string[] = [`JGO Symbian diagnostics, ${new Date().toISOString()}`, `limits: firmware ${Math.round(cfg.maxFirmwareBytes / 1048576)} MB, package ${Math.round(cfg.maxPackageBytes / 1048576)} MB`];
+  const out: string[] = [`MGO Symbian diagnostics, ${new Date().toISOString()}`, `limits: firmware ${Math.round(cfg.maxFirmwareBytes / 1048576)} MB, package ${Math.round(cfg.maxPackageBytes / 1048576)} MB`];
   if (!agent) out.push('service: not configured (SYMBIAN_AGENT_URL is empty)');
   else {
     try {

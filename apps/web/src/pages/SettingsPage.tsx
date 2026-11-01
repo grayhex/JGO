@@ -61,7 +61,7 @@ export function SettingsPage({ toast, onRunWizard, onLibraryChanged }: { toast: 
       <nav className="settings-nav" aria-label={translateUI("Settings sections")}>
         {SECTIONS.map((s) => <a key={s.id} href={`#${s.id}`} onClick={(e) => { e.preventDefault(); history.replaceState(null, '', `#${s.id}`); document.getElementById(s.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}><Icon name={s.icon} /> {translateUI(s.label)}</a>)}
       </nav>
-      <Section id="system" icon="cpu" title={translateUI("System")} hint={translateUI("Is everything JGO needs installed and working?")}><SystemChecks status={status} onReload={loadStatus} /></Section>
+      <Section id="system" icon="cpu" title={translateUI("System")} hint={translateUI("Is everything MGO needs installed and working?")}><SystemChecks status={status} onReload={loadStatus} /></Section>
       <Section id="library" icon="library" title={translateUI("Game library")} hint={translateUI("A folder with your .jar/.jad files, shared read-only with the container. Optional: you can always upload games from the browser.")}>
         <LibrarySource toast={toast} onSaved={(p) => { loadStatus(); if (p) void api.scanStart('update').then(() => setScanKey((k) => k + 1), () => undefined); }} />
         <h3>{translateUI("Import")}</h3>
@@ -72,7 +72,7 @@ export function SettingsPage({ toast, onRunWizard, onLibraryChanged }: { toast: 
         <CatalogPanel toast={toast} onChanged={onLibraryChanged} />
         <label className="switch-line">
           <input type="checkbox" checked={server?.settings.autoScan ?? false} onChange={(e) => void api.patchSettings({ autoScan: e.target.checked }).then((r) => { import('../serverSettings').then((m) => m.setServerSettings(r)); }, (x) => toast('error', (x as Error).message))} />
-          <span>{translateUI("Scan for changes every time JGO starts")}</span>
+          <span>{translateUI("Scan for changes every time MGO starts")}</span>
         </label>
       </Section>
       <Section id="mobygames" icon="info" title={translateUI("MobyGames")} hint={translateUI("Covers, descriptions, genres, publishers, years, ratings and screenshots (optional).")}><MobyPanel toast={toast} /></Section>

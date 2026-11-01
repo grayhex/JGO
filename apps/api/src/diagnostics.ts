@@ -48,13 +48,13 @@ export interface DiagnosticsInput {
   extra?: { title: string; body: string }[];
 }
 
-/** The failure of a Symbian / N-Gage start in words: what stopped, the facts it rests on, and what JGO concludes. */
+/** The failure of a Symbian / N-Gage start in words: what stopped, the facts it rests on, and what MGO concludes. */
 export function describeFailure(f: NonNullable<SessionStatus['failure']>): string {
   const L: string[] = [];
   L.push(`RESULT: ${f.cause} at step "${f.stage}" after ${(f.elapsedMs / 1000).toFixed(1)} s`, `MESSAGE: ${f.message}`);
   L.push(`APPLICATION: ${f.appName ?? '(unknown)'} UID ${f.uid ?? '(none yet)'}   PLATFORM: ${f.platform}`);
   L.push(`FIRMWARE: ${f.firmware ? `${f.firmware.manufacturer} ${f.firmware.model} (${f.firmware.code})${f.firmware.os ? `, ${f.firmware.os}` : ''}` : '(not chosen)'}`);
-  if (f.likelyIncompatibleGame) L.push('', '>>> The facts point at an INCOMPATIBILITY between this game and EKA2L1 / this firmware, not at JGO settings. <<<');
+  if (f.likelyIncompatibleGame) L.push('', '>>> The facts point at an INCOMPATIBILITY between this game and EKA2L1 / this firmware, not at MGO settings. <<<');
   if (f.launch) L.push('', `LAUNCH ANSWER: HTTP ${f.launch.httpStatus}${f.launch.code ? ` ${f.launch.code}` : ''}${f.launch.message ? ` "${f.launch.message}"` : ''}${f.launch.session ? ` session=${JSON.stringify(f.launch.session)}` : ''}`);
   if (f.timeline.length) L.push('', 'SESSION STATES SEEN (ms since the start of the wait):', ...f.timeline.map((t) => `  +${t.atMs} ms  state=${t.state}  screenVisible=${t.screenVisible}${t.lastExit ? `  lastExit=${JSON.stringify(t.lastExit)}` : ''}`));
   if (f.screenshots.length) L.push('', 'SCREENSHOT ANSWERS (changes only):', ...f.screenshots.map((t) => `  +${t.atMs} ms  ${t.result}${t.httpStatus ? ` HTTP ${t.httpStatus}` : ''}${t.code ? ` ${t.code}` : ''}${t.frame !== null ? ` frame ${t.frame}` : ''}`));
@@ -72,7 +72,7 @@ export function describeFailure(f: NonNullable<SessionStatus['failure']>): strin
 export async function buildDiagnostics(i: DiagnosticsInput): Promise<string> {
   const out: string[] = [];
   const section = (title: string, body: string) => out.push(`==== ${title} ====`, body, '');
-  out.push(`JGO ${i.version} diagnostics for "${i.gameName}" - ${new Date().toISOString()}`, '');
+  out.push(`MGO ${i.version} diagnostics for "${i.gameName}" - ${new Date().toISOString()}`, '');
   const { logTail: _ignored, ...status } = i.status;
   if (i.status.failure) section('start failure', describeFailure(i.status.failure));
   section('session', JSON.stringify(status, null, 2));

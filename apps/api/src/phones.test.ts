@@ -136,7 +136,7 @@ describe('independent skins, emulated devices and game platforms', () => {
     // with several firmware installed, the generation the package needs decides when exactly one fits
     const both = nativePhonePlan('symbian', DEFAULT_SETTINGS, installed('RM-84', 'RM-159'), 'sis9');
     assert.equal(both.ready, true); assert.equal(both.firmwareCode, 'RM-159'); assert.equal(both.source, 'compatible'); assert.equal(both.deviceId, 'eka2l1-n95');
-    assert.equal(nativePhonePlan('symbian', DEFAULT_SETTINGS, installed('RM-84', 'NEM-4'), 'sis-legacy').code, 'device_required', 'two old firmware fit: JGO does not guess');
+    assert.equal(nativePhonePlan('symbian', DEFAULT_SETTINGS, installed('RM-84', 'NEM-4'), 'sis-legacy').code, 'device_required', 'two old firmware fit: MGO does not guess');
     assert.equal(nativePhonePlan('symbian', DEFAULT_SETTINGS, installed('RM-84', 'RH-29'), 'sis9').code, 'no_compatible_firmware');
     // an unknown package format or an uncatalogued firmware is not judged
     assert.equal(nativePhonePlan('symbian', DEFAULT_SETTINGS, installed('RM-84'), 'unknown').ready, true);

@@ -22,7 +22,7 @@ import { emulatedDevice, nativePhonePlan, type StartFailure } from '@j2me-web/pr
 import { readSymbianStatus } from './eka2l1/status.js';
 import { KEmulatorAdapter, type ExitInfo, type FrameMsg } from './kemulator/adapter.js';
 import type { EmulatorAdapter } from './emulator.js';
-import { AgentClient, AgentError } from './eka2l1/agentClient.js';
+import { AgentError, agentFromConfig } from './eka2l1/agentClient.js';
 import { Eka2l1Adapter } from './eka2l1/adapter.js';
 import { newId, type Library } from './library.js';
 import type { Config } from './config.js';
@@ -570,13 +570,13 @@ export class SessionManager {
   }
 
   /**
-   * A Symbian / N-Gage game: run by EKA2L1 in the optional jgo-symbian container. Nothing of KEmulator is involved. The container's
+   * A Symbian / N-Gage game: run by EKA2L1 in the optional mgo-symbian container. Nothing of KEmulator is involved. The container's
    * own saves live under a key made of the owner and the game, so two games never share a drive.
    */
   private async createExternal(game: GameMeta, overrides: GameSettings, owner: string): Promise<Session> {
     const platform = game.platform as 'symbian' | 'ngage' | 'ngage2';
     if (!this.cfg.symbianAgentUrl) {
-      throw new SessionError('symbian_unavailable', 'Symbian and N-Gage games need the optional jgo-symbian service (EKA2L1), which is not configured on this server. See docs/SYMBIAN.md.', 503);
+      throw new SessionError('symbian_unavailable', 'Symbian and N-Gage games need the optional mgo-symbian service (EKA2L1), which is not configured on this server. See docs/SYMBIAN.md.', 503);
     }
     const file = this.lib.packagePath(game.id);
     if (!file) throw new SessionError('missing_package', 'The game file is missing from the library', 410);
@@ -585,7 +585,7 @@ export class SessionManager {
     mkdirSync(bridgeDir, { recursive: true, mode: 0o700 });
     this.lib.pruneLogs();
     const adapter = new Eka2l1Adapter({
-      agent: new AgentClient({ baseUrl: this.cfg.symbianAgentUrl, token: this.cfg.symbianAgentToken }),
+      agent: agentFromConfig(this.cfg)!,
       saveKey: symbianSaveKey(owner, game.id),
       deviceCode: overrides.symbianDevice ?? game.settings.symbianDevice ?? null,
       platform,
@@ -621,11 +621,11 @@ export class SessionManager {
     }
   }
 
-  /** Removes a Symbian game's drives from the jgo-symbian service (best effort: the service may be switched off). */
+  /** Removes a Symbian game's drives from the mgo-symbian service (best effort: the service may be switched off). */
   async deleteExternalSaves(owner: string, gameId: string): Promise<void> {
     if (!this.cfg.symbianAgentUrl) return;
     try {
-      await new AgentClient({ baseUrl: this.cfg.symbianAgentUrl, token: this.cfg.symbianAgentToken }).deleteSaves(symbianSaveKey(owner, gameId));
+      await agentFromConfig(this.cfg)!.deleteSaves(symbianSaveKey(owner, gameId));
     } catch { /* the saves stay in the service until it is reachable again; the next delete or a volume wipe removes them */ }
   }
 

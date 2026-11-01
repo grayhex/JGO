@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // FAKE EKA2L1 for tests. It speaks the part of EKA2L1's /v1 control API that was read from the source code
-// (src/emu/control/src/{service,native}.cpp, October 2026) and draws a test picture. It proves JGO's side of the integration
+// (src/emu/control/src/{service,native}.cpp, October 2026) and draws a test picture. It proves MGO's side of the integration
 // (the adapter, the agent, the WebSocket stream); it says NOTHING about what the real emulator does with a real game.
 import http from 'node:http';
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync, appendFileSync } from 'node:fs';

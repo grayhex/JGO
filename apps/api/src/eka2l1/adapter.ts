@@ -38,7 +38,7 @@ class StartError extends Error {
 }
 
 /**
- * Runs a game in EKA2L1 inside the optional jgo-symbian container. The emulator's own HTTP control API does the work
+ * Runs a game in EKA2L1 inside the optional mgo-symbian container. The emulator's own HTTP control API does the work
  * (install, launch, keys, touch, screenshots); sound is captured from the container's virtual sound card. Experimental: see docs/SYMBIAN.md
  * for what has and has not been checked against a real emulator.
  */
@@ -75,7 +75,7 @@ export class Eka2l1Adapter extends EventEmitter<AdapterEvents> implements Emulat
     return { state: this._state, frames: this.frames, fps: this.fpsWindow.length / 2, exit: this.exitInfo, pid: null, firstFrameAt: this.firstFrameAt, heldKeys: [...this.held] };
   }
 
-  /** Set when start() failed: what EKA2L1 answered, and what JGO concludes from it. */
+  /** Set when start() failed: what EKA2L1 answered, and what MGO concludes from it. */
   getFailure(): StartFailure | null { return this.failure; }
 
   private log(line: string): void { this.emit('log', `[eka2l1] ${line}`); }
@@ -224,7 +224,7 @@ export class Eka2l1Adapter extends EventEmitter<AdapterEvents> implements Emulat
     if (!uid) {
       const apps = await agent.control<{ apps: { uid: string; name: string }[] }>('GET', '/v1/apps');
       if (apps.apps.length === 1) { uid = apps.apps[0]!.uid; this.rec.appName = apps.apps[0]!.name; }
-      else if (apps.apps.length > 1) throw new Error(`The package installed, but the emulator lists ${apps.apps.length} applications and JGO cannot tell which one is the game`);
+      else if (apps.apps.length > 1) throw new Error(`The package installed, but the emulator lists ${apps.apps.length} applications and MGO cannot tell which one is the game`);
     }
     if (!uid) throw new Error('The package was installed but no application appeared (is it a game for this device?)');
     await agent.rememberApp(this.o.saveKey, uid).catch(() => undefined);

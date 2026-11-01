@@ -24,7 +24,7 @@ tools/audit/build/
 *.sisx
 *.n-gage
 symbian-data/
-jgo-symbian-data/
+mgo-symbian-data/
 symbian-inbox/
 
 # User-supplied factory firmware kits

@@ -1,6 +1,6 @@
 <div align="center">
 
-# Java (ME) Games Online
+# MGO — Mobile Games Online
 
 **Self-hosted веб-плеер для игр Java ME (J2ME).**
 Игры работают в настоящем эмуляторе [KEmulator nnmod](https://github.com/shinovon/KEmulator) на вашем сервере и открываются в любом браузере.
@@ -11,7 +11,7 @@
 
 [English](README.en.md) · Русский
 
-<img src="docs/img/player.png" alt="Плеер JGO: игра в телефоне Nokia N95" width="760">
+<img src="docs/img/player.png" alt="Плеер MGO: игра в телефоне Nokia N95" width="760">
 
 </div>
 
@@ -54,9 +54,9 @@ docker compose up -d
 docker compose logs app
 ```
 
-При первом запуске JGO автоматически создаст случайный токен входа в отдельном постоянном Docker-томе `jgo-auth`, в файле `/jgo-auth/.jgo-auth-token`. Этот том сохраняет строгие права на секрет даже на NAS с ACL. Он выводится **один раз** в лог контейнера `app` (строка `First-run login token`). Позднее можно прочитать его через `docker compose exec app cat /jgo-auth/.jgo-auth-token`. Логи с токеном не публикуйте.
+При первом запуске MGO автоматически создаст случайный токен входа в отдельном постоянном Docker-томе `jgo-auth`, в файле `/jgo-auth/.jgo-auth-token`. Этот том сохраняет строгие права на секрет даже на NAS с ACL. Он выводится **один раз** в лог контейнера `app` (строка `First-run login token`). Позднее можно прочитать его через `docker compose exec app cat /jgo-auth/.jgo-auth-token`. Логи с токеном не публикуйте.
 
-Откройте `http://<адрес NAS>:8080`, введите токен и пройдите мастер первого запуска. Обновление: `docker compose pull && docker compose up -d`. Готовые файлы также прикрепляются к [релизам](https://github.com/grayhex/JGO/releases). Для фиксированной версии замените `:latest` в YAML или задайте `JGO_VERSION` через необязательный `.env`. `JGO_VERSION=edge` — самая свежая сборка `main`, прошедшая CI (для тестеров); `latest` двигается только при официальном релизе.
+Тот же файл поднимает и `mgo-symbian` (Symbian / N-Gage через EKA2L1, экспериментально): нужна **ваша** прошивка в *Settings → Symbian*; для одних Java ME-игр удалите этот блок. Откройте `http://<адрес NAS>:8080`, введите токен и пройдите мастер первого запуска. Обновление: `docker compose pull && docker compose up -d`. Готовые файлы также прикрепляются к [релизам](https://github.com/grayhex/JGO/releases). Для фиксированной версии замените `:latest` в YAML или задайте `JGO_VERSION` через необязательный `.env`. `JGO_VERSION=edge` — самая свежая сборка `main`, прошедшая CI (для тестеров); `latest` двигается только при официальном релизе.
 
 Пошаговые инструкции для Synology и UGREEN, права на папки, резервные копии, HTTPS и разбор неполадок — в [docs/DOCKER.md](docs/DOCKER.md).
 
@@ -97,7 +97,7 @@ npm start          # http://127.0.0.1:8080
 1. **Добавьте игры:** перетащите `.jar` (и `.jad`) в окно или подключите каталог — *Settings → Game library*. Для Proxmox: `tools/proxmox/jgo-library-mount.sh <CTID> /путь/на/хосте` ([docs/LIBRARY.md](docs/LIBRARY.md)).
 2. **Запустите** игру кнопкой *Start*. Звук включается после первого действия пользователя — так требует браузер.
 3. **Управляйте** цифрами и стрелками (Enter — «Fire»), кнопками телефона, экранной клавиатурой или геймпадом. Раскладка — кнопка *Keys…*.
-4. **Подберите экран.** Если манифест игры называет размер экрана, JGO выставит его сам. Если игра нарисована «боком» — нажмите кнопку поворота в шапке плеера: картинка повернётся, а телефон сменится на Nokia E71 с альбомным экраном (повторные нажатия вернут всё обратно).
+4. **Подберите экран.** Если манифест игры называет размер экрана, MGO выставит его сам. Если игра нарисована «боком» — нажмите кнопку поворота в шапке плеера: картинка повернётся, а телефон сменится на Nokia E71 с альбомным экраном (повторные нажатия вернут всё обратно).
 5. **Выходите через Stop:** вызывается штатный `destroyApp()`, сохранения RMS записываются атомарно.
 
 ## Совместимость
@@ -117,7 +117,7 @@ npm start          # http://127.0.0.1:8080
 | Переменная | По умолчанию | Назначение |
 |---|---|---|
 | `HOST`, `PORT` | `0.0.0.0`, `8080` | адрес и порт |
-| `AUTH_TOKEN` | генерируется (Docker: `JGO_TOKEN`) | токен доступа (≥ 16 символов) |
+| `AUTH_TOKEN` | генерируется (Docker: `MGO_TOKEN`) | токен доступа (≥ 16 символов) |
 | `ALLOWED_ORIGINS` | — | дополнительные origin за обратным прокси |
 | `MAX_SESSIONS` | `1` | число одновременных игр |
 | `SESSION_MAX_MINUTES`, `SESSION_IDLE_MINUTES` | `120`, `5` | предел длительности и таймаут простоя |
@@ -165,7 +165,7 @@ npm start          # http://127.0.0.1:8080
 - Сервис работает от пользователя `jgo` без capabilities, с `NoNewPrivileges`, фильтром системных вызовов и лимитами; каждая игра — в собственном сетевом пространстве имён без интерфейсов.
 - Токен или cookie для всех эндпоинтов API, кроме `/api/health`; проверки `Host` и `Origin`.
 - API не читает файлы вне разрешённых каталогов; ключ MobyGames хранится с правами 0600 и не возвращается клиенту.
-- JGO не скачивает игры из интернета.
+- MGO не скачивает игры из интернета.
 
 Подробнее: [docs/SECURITY.md](docs/SECURITY.md).
 
@@ -197,7 +197,7 @@ cargo test --manifest-path bridge/kemulator-adapter/Cargo.toml
 
 ## Благодарности
 
-- [KEmulator nnmod](https://github.com/shinovon/KEmulator) (shinovon) — эмулятор, на котором построен JGO.
+- [KEmulator nnmod](https://github.com/shinovon/KEmulator) (shinovon) — эмулятор, на котором построен MGO.
 - [Proxmox VE Community Scripts](https://github.com/community-scripts/ProxmoxVE) — формат скриптов установки.
 - [MobyGames](https://www.mobygames.com) — метаданные при включённой интеграции.
 

@@ -313,12 +313,12 @@ export class KEmulatorAdapter extends EventEmitter<AdapterEvents> implements Emu
     if (Number.isInteger(id)) this.input(`C ${id}`);
   }
 
-  /** Bridge `S` (JGO patch 0012): suspend the MIDlet and freeze its drawing loop, or undo that. */
+  /** Bridge `S` (MGO patch 0012): suspend the MIDlet and freeze its drawing loop, or undo that. */
   setPaused(on: boolean): void {
     this.input(`S ${on ? 1 : 0}`);
   }
 
-  /** Bridge `Y` (JGO patch 0013): KEmulator's speed modifier, an integer in -100..100 except 0. */
+  /** Bridge `Y` (MGO patch 0013): KEmulator's speed modifier, an integer in -100..100 except 0. */
   setSpeed(modifier: number): void {
     this.input(`Y ${modifier}`);
   }

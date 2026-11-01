@@ -1,6 +1,6 @@
 <div align="center">
 
-# JGO
+# MGO — Mobile Games Online
 
 **A self-hosted web player for Java ME (J2ME) games.**
 Games run in the real [KEmulator nnmod](https://github.com/shinovon/KEmulator) emulator on your server and open in any browser.
@@ -11,7 +11,7 @@ Games run in the real [KEmulator nnmod](https://github.com/shinovon/KEmulator) e
 
 English · [Русский](README.md)
 
-<img src="docs/img/player.png" alt="The JGO player: a game in a Nokia N95" width="760">
+<img src="docs/img/player.png" alt="The MGO player: a game in a Nokia N95" width="760">
 
 </div>
 
@@ -54,9 +54,9 @@ docker compose up -d
 docker compose logs app
 ```
 
-At first boot JGO generates a secure random login token in a separate Docker-managed volume `jgo-auth`, at `/jgo-auth/.jgo-auth-token`. This avoids NAS shared-folder ACL restrictions. The token is shown **once** in `app` container logs as `First-run login token`; later retrieve it with `docker compose exec app cat /jgo-auth/.jgo-auth-token`. Keep these logs private.
+At first boot MGO generates a secure random login token in a separate Docker-managed volume `jgo-auth`, at `/jgo-auth/.jgo-auth-token`. This avoids NAS shared-folder ACL restrictions. The token is shown **once** in `app` container logs as `First-run login token`; later retrieve it with `docker compose exec app cat /jgo-auth/.jgo-auth-token`. Keep these logs private.
 
-Open `http://<NAS address>:8080`, enter the token, and finish the first-run wizard. To update: `docker compose pull && docker compose up -d`. The configuration is also attached to [GitHub releases](https://github.com/grayhex/JGO/releases); pin a version by editing the image tags or using optional `JGO_VERSION`. `JGO_VERSION=edge` follows the newest `main` build that passed CI (for testers); `latest` moves only for an official release.
+Open `http://<NAS address>:8080`, enter the token, and finish the first-run wizard. The same file also starts `mgo-symbian` (Symbian / N-Gage through EKA2L1, experimental): it needs your own firmware in *Settings → Symbian*; delete that block if you only play Java ME games. To update: `docker compose pull && docker compose up -d`. The configuration is also attached to [GitHub releases](https://github.com/grayhex/JGO/releases); pin a version by editing the image tags or using optional `MGO_VERSION` (`JGO_VERSION` still works). `MGO_VERSION=edge` follows the newest `main` build that passed CI (for testers); `latest` moves only for an official release.
 
 Step-by-step guides for Synology and UGREEN, folder permissions, backups, HTTPS and troubleshooting: [docs/DOCKER.md](docs/DOCKER.md) (Russian).
 
@@ -97,7 +97,7 @@ npm start          # http://127.0.0.1:8080
 1. **Add games:** drop `.jar` (and `.jad`) files onto the window or connect a folder — *Settings → Game library*. For Proxmox: `tools/proxmox/jgo-library-mount.sh <CTID> /host/path` ([docs/LIBRARY.md](docs/LIBRARY.md)).
 2. **Start** a game with *Start*. Audio is enabled after the first user action, as browsers require.
 3. **Play** with digits and arrows (Enter is "Fire"), the handset keys, the on-screen keypad or a gamepad. The layout is under *Keys…*.
-4. **Fit the screen.** If the game's manifest names its screen size, JGO sets it by itself. If a game is drawn sideways, press the rotate button in the player header: the picture turns and the phone changes to the Nokia E71 with its landscape display (turn back to restore it).
+4. **Fit the screen.** If the game's manifest names its screen size, MGO sets it by itself. If a game is drawn sideways, press the rotate button in the player header: the picture turns and the phone changes to the Nokia E71 with its landscape display (turn back to restore it).
 5. **Quit with Stop:** the regular `destroyApp()` runs and RMS saves are written atomically.
 
 ## Compatibility
@@ -117,7 +117,7 @@ Most options are set in *Settings*. Low-level values: with Docker in the `.env` 
 | Variable | Default | Purpose |
 |---|---|---|
 | `HOST`, `PORT` | `0.0.0.0`, `8080` | listen address and port |
-| `AUTH_TOKEN` | generated (Docker: `JGO_TOKEN`) | access token (≥ 16 characters) |
+| `AUTH_TOKEN` | generated (Docker: `MGO_TOKEN`) | access token (≥ 16 characters) |
 | `ALLOWED_ORIGINS` | — | extra origins behind a reverse proxy |
 | `MAX_SESSIONS` | `1` | concurrent games |
 | `SESSION_MAX_MINUTES`, `SESSION_IDLE_MINUTES` | `120`, `5` | session length cap and idle timeout |
@@ -165,7 +165,7 @@ More: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). KEmulator nnmod v2.22 (commi
 - The service runs as user `jgo` with no capabilities, `NoNewPrivileges`, a syscall filter and limits; every game runs in its own network namespace with no interfaces.
 - A token or cookie for every API endpoint except `/api/health`; `Host` and `Origin` checks.
 - The API never reads files outside the allowed folders; the MobyGames key is stored with 0600 permissions and never returned to the client.
-- JGO does not download games from the internet.
+- MGO does not download games from the internet.
 
 More: [docs/SECURITY.md](docs/SECURITY.md).
 
@@ -197,7 +197,7 @@ cargo test --manifest-path bridge/kemulator-adapter/Cargo.toml
 
 ## Acknowledgements
 
-- [KEmulator nnmod](https://github.com/shinovon/KEmulator) (shinovon) — the emulator JGO is built on.
+- [KEmulator nnmod](https://github.com/shinovon/KEmulator) (shinovon) — the emulator MGO is built on.
 - [Proxmox VE Community Scripts](https://github.com/community-scripts/ProxmoxVE) — the install script format.
 - [MobyGames](https://www.mobygames.com) — metadata when the integration is enabled.
 

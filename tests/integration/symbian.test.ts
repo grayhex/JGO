@@ -1,5 +1,5 @@
-// Symbian / N-Gage through the optional jgo-symbian service. The service is the real agent (symbian/agent/agent.mjs); the emulator
-// behind it is the FAKE EKA2L1 in tests/fixtures/fake-eka2l1. So this proves JGO's side end to end (library, session, WebSocket
+// Symbian / N-Gage through the optional mgo-symbian service. The service is the real agent (symbian/agent/agent.mjs); the emulator
+// behind it is the FAKE EKA2L1 in tests/fixtures/fake-eka2l1. So this proves MGO's side end to end (library, session, WebSocket
 // protocol, firmware upload, saves); it says nothing about what the real EKA2L1 does with a real game or firmware.
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
@@ -86,7 +86,7 @@ describe('Symbian service (real agent, fake EKA2L1)', () => {
   let agentData: string;
 
   before(async () => {
-    agentData = mkdtempSync(path.join(tmpdir(), 'jgo-symbian-it-'));
+    agentData = mkdtempSync(path.join(tmpdir(), 'mgo-symbian-it-'));
     const port = await free();
     agent = spawn(process.execPath, [AGENT], {
       env: { PATH: process.env.PATH ?? '', AGENT_TOKEN: TOKEN, AGENT_PORT: String(port), AGENT_HOST: '127.0.0.1', CONTROL_PORT: String(await free()), DATA_DIR: agentData, EKA2L1_BIN: FAKE, AUDIO_CMD: `${process.execPath} ${PCM}`, MAX_FIRMWARE_BYTES: String(64 * 1024) },
@@ -127,7 +127,7 @@ describe('Symbian service (real agent, fake EKA2L1)', () => {
     assert.equal((await postFirmware(env.base, 'archive', 'a.exe', Buffer.from('x'))).status, 400);
   });
 
-  it('streams firmware to the service, installs it as a job, and never keeps a copy in JGO', async () => {
+  it('streams firmware to the service, installs it as a job, and never keeps a copy in MGO', async () => {
     const rom = await postFirmware(env.base, 'rom', 'RM-84.rom', Buffer.from('fake rom'));
     assert.equal(rom.status, 200, JSON.stringify(rom.body));
     const rpkg = await postFirmware(env.base, 'rpkg', 'RM-84.rpkg', Buffer.from('fake rpkg'));
@@ -140,7 +140,7 @@ describe('Symbian service (real agent, fake EKA2L1)', () => {
     const st = (await (await fetch(`${env.base}/api/symbian/status`)).json()) as any;
     assert.equal(st.firmware.installed, true);
     assert.equal(st.firmware.devices[0].code, 'RM-84');
-    // JGO's own data directory holds no firmware
+    // MGO's own data directory holds no firmware
     const all: string[] = [];
     const walk = (d: string) => { for (const e of readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else all.push(p); } };
     walk(env.dataDir);
@@ -323,7 +323,7 @@ describe('Symbian service (real agent, fake EKA2L1)', () => {
     } finally { upload.destroy(); }
   });
 
-  it('installs an original-named VPL/FPSX kit through JGO, without a pre-dumped ROM', async () => {
+  it('installs an original-named VPL/FPSX kit through MGO, without a pre-dumped ROM', async () => {
     const bundle = 'a'.repeat(32);
     const xml = '<VariantPackingList><Variant><VariantIdentification><Description>Factory synthetic</Description></VariantIdentification><FileList><File><FileType>Binary</FileType><FileSubType>Mcu</FileSubType><Name>core.fpsx</Name></File></FileList></Variant></VariantPackingList>';
     const up = await postFirmware(env.base, 'vpl', 'RM-596.vpl', Buffer.from(xml), bundle);
@@ -339,7 +339,7 @@ describe('Symbian service (real agent, fake EKA2L1)', () => {
     assert.equal(done.state, 'succeeded', JSON.stringify(done));
     assert.ok(!existsSync(staging), 'all uploaded kit images are cleaned after installation');
     assert.ok(((await (await fetch(env.base + '/api/symbian/status')).json()) as any).firmware.devices.some((d: any) => d.code === 'RM-596'));
-    assert.equal(readdirSync(env.dataDir, { recursive: true }).some(f => /\.(vpl|fpsx)$/i.test(String(f))), false, 'JGO never retains firmware');
+    assert.equal(readdirSync(env.dataDir, { recursive: true }).some(f => /\.(vpl|fpsx)$/i.test(String(f))), false, 'MGO never retains firmware');
   });
 
   it('refuses incomplete kits, invalid variants, wrong bundle ids and mixed firmware formats', async () => {

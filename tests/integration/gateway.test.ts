@@ -86,7 +86,7 @@ describe('gateway (nginx) and large uploads', { skip: nginxBin ? false : 'nginx 
   it('control: the old configuration (40m for everything) stops a 60 MB probe with 413', async () => {
     const r = await post(`${gwOld}/api/symbian/upload-probe`, 60 * MB, 'p.bin');
     assert.equal(r.status, 413, r.text.slice(0, 300));
-    assert.match(r.text, /Request Entity Too Large/i, 'nginx\'s own page, not JGO\'s JSON');
+    assert.match(r.text, /Request Entity Too Large/i, 'nginx\'s own page, not MGO\'s JSON');
   });
 
   it('the shipped configuration lets a 120 MB probe through to the app, and spools nothing to the gateway disk', async () => {
@@ -110,7 +110,7 @@ describe('gateway (nginx) and large uploads', { skip: nginxBin ? false : 'nginx 
     assert.equal(r.json.game.platform, 'symbian');
   });
 
-  it('JGO\'s own limits still apply behind the gateway (a JSON 413 from the app, not a hang)', async () => {
+  it('MGO\'s own limits still apply behind the gateway (a JSON 413 from the app, not a hang)', async () => {
     const small = await startApp({ MAX_FIRMWARE_MB: '50' });
     const port = await free();
     const n = startNginx('lim', port, Number(new URL(small.base).port), readFileSync(path.join(root, 'infrastructure/local/nginx.conf'), 'utf8'), readFileSync(path.join(root, 'infrastructure/local/jgo-proxy.conf'), 'utf8'));

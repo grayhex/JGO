@@ -61,7 +61,7 @@ describe('Bridge contract: input lines (client -> emulator)', () => {
       ['K X 5', /IllegalArgumentException/],
       ['C 999999', /IllegalArgumentException/],
       ['P 12345 1', /IllegalArgumentException/],
-      ['S 2', /IllegalArgumentException/], // S is JGO's suspend command: only 0 and 1 are valid
+      ['S 2', /IllegalArgumentException/], // S is MGO's suspend command: only 0 and 1 are valid
     ];
     for (const [line, expect] of cases) {
       const mark = s.logs.length;
@@ -127,7 +127,7 @@ describe('Bridge contract: state packets (emulator -> client)', () => {
     assert.ok(p.body.length > 4);
     assert.match(p.body.subarray(4).toString('utf8'), /example\.invalid/);
     s.input(`P ${p.body.readUInt32BE(0)} 1`);
-    const u = await waitFor(() => s.of('U')[0], 'url packet (JGO patch 0008)');
+    const u = await waitFor(() => s.of('U')[0], 'url packet (MGO patch 0008)');
     assert.match(u.body.toString('utf8'), /^http:\/\/example\.invalid\//);
     await s.stop();
   });

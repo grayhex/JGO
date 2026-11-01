@@ -6,9 +6,9 @@ set -eu
 # provisioning auth or starting the API; never chmod/chown user files from here.
 data_dir="${DATA_DIR:-/data}"
 if [ ! -d "$data_dir" ] || [ ! -w "$data_dir" ]; then
-  echo >&2 "[JGO] Data directory $data_dir is not writable by UID:GID $(id -u):$(id -g)."
-  echo >&2 "[JGO] NAS bind mount: set app.user to the UID:GID allowed to write the host folder, or give that user access on the NAS."
-  echo >&2 "[JGO] Alternative: use the Docker managed volume jgo-data:/data (keep existing data safe). Do not chmod 777."
+  echo >&2 "[MGO] Data directory $data_dir is not writable by UID:GID $(id -u):$(id -g)."
+  echo >&2 "[MGO] NAS bind mount: set app.user to the UID:GID allowed to write the host folder, or give that user access on the NAS."
+  echo >&2 "[MGO] Alternative: use the Docker managed volume jgo-data:/data (keep existing data safe). Do not chmod 777."
   exit 1
 fi
 

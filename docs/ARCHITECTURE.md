@@ -15,7 +15,7 @@
 * **KEmulatorAdapter** (`apps/api/src/kemulator/adapter.ts`): `start`, `stop`, `keyDown`, `keyUp`, `pointerEvent`, `getStatus`,
   события `frame`, `audio`, `state`, `log`, `exit`. Держит набор нажатых клавиш, `releaseAll()`.
 * **EmulatorAdapter** (`apps/api/src/emulator.ts`) — общий интерфейс ядер. Кроме KEmulator есть необязательное ядро EKA2L1
-  (`apps/api/src/eka2l1/`, отдельный контейнер `jgo-symbian`) для Symbian S60 и N-Gage: выбор по `GameMeta.platform`, тот же `Session` и тот же WebSocket,
+  (`apps/api/src/eka2l1/`, отдельный контейнер `mgo-symbian`) для Symbian S60 и N-Gage: выбор по `GameMeta.platform`, тот же `Session` и тот же WebSocket,
   кадры с собственным размером. Подробности и список непроверенного: [SYMBIAN.md](SYMBIAN.md).
 * **Session** — на клиентов: WebSocket-подписчики, у каждого свои нажатые клавиши (отпускаются при разрыве), кэш последнего кадра
   (переподключение сразу показывает картинку), диагностика по логу (ClassNotFound, OOM, версия классов, GL, …).

@@ -127,7 +127,7 @@ export function nativePhonePlan(platform: Exclude<GamePlatform, 'j2me'>, setting
     if (fitting.length === 0 && status.firmware.devices.length > 1) return fail('no_compatible_firmware', `${PACKAGE_FORMAT_LABEL[packageFormat!]}: none of the installed firmware (${status.firmware.devices.map(d => d.code).join(', ')}) can install this package. Add firmware of that generation in Settings → Symbian, or use the other build of the game.`);
     if (fitting.length === 1) { requested = fitting[0]!.code; plan.source = 'compatible'; }
   }
-  if (!requested && status.firmware.devices.length !== 1) return fail('device_required', 'Several firmware devices are installed. Choose one for this game; JGO will not guess.');
+  if (!requested && status.firmware.devices.length !== 1) return fail('device_required', 'Several firmware devices are installed. Choose one for this game; MGO will not guess.');
   const installed = requested ? status.firmware.devices.find(d => sameCode(d.code, requested)) : status.firmware.devices[0];
   if (!installed) return fail('device_missing', 'The selected firmware is not installed. Choose an installed device or add its firmware in Settings → Symbian.');
   if (!fits(installed.code)) {
@@ -144,7 +144,7 @@ export function nativePhonePlan(platform: Exclude<GamePlatform, 'j2me'>, setting
     if (settings.skinId && !PHONE_COMPATIBILITY[settings.skinId].includes(device.id)) return { ...plan, code: 'incompatible_skin', message: `${skinLabel(settings.skinId)} cannot run ${GAME_PLATFORM_LABELS[platform]} games on ${device.name}. Pick a compatible phone${plan.skinId ? ` (for example ${skinLabel(plan.skinId)})` : ''}; a Java ME phone is not a Symbian or N-Gage device.` };
   } else {
     if (settings.skinId && !skinSupportsPlatform(settings.skinId, platform)) return { ...plan, code: 'incompatible_skin', message: `${skinLabel(settings.skinId)} is a Java ME phone and cannot run ${GAME_PLATFORM_LABELS[platform]} games. Pick a Nokia that has a Symbian / N-Gage profile.` };
-    plan.warnings.push('The firmware model and OS are not in the JGO profile catalog. Verify compatibility yourself; JGO does not infer it from the skin.');
+    plan.warnings.push('The firmware model and OS are not in the MGO profile catalog. Verify compatibility yourself; MGO does not infer it from the skin.');
   }
   if (status.busy) return fail('symbian_busy', 'The Symbian service is busy. Stop its running game or wait for the firmware job to finish.');
   return { ...plan, ready: true, message: 'Ready for an experimental EKA2L1 test.' };

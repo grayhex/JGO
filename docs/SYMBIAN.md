@@ -1,7 +1,7 @@
 # Symbian S60 и N-Gage (экспериментально)
 
-JGO умеет запускать игры Symbian S60 и N-Gage 1.0/2.0 вторым ядром эмуляции — **EKA2L1**. Это отдельный необязательный контейнер `jgo-symbian`:
-без него JGO работает как раньше, а ядро J2ME (KEmulator) не затронуто ни в поведении, ни в коде запуска.
+MGO умеет запускать игры Symbian S60 и N-Gage 1.0/2.0 вторым ядром эмуляции — **EKA2L1**. Это отдельный необязательный контейнер `mgo-symbian`:
+без него MGO работает как раньше, а ядро J2ME (KEmulator) не затронуто ни в поведении, ни в коде запуска.
 
 > **Статус: экспериментально, подтверждено частично.** Всё, что можно проверить без прошивки и без настоящей игры, проверено (в том числе на реально
 > собранном EKA2L1). Запуск настоящей N-Gage-игры в браузере **здесь не проверялся**: у разработчика интеграции нет ни прошивки, ни образа игры, а
@@ -10,7 +10,7 @@ JGO умеет запускать игры Symbian S60 и N-Gage 1.0/2.0 вто�
 ## Как это устроено
 
 ```
- браузер ──WebSocket (тот же протокол, что у J2ME)──► JGO (app) ──HTTP + токен──► jgo-symbian
+ браузер ──WebSocket (тот же протокол, что у J2ME)──► MGO (app) ──HTTP + токен──► mgo-symbian
                                                                                   ├─ agent.mjs (порт 8766, единственный открытый порт)
                                                                                   ├─ Xvfb :99 + Mesa llvmpipe (программный OpenGL)
                                                                                   ├─ PulseAudio, null-sink «jgo_sink»  ← звук снимается с его monitor
@@ -43,33 +43,32 @@ JGO умеет запускать игры Symbian S60 и N-Gage 1.0/2.0 вто�
 
 ## Установка
 
-1. Включите контейнер (нужен токен — общий секрет между JGO и службой):
+1. Ничего включать не нужно: служба `mgo-symbian` входит в обычный `compose.yaml` (общий секрет между MGO и службой создаётся при первом запуске
+   и лежит в томе `symbian-auth`; вводить токен не нужно).
 
    ```bash
-   export SYMBIAN_TOKEN=$(openssl rand -hex 24)
+   docker compose up -d
    ```
 
-   ```bash
-   docker compose -f compose.yaml -f compose.symbian.yaml up -d
-   ```
-
-   Образ `ghcr.io/grayhex/jgo-symbian` публикует CI после слияния в `main`. Собрать самому (30–60 минут: компилируются EKA2L1 и FFmpeg):
+   Не нужен Symbian — удалите из `compose.yaml` блок `mgo-symbian` и строки `SYMBIAN_*` в `app`: остальное работает как раньше.
+   Образ `ghcr.io/grayhex/mgo-symbian` публикует CI после слияния в `main` (старое имя `jgo-symbian` остаётся алиасом на переходный период).
+   Собрать самому (30–60 минут: компилируются EKA2L1 и FFmpeg):
 
    ```bash
-   docker compose -f compose.yaml -f compose.symbian.yaml -f compose.symbian.build.yaml build jgo-symbian
+   docker compose -f compose.yaml -f compose.build.yaml build mgo-symbian
    ```
 
 2. Откройте *Settings → Symbian (experimental)*: там видны состояние службы и версия EKA2L1.
-3. Добавьте **свою** прошивку (ROM + RPKG либо архив). Файлы потоком уходят в службу, не сохраняются в JGO и не попадают в образ; установка занимает минуты.
+3. Добавьте **свою** прошивку (ROM + RPKG либо архив). Файлы потоком уходят в службу, не сохраняются в MGO и не попадают в образ; установка занимает минуты.
 4. Загрузите игру и нажмите «Играть».
 
-Прошивки и ROM не входят ни в репозиторий, ни в образ, ни в CI: в `.gitignore` и в `Dockerfile` их нет, а `compose.symbian.yaml` хранит их только в томе
-`jgo-symbian-data`. Откуда взять прошивку законно — на вашей совести (например, дамп собственного телефона).
+Прошивки и ROM не входят ни в репозиторий, ни в образ, ни в CI: в `.gitignore` и в `Dockerfile` их нет, а `compose.yaml` хранит их только в томе
+`jgo-symbian-data` (имя оставлено прежним, чтобы при обновлении не потерять уже загруженную прошивку). Откуда взять прошивку законно — на вашей совести (например, дамп собственного телефона).
 
 ## Устройство (прошивка) игры
 
 EKA2L1 может держать несколько прошивок («устройств»: N-Gage Classic, S60 3-й редакции, Symbian Belle…). API управления не сообщает версию Symbian
-устройства, поэтому JGO **не угадывает**, какое подходит игре. Порядок выбора:
+устройства, поэтому MGO **не угадывает**, какое подходит игре. Порядок выбора:
 
 1. устройство, заданное у игры (Плеер → панель «Эмулятор Symbian» → «Устройство (прошивка)»; поле `symbianDevice` настроек игры);
 2. устройство по умолчанию для платформы (Settings → Symbian → «Устройство по умолчанию»; хранится в службе, `PUT /api/symbian/defaults`);
@@ -81,11 +80,11 @@ EKA2L1 может держать несколько прошивок («устр
 
 ## Лимиты загрузки
 
-Прошивка идёт в службу потоком (не сохраняется в JGO), игры — в библиотеку. На пути могут стоять три разных лимита:
+Прошивка идёт в службу потоком (не сохраняется в MGO), игры — в библиотеку. На пути могут стоять три разных лимита:
 
 | Звено | Что стоит | Что делать |
 |---|---|---|
-| Шлюз JGO (nginx в `compose.yaml`) | `/` — 40 МБ; `/api/games` — 1 ГБ; `/api/symbian/firmware` — 4 ГБ, **без буферизации тела** (`proxy_request_buffering off`) | Уже настроено. Если подняли `MAX_FIRMWARE_MB` выше 4096 или `MAX_SYMBIAN_PACKAGE_MB` выше 1024 — поднимите числа в `infrastructure/local/nginx.conf`. Реальные пределы проверяют приложение и служба на лету (JSON `413 too_large`). |
+| Шлюз MGO (nginx в `compose.yaml`) | `/` — 40 МБ; `/api/games` — 1 ГБ; `/api/symbian/firmware` — 4 ГБ, **без буферизации тела** (`proxy_request_buffering off`) | Уже настроено. Если подняли `MAX_FIRMWARE_MB` выше 4096 или `MAX_SYMBIAN_PACKAGE_MB` выше 1024 — поднимите числа в `infrastructure/local/nginx.conf`. Реальные пределы проверяют приложение и служба на лету (JSON `413 too_large`). |
 | Ваш внешний обратный прокси | у nginx/Nginx Proxy Manager по умолчанию 1 МБ, у Synology — свой, у Traefik/Caddy свои | nginx: `client_max_body_size 4g; proxy_request_buffering off;` для `/api/games` и `/api/symbian/`; Traefik: middleware `buffering` с `maxRequestBodyBytes`; Caddy: `request_body { max_size 4GB }`. Таймаут чтения/записи — не меньше часа. |
 | Туннель / CDN | Cloudflare (Free/Pro) пропускает тело не более 100 МБ | Такие файлы туда не пройдут: используйте адрес в локальной сети или «Прошивку из папки». |
 
@@ -95,7 +94,7 @@ EKA2L1 может держать несколько прошивок («устр
 node tools/symbian/check-upload.mjs https://jgo.example.com --mb 600 --token <AUTH_TOKEN>
 ```
 
-Скрипт различает отказ JGO (JSON `too_large`), отказ прокси (HTML `413`), разрыв соединения и неверный токен. Шлюз JGO с реальным nginx проверяет тест
+Скрипт различает отказ MGO (JSON `too_large`), отказ прокси (HTML `413`), разрыв соединения и неверный токен. Шлюз MGO с реальным nginx проверяет тест
 `tests/integration/gateway.test.ts` (120 МБ через шлюз, 70 МБ прошивка и 45 МБ пакет доходят до службы, на диск шлюза ничего не буферизуется, остальной API
 остаётся на 40 МБ; контроль: старая конфигурация отвечает `413`). **Не проверено:** загрузка в 2 ГБ целиком (тестировались десятки и сотни мегабайт) и конкретные
 сторонние прокси: у них свои настройки.
@@ -108,7 +107,7 @@ node tools/symbian/check-upload.mjs https://jgo.example.com --mb 600 --token <AU
 mkdir -p symbian-inbox && cp RM-84.rom RM-84.rpkg symbian-inbox/
 ```
 
-`compose.symbian.yaml` монтирует его в службу как `/inbox` **только для чтения** (`SYMBIAN_INBOX`, по умолчанию `./symbian-inbox`). В *Settings → Symbian →
+`compose.yaml` монтирует его в службу как `/inbox` **только для чтения** (`SYMBIAN_INBOX`, по умолчанию `./symbian-inbox`). В *Settings → Symbian →
 «Прошивка из папки»* выберите файлы и нажмите «Установить из папки». Файлы читаются на месте и никогда не удаляются; ссылки и вложенные папки игнорируются.
 
 ## Диагностика
@@ -121,11 +120,11 @@ mkdir -p symbian-inbox && cp RM-84.rom RM-84.rpkg symbian-inbox/
 
 | Что | Как |
 |---|---|
-| Сеть | `jgo-symbian` в отдельной `internal`-сети `symbian`, общей только с `app`. Маршрута наружу нет; Токен не передаётся в окружение JVM с MIDlet (`kemulator/adapter.ts`), а без токена служба отвечает только на `/agent/ping`. Оговорка: это не граница безопасности против враждебного кода в JVM того же пользователя (как и для `AUTH_TOKEN`, см. [SECURITY.md](SECURITY.md)). |
+| Сеть | `mgo-symbian` в отдельной `internal`-сети `symbian`, общей только с `app`. Маршрута наружу нет; Токен не передаётся в окружение JVM с MIDlet (`kemulator/adapter.ts`), а без токена служба отвечает только на `/agent/ping`. Оговорка: это не граница безопасности против враждебного кода в JVM того же пользователя (как и для `AUTH_TOKEN`, см. [SECURITY.md](SECURITY.md)). |
 | Управление EKA2L1 | Только `127.0.0.1` внутри контейнера, запросы с заголовком `Origin` он отклоняет. Агент пропускает фиксированный список маршрутов; закрыты `/v1/files` (запись/чтение файлов хоста), `/v1/config`, `/v1/card`, установка и удаление устройств в обход агента, `DELETE /v1/apps`. `POST /v1/apps` — только с путями внутри каталога `in/` текущего экземпляра и с известным типом. |
 | Файлы | Имена проверяются (`safeName`); загрузки пишутся во временный `.part` с лимитом размера «на лету» и переименовываются; архив карточки N-Gage проверяется (`unzip -Z1`, пути без `..`, не более 20 000 файлов и 4 ГБ распакованного). |
 | Сессии | Один экземпляр EKA2L1 одновременно (`409 busy` на второй). Каждый запуск получает собственный каталог данных `/data/run/<id>` (`XDG_DATA_HOME`, `HOME`), который удаляется при остановке. Прошивка (`roms`, `drives/z`) подключается жёсткими ссылками из общей базы и никогда не изменяется. |
-| Сохранения | Диски игры `C:` и `E:` лежат в `/data/saves/<ключ>/`, где ключ — первые 32 hex `sha256(owner\0gameId)`. Другая игра получает другой каталог; «Удалить с сохранениями» в JGO удаляет и их. |
+| Сохранения | Диски игры `C:` и `E:` лежат в `/data/saves/<ключ>/`, где ключ — первые 32 hex `sha256(owner\0gameId)`. Другая игра получает другой каталог; «Удалить с сохранениями» в MGO удаляет и их. |
 | Ресурсы | Контейнер: `read_only`, `cap_drop: ALL`, `no-new-privileges`, `cpus` (2), `mem_limit` (3 ГБ), `pids_limit`, `tmpfs /tmp`, `shm_size`. Агент: `MAX_INSTANCE_SECONDS` (2 ч), `MAX_PACKAGE_BYTES`, `MAX_FIRMWARE_BYTES`. Процесс запускается отдельной группой и убивается целиком. |
 | Токен | `AGENT_TOKEN` ≥ 16 символов, сравнение за постоянное время; только `/agent/ping` (для healthcheck) открыт. |
 
@@ -156,7 +155,7 @@ mkdir -p symbian-inbox && cp RM-84.rom RM-84.rpkg symbian-inbox/
 - Цепочка звука PulseAudio: null-sink `jgo_sink` + `parec --device=jgo_sink.monitor` от пользователя без root принимает синтетический тон без искажений.
 - Агент + **поддельный** EKA2L1 (`tests/fixtures/fake-eka2l1`, он честно подписан как подделка) + API + WebSocket: загрузка и установка прошивки заданием,
   412 до установки, лимиты размера (413), установка пакета, кадры собственного размера, звук, клавиши по порядку, тач с `id`, запоминание установленного
-  приложения, раздельные диски игр, удаление сохранений, 403 для опасных маршрутов, одновременно один экземпляр. Это проверяет **сторону JGO**, но ничего не
+  приложения, раздельные диски игр, удаление сохранений, 403 для опасных маршрутов, одновременно один экземпляр. Это проверяет **сторону MGO**, но ничего не
   говорит о поведении настоящего эмулятора с настоящей игрой.
 - Существующие тесты (`npm test`, интеграционные и e2e KEmulator) проходят без изменений.
 
@@ -181,7 +180,7 @@ mkdir -p symbian-inbox && cp RM-84.rom RM-84.rpkg symbian-inbox/
   Сохраняйте прогресс средствами самой игры.
 - Скины телефонов косметические: картинка занимает размер, который рисует игра.
 - Время жизни API управления: он новый и меняется; агент ссылается только на маршруты, прочитанные в исходниках (`src/emu/control`).
-- Лицензии: EKA2L1 — GPL-2.0 (отдельный контейнер, не линкуется с JGO); прошивки и игры принадлежат их правообладателям.
+- Лицензии: EKA2L1 — GPL-2.0 (отдельный контейнер, не линкуется с MGO); прошивки и игры принадлежат их правообладателям.
 
 ## Настройки
 
@@ -189,12 +188,12 @@ mkdir -p symbian-inbox && cp RM-84.rom RM-84.rpkg symbian-inbox/
 |---|---|---|
 | `SYMBIAN_AGENT_URL`, `SYMBIAN_AGENT_TOKEN` | app | пусто = Symbian выключен (`503 symbian_unavailable` при запуске) |
 | `MAX_SYMBIAN_PACKAGE_MB`, `MAX_FIRMWARE_MB` | app | 512, 2048 |
-| `AGENT_TOKEN`, `AGENT_PORT` | jgo-symbian | —, 8766 |
-| `MAX_PACKAGE_BYTES`, `MAX_FIRMWARE_BYTES`, `MAX_INSTANCE_SECONDS` | jgo-symbian | 512 МБ, 2 ГБ, 7200 |
-| `EKA2L1_BIN`, `EKA2L1_ARGS`, `EKA2L1_ENV_PASSTHROUGH` | jgo-symbian | `/opt/eka2l1/eka2l1_qt`, пусто, пусто |
-| `AUDIO_CMD` | jgo-symbian | `parec --device=jgo_sink.monitor --format=s16le --rate=44100 --channels=2 --latency-msec=40` |
+| `AGENT_TOKEN`, `AGENT_PORT` | mgo-symbian | —, 8766 |
+| `MAX_PACKAGE_BYTES`, `MAX_FIRMWARE_BYTES`, `MAX_INSTANCE_SECONDS` | mgo-symbian | 512 МБ, 2 ГБ, 7200 |
+| `EKA2L1_BIN`, `EKA2L1_ARGS`, `EKA2L1_ENV_PASSTHROUGH` | mgo-symbian | `/opt/eka2l1/eka2l1_qt`, пусто, пусто |
+| `AUDIO_CMD` | mgo-symbian | `parec --device=jgo_sink.monitor --format=s16le --rate=44100 --channels=2 --latency-msec=40` |
 | `SYMBIAN_CPUS`, `SYMBIAN_MEMORY`, `SYMBIAN_INBOX` | compose | 2, 3g, `./symbian-inbox` |
-| `INBOX_DIR`, `INSTANCE_SHARED_DIRS`, `INSTANCE_PERSIST_DIRS` | jgo-symbian | `/inbox`, `roms,drives/z`, `drives/c,drives/e` |
+| `INBOX_DIR`, `INSTANCE_SHARED_DIRS`, `INSTANCE_PERSIST_DIRS` | mgo-symbian | `/inbox`, `roms,drives/z`, `drives/c,drives/e` |
 
 ## Разработка и тесты
 

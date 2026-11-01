@@ -21,9 +21,11 @@ export interface Config {
   sessionIdleMs: number;
   maxUploadBytes: number;
   libraryQuotaBytes: number;
-  /** Optional Symbian/N-Gage service (EKA2L1, container jgo-symbian). `null` = not configured: those games cannot be started. */
+  /** Optional Symbian/N-Gage service (EKA2L1, container mgo-symbian). `null` = not configured: those games cannot be started. */
   symbianAgentUrl: string | null;
   symbianAgentToken: string | null;
+  /** A file with the shared secret (created by the Symbian service on a volume both containers mount); read when needed. */
+  symbianAgentTokenFile: string | null;
   /** Largest Symbian/N-Gage game package accepted (a game card can be big). */
   maxPackageBytes: number;
   /** Largest firmware file (ROM / RPKG) accepted when the user installs a device. */
@@ -82,6 +84,7 @@ export function loadConfig(env = process.env): Config {
     libraryQuotaBytes: int(env, 'LIBRARY_QUOTA_MB', 2048) * 1024 * 1024,
     symbianAgentUrl: env.SYMBIAN_AGENT_URL ? env.SYMBIAN_AGENT_URL.replace(/\/+$/, '') : null,
     symbianAgentToken: env.SYMBIAN_AGENT_TOKEN ? env.SYMBIAN_AGENT_TOKEN : null,
+    symbianAgentTokenFile: env.SYMBIAN_AGENT_TOKEN_FILE ? env.SYMBIAN_AGENT_TOKEN_FILE : null,
     maxPackageBytes: int(env, 'MAX_SYMBIAN_PACKAGE_MB', 512) * 1024 * 1024,
     maxFirmwareBytes: int(env, 'MAX_FIRMWARE_MB', 2048) * 1024 * 1024,
     authToken: env.AUTH_TOKEN ? env.AUTH_TOKEN : null,

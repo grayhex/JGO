@@ -44,7 +44,7 @@ describe('setup, settings, library and MobyGames over the API', () => {
     return (await call('GET', '/api/library/scan')).json.report;
   };
 
-  it('every new endpoint needs the existing JGO token (Bearer and the login cookie both work)', async () => {
+  it('every new endpoint needs the existing MGO token (Bearer and the login cookie both work)', async () => {
     for (const [m, u] of [['GET', '/api/setup'], ['GET', '/api/settings'], ['PATCH', '/api/settings'], ['PUT', '/api/settings/mobygames-key'], ['GET', '/api/system/status'], ['GET', '/api/library/roots'], ['GET', '/api/library/browse'], ['POST', '/api/library/scan'], ['POST', '/api/metadata/enrich'], ['GET', '/api/games/0123456789abcdef/cover']] as const) {
       assert.equal((await call(m, u, m === 'GET' ? undefined : {}, {})).status, 401, `${m} ${u}`);
     }

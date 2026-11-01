@@ -2,9 +2,9 @@ import type { CatalogEntry, CatalogFile } from './index.js';
 
 /**
  * Brings a catalog file to the one shape the server works with. Two formats are understood:
- *  - JGO's own `{ "schema": 1, "games": [...] }`;
+ *  - MGO's own `{ "schema": 1, "games": [...] }`;
  *  - the curator's `{ "schema": "jgo-curator-manifest-v1", "items": [...] }` (sha256, title, genre, genre_confidence, ...).
- * Only the fields JGO uses are copied (hash, title, genre, tags, confidence). Everything else — above all the paths of the
+ * Only the fields MGO uses are copied (hash, title, genre, tags, confidence). Everything else — above all the paths of the
  * files on the collector's disk — is dropped here, in the browser as well as on the server, and never reaches the API.
  * Values are passed on as they are; each entry is checked one by one later, so one bad entry does not spoil a file.
  */

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Finds out whether a large upload can reach JGO through YOUR network path (browser -> reverse proxy / tunnel -> JGO gateway -> app),
+// Finds out whether a large upload can reach MGO through YOUR network path (browser -> reverse proxy / tunnel -> MGO gateway -> app),
 // before you send a real firmware. It sends N megabytes of zeros to POST /api/symbian/upload-probe, which counts and discards them.
 //
 //   node tools/symbian/check-upload.mjs https://jgo.example.com --mb 600 --token <AUTH_TOKEN>
@@ -43,13 +43,13 @@ const text = await res.text();
 const secs = ((Date.now() - t0) / 1000).toFixed(1);
 if (res.ok) {
   const j = JSON.parse(text);
-  console.log(`OK: ${(j.received / 1048576).toFixed(0)} MB arrived in ${secs} s (JGO's own limit for firmware: ${(j.limit / 1048576).toFixed(0)} MB).`);
+  console.log(`OK: ${(j.received / 1048576).toFixed(0)} MB arrived in ${secs} s (MGO's own limit for firmware: ${(j.limit / 1048576).toFixed(0)} MB).`);
   process.exit(j.received >= total ? 0 : 1);
 }
 let json = null; try { json = JSON.parse(text); } catch { /* an HTML page from a proxy */ }
 console.error(`FAILED: HTTP ${res.status} after ${secs} s.`);
-if (json?.error === 'too_large') console.error(`JGO itself refused it: ${json.message}. Raise MAX_FIRMWARE_MB (app) and SYMBIAN_MAX_FIRMWARE_BYTES (service).`);
-else if (json?.error === 'unauthorized') console.error('JGO wants its token: pass --token <AUTH_TOKEN>.');
-else if (res.status === 413) console.error('A PROXY refused it (HTML, not JGO\'s JSON). "client_max_body_size" in nginx / Nginx Proxy Manager ("Custom Nginx Configuration"), "maxRequestBodyBytes" in Traefik, "request_body max_size" in Caddy, or the tunnel/CDN limit (Cloudflare: 100 MB on Free/Pro).\nIf you cannot raise it, put the files into the inbox folder instead (docs/SYMBIAN.md, "Firmware from a folder").');
+if (json?.error === 'too_large') console.error(`MGO itself refused it: ${json.message}. Raise MAX_FIRMWARE_MB (app) and SYMBIAN_MAX_FIRMWARE_BYTES (service).`);
+else if (json?.error === 'unauthorized') console.error('MGO wants its token: pass --token <AUTH_TOKEN>.');
+else if (res.status === 413) console.error('A PROXY refused it (HTML, not MGO\'s JSON). "client_max_body_size" in nginx / Nginx Proxy Manager ("Custom Nginx Configuration"), "maxRequestBodyBytes" in Traefik, "request_body max_size" in Caddy, or the tunnel/CDN limit (Cloudflare: 100 MB on Free/Pro).\nIf you cannot raise it, put the files into the inbox folder instead (docs/SYMBIAN.md, "Firmware from a folder").');
 else console.error(text.slice(0, 300));
 process.exit(1);

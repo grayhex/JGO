@@ -1,6 +1,6 @@
 /**
  * Text input (docs/BRIDGE.md, patch 0010): the focused TextField / TextBox is announced to the client
- * (Bridge `A` + JGO `N`) and the typed text goes back as `E`. Needs the real KEmulator build.
+ * (Bridge `A` + MGO `N`) and the typed text goes back as `E`. Needs the real KEmulator build.
  */
 import assert from 'node:assert/strict';
 import path from 'node:path';

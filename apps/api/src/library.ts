@@ -411,7 +411,7 @@ export class Library {
 
   /**
    * Adds a game for EKA2L1. The file is only stored: nothing in it is run or unpacked here (the emulator service does that,
-   * inside its own container). The title comes from the file name, because a SIS has no metadata JGO reads.
+   * inside its own container). The title comes from the file name, because a SIS has no metadata MGO reads.
    */
   addPackage(bytes: Uint8Array, fileName: string, platform: Exclude<Platform, 'j2me'>, quotaBytes: number, opts: AddOptions = {}): { game: GameMeta; duplicate: boolean } {
     const ext = (/\.(sisx?|n-gage|zip)$/i.exec(fileName)?.[1] ?? '').toLowerCase();

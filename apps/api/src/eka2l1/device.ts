@@ -12,7 +12,7 @@ export class DeviceChoiceError extends Error {
 const label = (d: InstalledDevice) => `${d.manufacturer} ${d.model} (${d.code})`;
 
 /**
- * Which installed firmware a game runs on. EKA2L1's control API does not say which Symbian version a device is, so JGO does not
+ * Which installed firmware a game runs on. EKA2L1's control API does not say which Symbian version a device is, so MGO does not
  * guess it from names: the game's own choice wins, then the default for its platform, and only when exactly one device is installed
  * is that one used. With several devices and no choice the start is refused with a message that says what to set.
  */

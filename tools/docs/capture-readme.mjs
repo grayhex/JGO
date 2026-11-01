@@ -134,7 +134,7 @@ try {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 820 } });
     const p = await ctx.newPage();
     await p.goto(base);
-    const dialog = p.getByRole('dialog', { name: 'Set up JGO' });
+    const dialog = p.getByRole('dialog', { name: 'Set up MGO' });
     await dialog.waitFor();
     await dialog.locator('[data-testid=system-checks] .check').first().waitFor(); await sleep(900);
     await p.screenshot({ path: path.join(outDir, 'wizard.png') });

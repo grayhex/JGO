@@ -1,6 +1,6 @@
 // Symbian / N-Gage in the real UI: Settings → Symbian (firmware upload + install), a .sis dropped into the library with its platform
 // badge, the game played in the player (picture of the game's own size, a key reaches the emulator). Real API + real agent + Chromium.
-// The emulator behind the agent is the FAKE EKA2L1 of tests/fixtures/fake-eka2l1: this proves JGO's UI and plumbing, not the real emulator.
+// The emulator behind the agent is the FAKE EKA2L1 of tests/fixtures/fake-eka2l1: this proves MGO's UI and plumbing, not the real emulator.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';

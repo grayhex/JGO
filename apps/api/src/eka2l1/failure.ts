@@ -78,7 +78,7 @@ export function hintsFor(i: HintInput): { hints: string[]; likelyIncompatibleGam
     case 'app_crashed': {
       incompatible = true;
       const fatal = (i.lastExit as { fatal?: string } | null)?.fatal;
-      hints.push(`The application crashed on start${fatal ? ` with the Symbian panic ${fatal}` : ''} before it drew anything. This is a compatibility problem between this game and EKA2L1 (or this firmware), not a JGO setting: try another firmware generation or another game.`);
+      hints.push(`The application crashed on start${fatal ? ` with the Symbian panic ${fatal}` : ''} before it drew anything. This is a compatibility problem between this game and EKA2L1 (or this firmware), not an MGO setting: try another firmware generation or another game.`);
       break;
     }
     case 'app_exited':
@@ -86,7 +86,7 @@ export function hintsFor(i: HintInput): { hints: string[]; likelyIncompatibleGam
       hints.push('The application ended by itself before it showed a picture. Typical causes: an unsupported feature, a missing dependency, or a licence/DRM check. Try the firmware generation the game was made for.');
       break;
     case 'no_picture':
-      hints.push('The application is running, but EKA2L1 did not give JGO a picture within the time limit (/v1/screenshot kept answering "no screen"). The game may be waiting for something, draws to a surface EKA2L1 does not expose, or hangs while starting.');
+      hints.push('The application is running, but EKA2L1 did not give MGO a picture within the time limit (/v1/screenshot kept answering "no screen"). The game may be waiting for something, draws to a surface EKA2L1 does not expose, or hangs while starting.');
       break;
     case 'screenshot_error':
       hints.push('EKA2L1 answered /v1/screenshot with an error instead of "no screen yet": the picture could not be read. The exact answer is listed below.');
@@ -100,7 +100,7 @@ export function hintsFor(i: HintInput): { hints: string[]; likelyIncompatibleGam
       hints.push('Firmware selection stopped the start; see the message. Nothing was run.');
       break;
     case 'service':
-      hints.push('The Symbian service did not answer. Check that the jgo-symbian container is running (Settings → Symbian).');
+      hints.push('The Symbian service did not answer. Check that the mgo-symbian container is running (Settings → Symbian).');
       break;
   }
   if (eka1 && (i.cause === 'launch_rejected' || i.cause === 'app_crashed' || i.cause === 'app_exited' || i.cause === 'no_picture')) {

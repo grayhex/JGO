@@ -55,7 +55,7 @@ export function Shell({ path, go, health, symbian, title, subtitle, children }: 
   return (
     <div className={`app ${collapsed ? 'shell-collapsed' : ''} ${drawer ? 'shell-drawer' : ''}`}>
       <aside className="sidebar glass" aria-label={translateUI("Main navigation")}>
-        <Link to="/" onNavigate={go} className="brand" aria-label={translateUI("J2ME Web home")}>
+        <Link to="/" onNavigate={go} className="brand" aria-label={translateUI("MGO home")}>
           <span className="brand-mark" aria-hidden><svg viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5" /><path d="M10 6.5h4v5h-4zM10.5 17h3" /></svg></span>
           <span className="brand-text">{translateUI("J2ME Web")}</span>
         </Link>

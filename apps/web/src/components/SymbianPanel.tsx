@@ -24,17 +24,17 @@ const PLATFORM_HELP: Record<DefaultPlatform, { title: string; hint: string }> = 
   },
   symbian: {
     title: 'S60 applications (.sis / .sisx)',
-    hint: 'An old .sis (S60 1st/2nd Edition) needs N70 or N-Gage firmware; a .sisx (S60 3rd Edition and later) needs N95, 5320, E71, 5800 or N8 firmware. JGO reads which one a package is and refuses a firmware that cannot install it.',
+    hint: 'An old .sis (S60 1st/2nd Edition) needs N70 or N-Gage firmware; a .sisx (S60 3rd Edition and later) needs N95, 5320, E71, 5800 or N8 firmware. MGO reads which one a package is and refuses a firmware that cannot install it.',
   },
 };
 
-/** The catalog entry of an installed firmware, by its product code (null for firmware JGO does not know). */
+/** The catalog entry of an installed firmware, by its product code (null for firmware MGO does not know). */
 const catalogOf = (code: string): Native | null => EMULATED_DEVICES.flatMap(d => (d.engine === 'eka2l1' && d.firmware.product.toLowerCase() === code.toLowerCase() ? [d] : []))[0] ?? null;
 const skinOf = (device: Native | null): string | null => (device ? (Object.entries(PHONE_COMPATIBILITY).find(([, ids]) => ids.includes(device.id))?.[0] ?? null) : null);
 
 /**
- * Settings → Symbian (experimental): the optional jgo-symbian service and the user's own firmware. One way to add firmware: a firmware
- * archive (or a file from the inbox folder). The files are streamed to the service; they are neither kept in the repository nor in JGO's data.
+ * Settings → Symbian (experimental): the optional mgo-symbian service and the user's own firmware. One way to add firmware: a firmware
+ * archive (or a file from the inbox folder). The files are streamed to the service; they are neither kept in the repository nor in MGO's data.
  */
 export function SymbianPanel({ toast }: { toast: Toaster }) {
   const [st, setSt] = useState<SymbianStatus | null>(null);
@@ -109,7 +109,7 @@ export function SymbianPanel({ toast }: { toast: Toaster }) {
       if ((e as ApiError).code === 'cancelled') { toast('info', translateUI('Upload cancelled')); return; }
       const status = (e as ApiError).status;
       toast('error', status === 413 || status === 0
-        ? `${(e as Error).message} — ${translateUI('a proxy or tunnel in front of JGO may be refusing large files; see docs/SYMBIAN.md, "Upload limits", or put the files into the inbox folder')}`
+        ? `${(e as Error).message} — ${translateUI('a proxy or tunnel in front of MGO may be refusing large files; see docs/SYMBIAN.md, "Upload limits", or put the files into the inbox folder')}`
         : (e as Error).message);
     }
   };
@@ -159,9 +159,9 @@ export function SymbianPanel({ toast }: { toast: Toaster }) {
 
       {st.reachable && (
         <>
-          <p className="note warn">{translateUI('Experimental. Symbian S60 and N-Gage games run in EKA2L1, which JGO does not ship with firmware: you add your own, legally obtained device firmware here. Not every game works.')}</p>
+          <p className="note warn">{translateUI('Experimental. Symbian S60 and N-Gage games run in EKA2L1, which MGO does not ship with firmware: you add your own, legally obtained device firmware here. Not every game works.')}</p>
 
-          <h3>{translateUI('Installed devices')} <Hint text="A device is one firmware installed in the service. A game runs on exactly one of them; JGO shows here which phone each firmware belongs to." /></h3>
+          <h3>{translateUI('Installed devices')} <Hint text="A device is one firmware installed in the service. A game runs on exactly one of them; MGO shows here which phone each firmware belongs to." /></h3>
           {st.firmware.devices.length === 0
             ? <div className="sym-empty" data-testid="no-devices"><p><strong>{translateUI('No firmware yet')}</strong></p><p className="muted">{translateUI('Symbian and N-Gage games cannot start until you add a firmware archive below.')}</p></div>
             : <ul className="sym-devices" data-testid="devices">{st.firmware.devices.map((d) => {
@@ -173,7 +173,7 @@ export function SymbianPanel({ toast }: { toast: Toaster }) {
                   <div className="sym-thumb">{skin ? <img src={`/phones/${skin}/preview.webp`} alt="" loading="lazy" draggable={false} /> : <Icon name="phone" />}</div>
                   <div className="sym-device-body">
                     <h4>{cat?.name ?? `${d.manufacturer} ${d.model}`}</h4>
-                    <p className="muted small">{cat ? cat.os : translateUI('Not in the JGO phone catalog: JGO cannot tell which games it runs.')}</p>
+                    <p className="muted small">{cat ? cat.os : translateUI('Not in the MGO phone catalog: MGO cannot tell which games it runs.')}</p>
                     <div className="chips">
                       <span className="chip"><code>{d.code}</code></span>
                       {cat && cat.platforms.map(p => <span key={p} className="chip">{GAME_PLATFORM_LABELS[p]}</span>)}
@@ -187,7 +187,7 @@ export function SymbianPanel({ toast }: { toast: Toaster }) {
 
           {st.firmware.devices.length > 0 && (
             <>
-              <h3>{translateUI('Default device per platform')} <Hint text="JGO does not guess which firmware fits a game. Pick here the device used for every game of a platform that has no device of its own (a game's own choice is made in its player)." /></h3>
+              <h3>{translateUI('Default device per platform')} <Hint text="MGO does not guess which firmware fits a game. Pick here the device used for every game of a platform that has no device of its own (a game's own choice is made in its player)." /></h3>
               <ul className="sym-defaults" data-testid="defaults">
                 {(['ngage', 'ngage2', 'symbian'] as const).map((pl) => {
                   const fits = st.firmware.devices.filter(d => { const c = catalogOf(d.code); return !c || c.platforms.includes(pl); });
@@ -223,7 +223,7 @@ export function SymbianPanel({ toast }: { toast: Toaster }) {
             </label>
             <button className="btn primary" disabled={!archive || busy} onClick={install} data-testid="fw-install"><Icon name="upload" /> {translateUI('Upload and install')}</button>
           </div>
-          <p className="muted small">{translateUI('They are sent to the service only and are not kept in JGO or in its image. Installing can take several minutes.')}</p>
+          <p className="muted small">{translateUI('They are sent to the service only and are not kept in MGO or in its image. Installing can take several minutes.')}</p>
           {working && <div role="status"><p className="muted">{working} {percent !== null ? `${percent}%` : ''}</p><progress max={100} value={percent ?? undefined} aria-label={translateUI('Firmware upload progress')} />{uploadAbort.current && <button className="btn sm" onClick={() => uploadAbort.current?.abort()}>{translateUI('Cancel upload')}</button>}</div>}
 
           {st.inbox.length > 0 && (

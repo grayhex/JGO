@@ -114,10 +114,10 @@ jobs:
           fi
           [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.]+)?$ ]] || { echo "bad version: $v"; exit 1; }
           owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
-          tags_app="ghcr.io/$owner/jgo:$v"; tags_gw="ghcr.io/$owner/jgo-gateway:$v"
+          tags_app="ghcr.io/$owner/mgo:$v,ghcr.io/$owner/jgo:$v"; tags_gw="ghcr.io/$owner/mgo-gateway:$v,ghcr.io/$owner/jgo-gateway:$v" # jgo / jgo-gateway: the old names, kept as aliases for one transition period
           # official = no pre-release suffix in the version and the GitHub Release is not marked as a pre-release
           if [[ "$v" != *-* && "$IS_PRERELEASE" != "true" ]]; then
-            tags_app="$tags_app,ghcr.io/$owner/jgo:latest"; tags_gw="$tags_gw,ghcr.io/$owner/jgo-gateway:latest"
+            tags_app="$tags_app,ghcr.io/$owner/mgo:latest,ghcr.io/$owner/jgo:latest"; tags_gw="$tags_gw,ghcr.io/$owner/mgo-gateway:latest,ghcr.io/$owner/jgo-gateway:latest"
           fi
           echo "owner=$owner" >> "$GITHUB_OUTPUT"
           { echo "version=$v"; echo "app=$tags_app"; echo "gateway=$tags_gw"; } >> "$GITHUB_OUTPUT"
@@ -133,20 +133,20 @@ jobs:
         if: steps.v.outputs.publish == 'true'
         run: |
           v="${{ steps.v.outputs.version }}"; owner="${{ steps.v.outputs.owner }}"
-          for img in jgo jgo-gateway; do
+          for img in mgo mgo-gateway; do
             if docker buildx imagetools inspect "ghcr.io/$owner/$img:$v" >/dev/null 2>&1; then
               echo "::warning::ghcr.io/$owner/$img:$v already exists and is never overwritten (publish a new version instead)"
               echo "${img//-/_}=true" >> "$GITHUB_OUTPUT"
             fi
           done
-      - name: JGO image
+      - name: MGO image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: runtime/Dockerfile
           build-args: |
             JGO_VERSION=${{ steps.v.outputs.version }}
-          push: ${{ steps.v.outputs.publish == 'true' && steps.exists.outputs.jgo != 'true' }}
+          push: ${{ steps.v.outputs.publish == 'true' && steps.exists.outputs.mgo != 'true' }}
           tags: ${{ steps.v.outputs.app }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
@@ -160,7 +160,7 @@ jobs:
           context: .
           file: runtime/Dockerfile
           target: gateway
-          push: ${{ steps.v.outputs.publish == 'true' && steps.exists.outputs.jgo_gateway != 'true' }}
+          push: ${{ steps.v.outputs.publish == 'true' && steps.exists.outputs.mgo_gateway != 'true' }}
           tags: ${{ steps.v.outputs.gateway }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
