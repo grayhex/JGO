@@ -273,6 +273,7 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
   app.get<{ Params: { id: string } }>('/api/games/:id/analysis', async (req) => {
     const g = library.get(req.params.id);
     if (!g) throw new UploadError('not_found', 'Game not found', 404);
+    if (g.platform && g.platform !== 'j2me') throw new UploadError('not_applicable', 'Java analysis applies to J2ME games only', 404);
     const p = library.paths(g.id);
     emuClasses ??= emulatorClassSet(path.join(cfg.kemDir, 'KEmulator.jar'));
     const jar = readFileSync(p.jar);

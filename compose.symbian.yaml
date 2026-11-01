@@ -1,0 +1,51 @@
+# EXPERIMENTAL, OPTIONAL: Symbian S60 and N-Gage games through EKA2L1, in a separate container.
+#   export SYMBIAN_TOKEN=$(openssl rand -hex 24)
+#   docker compose -f compose.yaml -f compose.symbian.yaml up -d
+# JGO works exactly as before without this file. Details, limits and what is NOT verified: docs/SYMBIAN.md
+#
+# Nothing proprietary is in the image. You add your own firmware in JGO: Settings -> Symbian.
+# Source build:  docker compose -f compose.yaml -f compose.build.yaml -f compose.symbian.yaml -f compose.symbian.build.yaml up -d --build
+#   (the first build compiles EKA2L1 and FFmpeg: 30-60 minutes)
+services:
+  app:
+    environment:
+      SYMBIAN_AGENT_URL: http://jgo-symbian:8766
+      SYMBIAN_AGENT_TOKEN: "${SYMBIAN_TOKEN:?set SYMBIAN_TOKEN first, e.g. with openssl rand -hex 24}"
+      MAX_SYMBIAN_PACKAGE_MB: ${MAX_SYMBIAN_PACKAGE_MB:-512}
+      MAX_FIRMWARE_MB: ${MAX_FIRMWARE_MB:-2048}
+    networks: [internal, symbian]
+    depends_on:
+      jgo-symbian:
+        condition: service_healthy
+
+  jgo-symbian:
+    image: ghcr.io/grayhex/jgo-symbian:${JGO_SYMBIAN_VERSION:-edge}
+    restart: unless-stopped
+    init: false # the image has its own init (tini)
+    environment:
+      AGENT_TOKEN: "${SYMBIAN_TOKEN:?set SYMBIAN_TOKEN first, e.g. with openssl rand -hex 24}"
+      MAX_FIRMWARE_BYTES: ${SYMBIAN_MAX_FIRMWARE_BYTES:-2147483648}
+      MAX_PACKAGE_BYTES: ${SYMBIAN_MAX_PACKAGE_BYTES:-536870912}
+      MAX_INSTANCE_SECONDS: ${SYMBIAN_MAX_INSTANCE_SECONDS:-7200}
+    volumes:
+      # firmware (the emulator's base directory), per-game saves, the device list: keep it, it holds the user's firmware
+      - jgo-symbian-data:/data
+    # Only the JGO app can reach it. The network has no route out: a game cannot reach the internet or your LAN.
+    networks: [symbian]
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m
+    shm_size: 256m
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    # one emulator instance at a time; software OpenGL (llvmpipe) is CPU-heavy, so cap it
+    cpus: ${SYMBIAN_CPUS:-2}
+    mem_limit: ${SYMBIAN_MEMORY:-3g}
+    pids_limit: 512
+
+networks:
+  symbian:
+    internal: true
+
+volumes:
+  jgo-symbian-data:

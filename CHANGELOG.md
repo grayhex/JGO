@@ -5,6 +5,10 @@ Formatted after [Keep a Changelog](https://keepachangelog.com/); versions follow
 
 ## [Unreleased]
 
+### Added (experimental)
+- **Symbian S60 and N-Gage 1.0/2.0 through EKA2L1** as a second emulation core, in an optional container (`jgo-symbian`, `compose.symbian.yaml`): the library knows the platforms `j2me`, `symbian`, `ngage`, `ngage2` (`.sis`, `.sisx`, `.n-gage`, N-Gage 1.0 card `.zip`) and picks the core automatically; the KEmulator path is unchanged. Frames, sound and input use the existing WebSocket protocol (frames carry their own size). Firmware is added by the user in Settings → Symbian, streamed into the service and never stored in the repository or the image. EKA2L1 is built from a pinned upstream commit (its HTTP control API is not in a release yet). See `docs/SYMBIAN.md` for what was verified (control API on the real binary, the agent, the adapter against a fake) and what was not (a real game with real firmware).
+- `EmulatorAdapter` interface (`apps/api/src/emulator.ts`); `SessionStatus.backend`; `GameMeta.platform`.
+
 ### Added
 - **Rename a game** (Game settings → Title): the title applies to every version, beats a catalog title and the automatic one, and can be reset. Stored in `game_titles`, kept when the library is emptied.
 - `tools/docs-screenshots.mjs`: takes the README screenshots from any folder of JARs.

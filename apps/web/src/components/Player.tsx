@@ -38,6 +38,7 @@ const STATE_BADGE: Record<string, string> = { running: 'prod', starting: 'dev', 
 export function Player({ gameId, toast, onExit, health }: { gameId: string; toast: (k: Toast['kind'], t: string) => void; onExit: () => void; health: HealthStatus | null }) {
   const developer=useDeveloperMode();
   const [game, setGame] = useState<GameMeta | null>(null);
+  const j2me = (game?.platform ?? 'j2me') === 'j2me'; // Symbian and N-Gage games (EKA2L1) have no heap, J2ME profile or game speed
   const [session, setSession] = useState<SessionStatus | null>(null);
   const [state, setState] = useState<SessionState | 'idle'>('idle');
   const [conn, setConn] = useState<Conn>('idle');
@@ -496,7 +497,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
               : <button className="btn danger grow" onClick={stop} disabled={busy || state === 'stopping'} title={translateUI("Stop requests a safe MIDlet shutdown. An unresponsive game may be forcibly closed after 8 seconds; unsaved in-game progress can be lost. Save inside the game first.")}><Icon name="stop" /> {translateUI("Stop")}</button>}
             {running && <button className="btn" disabled={busy || state === 'stopping'} onClick={async () => { if (await stop()) setTimeout(start, 400); }}><Icon name="restart" /> {translateUI("Restart")}</button>}
           </div>
-          {running && <div className="field"><span className="label-caps">{translateUI("Game speed")}</span>
+          {running && j2me && <div className="field"><span className="label-caps">{translateUI("Game speed")}</span>
             <Seg<string> label={translateUI("Game speed")} value={String(speed)} onChange={(v) => send({ t: 'speed', modifier: Number(v) })}
               options={[{ value: '-75', label: '×0.25' }, { value: '-50', label: '×0.5' }, { value: '1', label: '×1' }, { value: '2', label: '×2' }, { value: '4', label: '×4' }]} />
             {![-75, -50, 1, 2, 4].includes(speed) && <span className="hint">{translateUI("Custom speed")}: {speed}</span>}
@@ -506,6 +507,10 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
           {health?.ok === false && <div className="note warn">{translateUI("The emulator runtime is not ready on this server.")}</div>}
         </Panel>
 
+        {!j2me && <Panel icon="cpu" title={translateUI("Symbian emulator (experimental)")}>
+          <p className="muted small" data-testid="symbian-note">{translateUI("This game runs in EKA2L1 with the firmware you added in Settings → Symbian. The phone, heap and speed options of the Java emulator do not apply; the picture has the size the game draws.")}</p>
+        </Panel>}
+        {j2me && (
         <Panel icon="device" title={translateUI("Emulation profile")}>
           <div className="chips" data-testid="phone-profile-match">
             {res && <span className="chip" title={translateUI("Screen the game renders")}><Icon name="device" /> {res.width}×{res.height}</span>}
@@ -540,10 +545,13 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
           {needRestart && <div className="note warn" role="status">{translateUI("The running game keeps its current profile. Restart to apply the selected phone/profile.")} <button className="btn sm" disabled={busy || state === 'stopping'} onClick={async()=>{if(await stop())await start();}}>{translateUI("Restart with selected profile")}</button></div>}
           <button className="btn sm" onClick={saveDefaults} disabled={!game || !res}>{translateUI("Save as game defaults")}</button>
         </Panel>
+        )}
 
+        {j2me && (
         <Panel icon="sliders" title={translateUI("Game compatibility options")} open={false}>
           <EmulationTweaksForm value={tweaks} onChange={setTweaks} />
         </Panel>
+        )}
 
         <Panel icon="layers" title={translateUI("Display")}>
           <div className="chips">
@@ -571,9 +579,11 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
           <RecordingPanel gameId={gameId} gameName={game?.name ?? gameId} frame={frameSize} live={live} recorder={recorder} replayer={replayer} sendRaw={sendRaw} toast={toast} />
         </Panel>
 
+        {j2me && (
         <Panel icon="library" title={translateUI("Game files")} open={false}>
           <GameFilesPanel gameId={gameId} toast={toast} refreshKey={state} />
         </Panel>
+        )}
 
         <Panel icon="volume" title={translateUI("Audio")} open={false}>
           <label className="field"><span className="label-caps">{translateUI("Volume")}</span><input type="range" min={0} max={100} value={vol} onChange={(e) => setVol(Number(e.target.value))} aria-label={translateUI("Volume")} /></label>

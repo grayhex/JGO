@@ -191,6 +191,7 @@ cargo test --manifest-path bridge/kemulator-adapter/Cargo.toml
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md), [BRIDGE.md](docs/BRIDGE.md) | system design, Bridge patches |
 | [EMULATOR_FEATURE_MATRIX.md](docs/EMULATOR_FEATURE_MATRIX.md), [SENSORS.md](docs/SENSORS.md) | KEmulator feature coverage, sensors (Russian) |
 | [COMPATIBILITY.md](docs/COMPATIBILITY.md), [LAB.md](docs/LAB.md) | compatibility, lab |
+| [SYMBIAN.md](docs/SYMBIAN.md) | Symbian S60 and N-Gage through EKA2L1 (experimental, separate container; Russian) |
 | [SECURITY.md](docs/SECURITY.md) | security |
 
 ## Acknowledgements

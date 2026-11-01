@@ -582,3 +582,27 @@ export interface DevicePreset {
   /** Free-text platform notes for the UI/report. */
   notes: string[];
 }
+
+/** State of the optional jgo-symbian service (EKA2L1), as `/api/symbian/status` reports it. Experimental. */
+export interface SymbianStatus {
+  experimental: true;
+  /** SYMBIAN_AGENT_URL is set. */
+  configured: boolean;
+  reachable: boolean;
+  /** EKA2L1 version the service image was built from. */
+  emulator: string | null;
+  firmware: { installed: boolean; devices: { code: string; manufacturer: string; model: string }[] };
+  /** A game (or a firmware job) occupies the single emulator instance. */
+  busy: boolean;
+  message: string | null;
+  maxFirmwareBytes: number;
+  maxPackageBytes: number;
+}
+
+export interface SymbianJob {
+  id: string;
+  kind: 'install_device' | 'delete_device';
+  state: 'running' | 'succeeded' | 'failed';
+  progress: number | null;
+  error?: string | null;
+}

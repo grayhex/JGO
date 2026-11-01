@@ -63,6 +63,13 @@ describe('Symbian service not configured', () => {
     assert.equal(((await r.json()) as any).error, 'symbian_unavailable');
   });
 
+  it('has no Java analysis for them (a clean 404, not a server error)', async () => {
+    const list = (await (await fetch(`${env.base}/api/games`)).json()) as any[];
+    const r = await fetch(`${env.base}/api/games/${list[0].id}/analysis`);
+    assert.equal(r.status, 404);
+    assert.equal(((await r.json()) as any).error, 'not_applicable');
+  });
+
   it('reports the service as not configured', async () => {
     const st = (await (await fetch(`${env.base}/api/symbian/status`)).json()) as any;
     assert.equal(st.configured, false);

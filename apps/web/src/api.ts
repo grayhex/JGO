@@ -1,4 +1,4 @@
-import type { CatalogReport, DevicePreset, GameClassification, Genre, GenreSummary, EmulationTweaks, GameFileEntry, GameInfo, GameMeta, GameSettings, HealthStatus, LibraryCheck, LibraryRoot, MetadataJob, MobyCandidate, PublicSettings, ScanReport, SessionStatus, SettingsResponse, SystemStatus } from '@j2me-web/protocol';
+import type { CatalogReport, DevicePreset, GameClassification, Genre, GenreSummary, EmulationTweaks, GameFileEntry, GameInfo, GameMeta, GameSettings, HealthStatus, LibraryCheck, LibraryRoot, MetadataJob, MobyCandidate, PublicSettings, Platform, ScanReport, SessionStatus, SettingsResponse, SymbianJob, SymbianStatus, SystemStatus } from '@j2me-web/protocol';
 
 export type GameSettingsPatch = Partial<Omit<GameSettings, 'device' | 'emulation'>> & { device?: string | null; emulation?: EmulationTweaks | null };
 
@@ -53,6 +53,23 @@ export const api = {
     if (jad) fd.append('jad', jad, jad.name);
     return req<{ game: GameMeta; duplicate: boolean }>('/api/games', { method: 'POST', body: fd });
   },
+  /** A Symbian / N-Gage game (.sis, .sisx, .n-gage, or the .zip of an N-Gage 1.0 card). */
+  uploadPackage: async (file: File, platform?: Platform) => {
+    const fd = new FormData();
+    if (platform) fd.append('platform', platform);
+    fd.append('file', file, file.name);
+    return req<{ game: GameMeta; duplicate: boolean }>('/api/games', { method: 'POST', body: fd });
+  },
+  symbianStatus: () => req<SymbianStatus>('/api/symbian/status'),
+  /** One firmware file; the answer names it for symbianInstall. */
+  symbianUpload: (slot: 'rom' | 'rpkg' | 'archive', file: File) => {
+    const fd = new FormData();
+    fd.append('file', file, file.name);
+    return req<{ file: string }>(`/api/symbian/firmware?slot=${slot}`, { method: 'POST', body: fd });
+  },
+  symbianInstall: (files: { rom?: string; rpkg?: string; archive?: string }) => req<SymbianJob>('/api/symbian/firmware/install', jsonInit('POST', files)),
+  symbianJob: (id: string) => req<SymbianJob>(`/api/symbian/jobs/${id}`),
+  symbianRemove: (code: string) => req<SymbianJob>(`/api/symbian/firmware/${encodeURIComponent(code)}`, { method: 'DELETE' }),
   patchGame: (id: string, patch: { favorite?: boolean; settings?: GameSettingsPatch }) => req<GameMeta>(`/api/games/${id}`, jsonInit('PATCH', patch)),
   deleteGame: (id: string, saves: boolean) => req<void>(`/api/games/${id}${saves ? '?saves=1' : ''}`, { method: 'DELETE' }),
   iconUrl: (id: string) => `/api/games/${id}/icon`,

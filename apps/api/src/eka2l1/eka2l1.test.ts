@@ -1,8 +1,8 @@
 import { after, before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn, type ChildProcess } from 'node:child_process';
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import { createServer } from 'node:net';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,6 +21,18 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.
 const AGENT = path.join(root, 'symbian/agent/agent.mjs');
 const FAKE = path.join(root, 'tests/fixtures/fake-eka2l1/fake-eka2l1.mjs');
 const PCM = path.join(root, 'tests/fixtures/fake-eka2l1/pcm.mjs');
+
+describe('no firmware, ROM or game in the repository', () => {
+  it('tracks no Symbian/N-Gage firmware or game files, and the image does not copy any', () => {
+    let files: string[];
+    try { files = execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean); } catch { return; } // not a git checkout
+    const bad = files.filter((f) => /\.(rom|rpkg|sis|sisx|n-gage|v\d{2}\.\d{2})$/i.test(f));
+    assert.deepEqual(bad, []);
+    const docker = readFileSync(path.join(root, 'symbian/Dockerfile'), 'utf8');
+    assert.doesNotMatch(docker, /COPY[^\n]*\.(rom|rpkg|sis|n-gage)/i);
+    assert.match(docker, /EKA2L1_COMMIT=[0-9a-f]{40}/, 'EKA2L1 is built from a pinned commit');
+  });
+});
 
 describe('key mapping', () => {
   it('maps J2ME key codes to EKA2L1 key names and drops the unknown ones', () => {
@@ -353,3 +365,43 @@ describe('jgo-symbian agent with a fake EKA2L1', () => {
 function readdirCount(dir: string): number {
   try { return readdirSync(dir).length; } catch { return 0; }
 }
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// The REAL EKA2L1 binary (built from upstream master, see symbian/Dockerfile), without firmware. Only runs when EKA2L1_BIN points at it
+// and Xvfb is installed. This checks what can be checked without a ROM: the process starts, its control API answers through the agent
+// (which also has to keep the "No device installed" dialog from blocking it), and the allow-list holds.
+const realBin = process.env.EKA2L1_BIN && existsSync(process.env.EKA2L1_BIN) && existsSync('/usr/bin/Xvfb') ? process.env.EKA2L1_BIN : null;
+describe('agent with the real EKA2L1 (no firmware)', { skip: realBin ? false : 'set EKA2L1_BIN to a built eka2l1_qt (and install Xvfb) to run this' }, () => {
+  let xvfb: ChildProcess, proc: ChildProcess, data: string, base: string, agent: AgentClient;
+  const token = 'real-token-0123456789abcdef';
+  before(async () => {
+    data = mkdtempSync(path.join(tmpdir(), 'jgo-symbian-real-'));
+    const rt = path.join(data, 'rt'); mkdirSync(rt, { mode: 0o700 });
+    xvfb = spawn('Xvfb', [':96', '-screen', '0', '1024x768x24', '+extension', 'GLX', '-nolisten', 'tcp'], { stdio: 'ignore' });
+    await new Promise((r) => setTimeout(r, 1500));
+    const port = await freePort(), control = await freePort();
+    base = `http://127.0.0.1:${port}`;
+    proc = spawn(process.execPath, [AGENT], { env: { PATH: process.env.PATH ?? '', AGENT_TOKEN: token, AGENT_PORT: String(port), AGENT_HOST: '127.0.0.1', CONTROL_PORT: String(control), DATA_DIR: path.join(data, 'd'), EKA2L1_BIN: realBin!, DISPLAY: ':96', XDG_RUNTIME_DIR: rt, QT_QPA_PLATFORM: 'xcb' }, stdio: 'ignore' });
+    for (let i = 0; i < 100; i++) { try { if ((await fetch(`${base}/agent/ping`)).ok) break; } catch { /* wait */ } await new Promise((r) => setTimeout(r, 100)); }
+    agent = new AgentClient({ baseUrl: base, token });
+  });
+  after(async () => {
+    proc?.kill('SIGTERM'); xvfb?.kill('SIGKILL');
+    await new Promise((r) => setTimeout(r, 6000));
+    rmSync(data, { recursive: true, force: true });
+  });
+  it('starts, answers /v1/status, has no device, and the dangerous routes stay closed', async () => {
+    await agent.startInstance({ saveKey: 'a'.repeat(32), maintenance: true });
+    let st: { started?: boolean; device?: unknown; session?: { state?: string } } | null = null;
+    for (let i = 0; i < 60 && !st?.started; i++) {
+      try { st = await agent.control('GET', '/v1/status'); } catch { await new Promise((r) => setTimeout(r, 1000)); }
+    }
+    assert.equal(st?.started, true);
+    assert.equal(st?.device, null, 'no firmware: no device');
+    assert.equal(st?.session?.state, 'none');
+    const dev = await agent.control<{ devices: unknown[] }>('GET', '/v1/devices');
+    assert.deepEqual(dev.devices, []);
+    await assert.rejects(agent.control('GET', '/v1/files?path=/etc/passwd'), (e: unknown) => e instanceof AgentError && e.status === 403);
+    await agent.stopInstance();
+  });
+});

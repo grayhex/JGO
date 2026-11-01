@@ -2,6 +2,8 @@ import { t as translateUI } from '../i18n';
 import { GENRES, type GameMeta, type HealthStatus, type ScanReport } from '@j2me-web/protocol';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../api';
+
+const PLATFORM_LABEL: Record<string, string> = { j2me: 'Java', symbian: 'S60', ngage: 'N-Gage', ngage2: 'N-Gage 2.0' };
 import type { Toast } from '../App';
 import { navigate } from '../router';
 import { useServerSettings } from '../serverSettings';
@@ -109,15 +111,23 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
   const upload = useCallback(async (files: File[]) => {
     const jars = files.filter((f) => /\.jar$/i.test(f.name));
     const jads = files.filter((f) => /\.jad$/i.test(f.name));
-    if (!jars.length) { toast('error', jads.length ? 'A .jad alone cannot be played — drop the .jar too.' : 'Drop .jar (and optionally .jad) files.'); return; }
-    setUploading((n) => n + jars.length);
+    const packages = files.filter((f) => /\.(sisx?|n-gage|zip)$/i.test(f.name));
+    if (!jars.length && !packages.length) { toast('error', jads.length ? 'A .jad alone cannot be played — drop the .jar too.' : 'Drop .jar (and optionally .jad) files, or Symbian/N-Gage games (.sis, .sisx, .n-gage).'); return; }
+    setUploading((n) => n + jars.length + packages.length);
+    const done = (r: { game: GameMeta; duplicate: boolean }) => {
+      toast('info', translateUI(r.duplicate ? '“{name}” is already in the library' : 'Added “{name}”', {name:r.game.name}));
+      r.game.warnings.forEach((w) => toast('error', w));
+    };
+    for (const pkg of packages) {
+      try { done(await api.uploadPackage(pkg)); } // a .zip is taken for an N-Gage 1.0 game card dump
+      catch (e) { toast('error', `${pkg.name}: ${(e as ApiError).message}`); }
+      finally { setUploading((n) => n - 1); }
+    }
     for (const jar of jars) {
       const base = jar.name.replace(/\.jar$/i, '').toLowerCase();
       const jad = jads.find((j) => j.name.replace(/\.jad$/i, '').toLowerCase() === base) ?? (jars.length === 1 ? jads[0] : undefined);
       try {
-        const r = await api.upload(jar, jad);
-        toast('info', translateUI(r.duplicate ? '“{name}” is already in the library' : 'Added “{name}”', {name:r.game.name}));
-        r.game.warnings.forEach((w) => toast('error', w));
+        done(await api.upload(jar, jad));
       } catch (e) {
         toast('error', `${jar.name}: ${(e as ApiError).message}`);
       } finally {
@@ -181,7 +191,7 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
         <span className="spacer" />
         {libraryPath && <button className="btn sm" disabled={scanning} onClick={() => void api.scanStart('update').then((r) => setScan(r.report), (e) => toast('error', (e as Error).message))} title={translateUI("Look for new and changed files in the library folder")}><Icon name="restart" /> {translateUI(scanning ? 'Importing…' : 'Scan folder')}</button>}
         <button className="btn sm primary" onClick={() => fileInput.current?.click()}><Icon name="upload" /> {translateUI("Add games")}</button>
-        <input ref={fileInput} type="file" accept=".jar,.jad" multiple hidden onChange={(e) => { void upload([...(e.target.files ?? [])]); e.target.value = ''; }} />
+        <input ref={fileInput} type="file" accept=".jar,.jad,.sis,.sisx,.n-gage,.zip" multiple hidden onChange={(e) => { void upload([...(e.target.files ?? [])]); e.target.value = ''; }} />
       </div>
 
       <div className="lib-toolbar" role="search">
@@ -249,6 +259,7 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
           );
           const flags = (
             <>
+              {sel.platform && sel.platform !== 'j2me' && <span className="badge mock" data-testid="platform-badge" title={translateUI("Runs in EKA2L1 (experimental), not in the Java emulator")}>{PLATFORM_LABEL[sel.platform]}</span>}
               {sel.warnings.length > 0 && <span className="badge mock" title={translateUI(sel.warnings.join('\n'))}>!</span>}
               {sel.sourceMissing && <span className="badge plain" title={translateUI("The file is no longer in the library folder; the game stays here with its saves")}>{translateUI("file gone")}</span>}
               {sel.info?.status === 'ambiguous' && <span className="badge mock" title={translateUI("Several MobyGames matches: open the info to choose")}>{translateUI("review")}</span>}
@@ -301,7 +312,7 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
       </div>
       {games && games.length > 0 && groups.length === 0 && <p className="muted center">{translateUI("No games match.")}</p>}
       {uploading > 0 && <div className="uploading">{translateUI("Uploading")} {uploading}…</div>}
-      {dragging && <div className="dropzone"><div><strong>{translateUI("Drop to add")}</strong><br />{translateUI(".jar and .jad files")}</div></div>}
+      {dragging && <div className="dropzone"><div><strong>{translateUI("Drop to add")}</strong><br />{translateUI(".jar, .jad, .sis, .sisx, .n-gage files")}</div></div>}
       {genreFor && <GenreDialog game={genreFor} toast={toast} onClose={() => setGenreFor(null)} onChanged={() => { setGenreFor(null); void reload(); }} />}
       {infoFor && <GameInfoDialog game={infoFor} toast={toast} onClose={() => setInfoFor(null)} onChanged={() => void reload()} />}
       {editing && <GameSettingsDialog game={editing} toast={toast} onClose={() => setEditing(null)} onChanged={() => { setEditing(null); void reload(); }} />}
