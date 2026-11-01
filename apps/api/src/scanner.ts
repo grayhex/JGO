@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { isPhoneId, type GameSettings, type PublicSettings, type ScanReport } from '@j2me-web/protocol';
+import { isPhoneId, platformOfFile, type GameSettings, type PublicSettings, type ScanReport } from '@j2me-web/protocol';
 import type { Config } from './config.js';
 import { UploadError } from './jar.js';
 import type { Library } from './library.js';
@@ -90,14 +90,16 @@ export class ScanManager {
       const stats: WalkStats = { entries: 0, symlinksSkipped: 0, truncated: false, unreadableDirs: [] };
       const jars = new Map<string, WalkEntry>();
       const jads = new Map<string, WalkEntry>();
+      const pkgs = new Map<string, WalkEntry>();
       for await (const e of walkLibrary(root, stats, () => this.cancelled)) {
         r.filesSeen++;
         if (e.kind === 'jar') jars.set(e.rel, e);
+        else if (e.kind === 'pkg') pkgs.set(e.rel, e);
         else jads.set(e.rel.toLowerCase(), e);
         if (r.filesSeen % 500 === 0) await tick();
       }
       if (this.cancelled) return this.finish(r, 'cancelled');
-      r.jars = jars.size;
+      r.jars = jars.size + pkgs.size;
       if (stats.truncated) r.error = `The library has more than the supported number of entries; only part of it was scanned.`;
       if (stats.unreadableDirs.length) r.errors.push({ path: stats.unreadableDirs[0]!, code: 'unreadable_dir', message: `${stats.unreadableDirs.length} directory(ies) could not be read and were skipped` });
 
@@ -133,6 +135,18 @@ export class ScanManager {
         }
         await tick();
       }
+      // Symbian / N-Gage packages: stored as they are, run only by the optional EKA2L1 service
+      for (const pkg of [...pkgs.values()].sort((a, b) => a.rel.localeCompare(b.rel))) {
+        if (this.cancelled) return this.finish(r, 'cancelled');
+        r.current = pkg.rel;
+        seen.add(pkg.rel);
+        try {
+          await this.importPackage(r, pkg, defaults);
+        } catch (e) {
+          this.fail(r, pkg.rel, e);
+        }
+        await tick();
+      }
       r.current = null;
       if (this.cancelled) return this.finish(r, 'cancelled');
 
@@ -150,6 +164,34 @@ export class ScanManager {
       r.error = e instanceof Error ? e.message : String(e);
       this.finish(r, 'failed');
     }
+  }
+
+  private async importPackage(r: ScanReport, pkg: WalkEntry, defaults: Partial<GameSettings>): Promise<void> {
+    const prev = this.library.getSource(pkg.rel);
+    if (r.mode === 'update' && prev && prev.size === pkg.size && prev.mtime_ms === pkg.mtimeMs && this.library.get(prev.game_id)) {
+      this.library.touchSource(pkg.rel);
+      r.unchanged++;
+      return;
+    }
+    if (pkg.size > this.cfg.maxPackageBytes) throw new UploadError('too_large', `File is larger than the ${Math.round(this.cfg.maxPackageBytes / 1048576)} MB limit for Symbian/N-Gage games`);
+    const bytes = await readFile(pkg.abs);
+    if (bytes.length !== pkg.size) throw new UploadError('changed_while_reading', 'The file changed while it was being read');
+    const sha = createHash('sha256').update(bytes).digest('hex');
+    const existing = this.library.findBySha(sha);
+    let gameId: string;
+    if (existing) {
+      gameId = existing.id;
+      if (prev) r.updated += prev.sha256 === sha ? 0 : 1;
+      r.unchanged += prev && prev.sha256 !== sha ? 0 : 1;
+    } else {
+      const platform = platformOfFile(pkg.rel);
+      if (!platform || platform === 'j2me') throw new UploadError('bad_file', 'Not a Symbian or N-Gage package');
+      const { game } = this.library.addPackage(bytes, path.basename(pkg.rel), platform, this.cfg.libraryQuotaBytes, { origin: 'import', defaults });
+      gameId = game.id;
+      if (prev) r.updated++;
+      else r.added++;
+    }
+    this.library.upsertSource({ rel_path: pkg.rel, jad_rel_path: null, game_id: gameId, size: pkg.size, mtime_ms: pkg.mtimeMs, jad_size: 0, jad_mtime_ms: 0, sha256: sha });
   }
 
   private async importOne(r: ScanReport, jar: WalkEntry, jad: WalkEntry | null, defaults: Partial<GameSettings>): Promise<void> {

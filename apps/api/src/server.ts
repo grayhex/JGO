@@ -1,4 +1,4 @@
-import { isGenre, resolvePhone } from '@j2me-web/protocol';
+import { isGenre, isPlatform, platformOfFile, resolvePhone } from '@j2me-web/protocol';
 import { execFile } from 'node:child_process';
 import { createReadStream, readFileSync } from 'node:fs';
 import { createHmac, timingSafeEqual } from 'node:crypto';
@@ -15,6 +15,7 @@ import { findPreset, loadDevicePresets, recommendPreset } from './devices.js';
 import { UploadError } from './jar.js';
 import { analyzeJar, emulatorClassSet, readAttributes } from './analysis/analyze.js';
 import { registerAdminRoutes } from './adminRoutes.js';
+import { registerSymbianRoutes } from './symbianRoutes.js';
 import { Library, newId, validateSettings } from './library.js';
 import { MetadataService } from './metadata.js';
 import { DEFAULT_API_BASE, MobyClient } from './mobygames.js';
@@ -152,7 +153,7 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
     return reply.code(500).send({ error: 'internal', message: 'Internal server error' });
   });
 
-  await app.register(fastifyMultipart, { limits: { fileSize: cfg.maxUploadBytes, files: 2, fields: 4, parts: 8, headerPairs: 50 } });
+  await app.register(fastifyMultipart, { limits: { fileSize: Math.max(cfg.maxUploadBytes, cfg.maxPackageBytes), files: 2, fields: 4, parts: 8, headerPairs: 50 } });
   await app.register(fastifyWebsocket, { options: { maxPayload: 8 * 1024, perMessageDeflate: false } });
 
   // --- health ---
@@ -200,12 +201,37 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
     if (!req.isMultipart()) throw new UploadError('bad_request', 'Expected multipart/form-data with a "jar" file');
     let jar: Buffer | null = null;
     let jad: Buffer | null = null;
+    let pkg: { buf: Buffer; name: string } | null = null;
+    let platformField: string | null = null;
     for await (const part of req.parts()) {
-      if (part.type !== 'file') continue;
-      const buf = await part.toBuffer(); // throws FST_REQ_FILE_TOO_LARGE past the limit
+      if (part.type !== 'file') {
+        if (part.fieldname === 'platform' && typeof part.value === 'string') platformField = part.value;
+        continue;
+      }
       const name = (part.filename ?? '').toLowerCase();
+      const isPackage = /\.(sisx?|n-gage|zip)$/.test(name);
+      // each kind of file has its own limit, applied while it is read (a 32 MB JAR limit must not become a 512 MB one)
+      const cap = isPackage ? cfg.maxPackageBytes : cfg.maxUploadBytes;
+      const chunks: Buffer[] = [];
+      let size = 0;
+      for await (const chunk of part.file) {
+        size += (chunk as Buffer).length;
+        if (size > cap) { part.file.destroy(); throw new UploadError('too_large', `File is larger than the ${Math.round(cap / 1048576)} MB limit`, 413); }
+        chunks.push(chunk as Buffer);
+      }
+      const buf = Buffer.concat(chunks);
+      if (isPackage) { pkg = { buf, name: part.filename ?? name }; continue; }
       if (name.endsWith('.jad') || part.fieldname === 'jad') jad = buf;
       else if (name.endsWith('.jar') || part.fieldname === 'jar' || part.fieldname === 'file') jar = buf;
+    }
+    if (pkg && !jar) {
+      // a game for EKA2L1: stored only; the platform comes from the file name, a .zip (N-Gage 1.0 card) needs the user's word
+      if (platformField !== null && !isPlatform(platformField)) throw new UploadError('bad_request', 'Unknown platform', 400);
+      const platform = platformField && platformField !== 'j2me' ? platformField : platformOfFile(pkg.name) ?? (pkg.name.toLowerCase().endsWith('.zip') ? 'ngage' : null);
+      if (!platform || platform === 'j2me') throw new UploadError('bad_file', 'Not a Symbian or N-Gage game');
+      if (pkg.buf.length > cfg.maxPackageBytes) throw new UploadError('too_large', `File is larger than the ${Math.round(cfg.maxPackageBytes / 1048576)} MB limit for Symbian/N-Gage games`, 413);
+      const r = library.addPackage(pkg.buf, pkg.name, platform as 'symbian' | 'ngage' | 'ngage2', cfg.libraryQuotaBytes, { origin: 'upload', defaults: gameDefaults(settings.get().phone, settings.explicitPhone()) });
+      return reply.code(r.duplicate ? 200 : 201).send(r);
     }
     if (!jar) {
       throw new UploadError(jad ? 'jad_only' : 'no_file', jad
@@ -298,8 +324,12 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
   app.delete<{ Params: { id: string }; Querystring: { saves?: string } }>('/api/games/:id', async (req, reply) => {
     const id = req.params.id;
     if (sessions.active().some((s) => s.game.id === id)) throw new SessionError('in_use', 'Stop the running session first', 409);
+    const game = library.get(id);
     if (!library.remove(id)) throw new UploadError('not_found', 'Game not found', 404);
-    if (req.query.saves === '1') library.removeSaves(owner, id);
+    if (req.query.saves === '1') {
+      library.removeSaves(owner, id);
+      if (game && game.platform && game.platform !== 'j2me') await sessions.deleteExternalSaves(owner, id);
+    }
     return reply.code(204).send();
   });
 
@@ -379,6 +409,7 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
   });
 
   registerAdminRoutes(app, { cfg, library, store: settings, soundfont, scan, metadata, moby, version: VERSION, java });
+  registerSymbianRoutes(app, { cfg, sessions });
 
   // --- static web UI (production) ---
   if (cfg.webDir) {

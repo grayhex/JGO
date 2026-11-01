@@ -53,6 +53,25 @@ export interface GameSettings {
   device?: string;
 }
 
+/**
+ * What a game is written for. `j2me` runs in KEmulator; the other three run in EKA2L1 (the optional jgo-symbian service):
+ * `symbian` = an S60 application (.sis/.sisx), `ngage` = an N-Gage 1.0 game card (a zipped card dump),
+ * `ngage2` = an N-Gage 2.0 package (.n-gage).
+ */
+export const PLATFORMS = ['j2me', 'symbian', 'ngage', 'ngage2'] as const;
+export type Platform = (typeof PLATFORMS)[number];
+export const isPlatform = (v: unknown): v is Platform => typeof v === 'string' && (PLATFORMS as readonly string[]).includes(v);
+export type EmulatorBackend = 'kemulator' | 'eka2l1';
+export const backendOf = (p: Platform): EmulatorBackend => (p === 'j2me' ? 'kemulator' : 'eka2l1');
+/** The platform of a file, from its name; `null` when the extension says nothing (a .zip needs the user's word). */
+export function platformOfFile(name: string): Platform | null {
+  const n = name.toLowerCase();
+  if (n.endsWith('.jar')) return 'j2me';
+  if (n.endsWith('.sis') || n.endsWith('.sisx')) return 'symbian';
+  if (n.endsWith('.n-gage')) return 'ngage2';
+  return null;
+}
+
 export interface GameMeta {
   id: string;
   sha256: string;
@@ -63,6 +82,8 @@ export interface GameMeta {
   /** Class-file major version found in the JAR (KEmulator accepts <= 48). */
   classVersion: number;
   sizeBytes: number;
+  /** Default `j2me`. */
+  platform?: Platform;
   hasIcon: boolean;
   hasJad: boolean;
   favorite: boolean;
@@ -326,6 +347,8 @@ export interface ResourceUsage {
 }
 
 export interface SessionStatus {
+  /** Which emulator runs the game. */
+  backend?: EmulatorBackend;
   layout: LayoutId;
   heapMb: number;
   id: string;

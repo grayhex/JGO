@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { Readable, Writable } from 'node:stream';
+import type { EmulatorAdapter } from '../emulator.js';
 
 export type AdapterState = 'idle' | 'starting' | 'running' | 'stopping' | 'exited';
 
@@ -31,6 +32,9 @@ export interface AdapterOptions {
 }
 
 export interface FrameMsg {
+  /** Picture size when it is not the session's (a Symbian screen is whatever the phone has). */
+  width?: number;
+  height?: number;
   seq: number;
   /** Adapter-side timestamp (µs since epoch) taken right after the framebuffer copy. */
   tsUs: number;
@@ -73,7 +77,8 @@ const JAVA_OPENS = [
  * One KEmulator process driven through the Rust `kem-adapter` supervisor.
  * Method names follow the project spec: start, stop, keyDown, keyUp, pointerEvent, getStatus.
  */
-export class KEmulatorAdapter extends EventEmitter<AdapterEvents> {
+export class KEmulatorAdapter extends EventEmitter<AdapterEvents> implements EmulatorAdapter {
+  readonly kind = 'kemulator' as const;
   private proc: ChildProcessByStdio<Writable, Readable, Readable> | null = null;
   private buf: Buffer = Buffer.alloc(0);
   private _state: AdapterState = 'idle';

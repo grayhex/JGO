@@ -68,7 +68,8 @@ export interface WalkEntry {
   abs: string;
   size: number;
   mtimeMs: number;
-  kind: 'jar' | 'jad';
+  /** `pkg`: a Symbian or N-Gage game (.sis, .sisx, .n-gage). */
+  kind: 'jar' | 'jad' | 'pkg';
 }
 
 export interface WalkStats {
@@ -106,7 +107,7 @@ export async function* walkLibrary(root: string, stats: WalkStats, isCancelled: 
         }
         if (!ent.isFile() || name.startsWith('._')) continue; // "._x.jar" are macOS resource forks
         const lower = name.toLowerCase();
-        const kind = lower.endsWith('.jar') ? 'jar' : lower.endsWith('.jad') ? 'jad' : null;
+        const kind = lower.endsWith('.jar') ? 'jar' : lower.endsWith('.jad') ? 'jad' : /\.(sisx?|n-gage)$/.test(lower) ? 'pkg' : null;
         if (!kind) continue;
         let st;
         try { st = lstatSync(abs); } catch { continue; }
@@ -153,7 +154,7 @@ export async function checkLibraryDir(cfg: Pick<Config, 'libraryRoots' | 'dataDi
   const stats: WalkStats = { entries: 0, symlinksSkipped: 0, truncated: false, unreadableDirs: [] };
   const t0 = Date.now();
   for await (const e of walkLibrary(real, stats)) {
-    if (e.kind === 'jar') { out.jarCount++; out.totalBytes += e.size; } else out.jadCount++;
+    if (e.kind === 'jar' || e.kind === 'pkg') { out.jarCount++; out.totalBytes += e.size; } else out.jadCount++;
     if (Date.now() - t0 > CHECK_BUDGET_MS) { stats.truncated = true; break; }
   }
   out.truncated = stats.truncated;
