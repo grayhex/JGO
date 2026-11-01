@@ -568,6 +568,7 @@ export class SessionManager {
     const adapter = new Eka2l1Adapter({
       agent: new AgentClient({ baseUrl: this.cfg.symbianAgentUrl, token: this.cfg.symbianAgentToken }),
       saveKey: symbianSaveKey(owner, game.id),
+      deviceCode: overrides.symbianDevice ?? game.settings.symbianDevice ?? null,
       platform,
       packagePath: file,
       fileName: `${game.name.replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 60) || 'game'}.${path.extname(file).slice(1)}`,
@@ -583,8 +584,8 @@ export class SessionManager {
       return session;
     } catch (e) {
       session.state = 'failed';
-      const code = e instanceof AgentError ? (e.code === 'no_firmware' ? 'no_firmware' : e.status === 0 ? 'symbian_unavailable' : 'start_failed') : 'start_failed';
-      throw new SessionError(code, `${(e as Error).message}`, code === 'no_firmware' ? 412 : code === 'symbian_unavailable' ? 503 : 500);
+      const code = e instanceof AgentError ? (e.code === 'no_firmware' || e.code === 'device_missing' || e.code === 'device_required' ? e.code : e.status === 0 ? 'symbian_unavailable' : 'start_failed') : 'start_failed';
+      throw new SessionError(code, `${(e as Error).message}`, code === 'no_firmware' || code === 'device_missing' ? 412 : code === 'device_required' ? 409 : code === 'symbian_unavailable' ? 503 : 500);
     }
   }
 

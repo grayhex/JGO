@@ -115,7 +115,7 @@ jobs:
       - name: System packages (X server + Mesa software GL, fonts)
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends xvfb libgl1 libglx-mesa0 libgl1-mesa-dri libegl1 fontconfig fonts-dejavu-core libharfbuzz0b
+          sudo apt-get install -y --no-install-recommends xvfb libgl1 libglx-mesa0 libgl1-mesa-dri libegl1 fontconfig fonts-dejavu-core libharfbuzz0b nginx-light
       - name: Build everything (KEmulator from the pinned commit + patches, adapter, web, fixtures)
         run: |
           [ -f runtime/build/kemulator/KEmulator.jar ] && echo "KEmulator restored from cache" || true

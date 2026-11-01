@@ -25,3 +25,4 @@ tools/audit/build/
 *.n-gage
 symbian-data/
 jgo-symbian-data/
+symbian-inbox/

@@ -1,6 +1,6 @@
 import type { CatalogReport, DevicePreset, GameClassification, Genre, GenreSummary, EmulationTweaks, GameFileEntry, GameInfo, GameMeta, GameSettings, HealthStatus, LibraryCheck, LibraryRoot, MetadataJob, MobyCandidate, PublicSettings, Platform, ScanReport, SessionStatus, SettingsResponse, SymbianJob, SymbianStatus, SystemStatus } from '@j2me-web/protocol';
 
-export type GameSettingsPatch = Partial<Omit<GameSettings, 'device' | 'emulation'>> & { device?: string | null; emulation?: EmulationTweaks | null };
+export type GameSettingsPatch = Partial<Omit<GameSettings, 'device' | 'emulation' | 'symbianDevice'>> & { device?: string | null; emulation?: EmulationTweaks | null; symbianDevice?: string | null };
 
 export class ApiError extends Error {
   constructor(
@@ -67,7 +67,8 @@ export const api = {
     fd.append('file', file, file.name);
     return req<{ file: string }>(`/api/symbian/firmware?slot=${slot}`, { method: 'POST', body: fd });
   },
-  symbianInstall: (files: { rom?: string; rpkg?: string; archive?: string }) => req<SymbianJob>('/api/symbian/firmware/install', jsonInit('POST', files)),
+  symbianInstall: (files: { rom?: string; rpkg?: string; archive?: string; source?: 'inbox' }) => req<SymbianJob>('/api/symbian/firmware/install', jsonInit('POST', files)),
+  symbianDefault: (platform: 'symbian' | 'ngage' | 'ngage2', code: string | null) => req<{ defaults: Record<string, string> }>('/api/symbian/defaults', jsonInit('PUT', { platform, code })),
   symbianJob: (id: string) => req<SymbianJob>(`/api/symbian/jobs/${id}`),
   symbianRemove: (code: string) => req<SymbianJob>(`/api/symbian/firmware/${encodeURIComponent(code)}`, { method: 'DELETE' }),
   patchGame: (id: string, patch: { favorite?: boolean; settings?: GameSettingsPatch }) => req<GameMeta>(`/api/games/${id}`, jsonInit('PATCH', patch)),

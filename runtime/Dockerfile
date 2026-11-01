@@ -43,6 +43,7 @@ RUN npm ci && npm run build && npm prune --omit=dev && node /tmp/jgo-release-pru
 #   docker build -f runtime/Dockerfile --target gateway -t jgo-gateway .
 FROM ${BASE_REGISTRY}/nginx:1.27-alpine AS gateway
 COPY infrastructure/local/nginx.conf /etc/nginx/conf.d/default.conf
+COPY infrastructure/local/jgo-proxy.conf /etc/nginx/jgo-proxy.conf
 
 # ---- 4. Runtime (the default target: keep it the last stage) --------------------------------------------------------------------------
 FROM ${BASE_REGISTRY}/ubuntu:24.04 AS runtime

@@ -51,6 +51,11 @@ export interface GameSettings {
   midlet?: string;
   /** Id of a KEmulator device preset (see GET /api/devices); sets key codes, fullscreen policy, platform string. */
   device?: string;
+  /**
+   * Symbian / N-Gage games: the firmware (an EKA2L1 "device", by its firmware code, e.g. `RM-84`) this game runs on. Unset = the
+   * per-platform default of the Symbian service, or the only installed device. JGO never guesses between several (see docs/SYMBIAN.md).
+   */
+  symbianDevice?: string;
 }
 
 /**
@@ -592,6 +597,10 @@ export interface SymbianStatus {
   /** EKA2L1 version the service image was built from. */
   emulator: string | null;
   firmware: { installed: boolean; devices: { code: string; manufacturer: string; model: string }[] };
+  /** Device (firmware code) chosen for all games of a platform that have no device of their own. */
+  defaults: Partial<Record<'symbian' | 'ngage' | 'ngage2', string>>;
+  /** Files lying in the service's inbox folder (firmware that does not have to travel through HTTP). */
+  inbox: { name: string; size: number }[];
   /** A game (or a firmware job) occupies the single emulator instance. */
   busy: boolean;
   message: string | null;

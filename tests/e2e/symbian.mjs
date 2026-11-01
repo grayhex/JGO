@@ -42,6 +42,9 @@ try {
   await panel.getByTestId('fw-install').click();
   await panel.getByText('RM-84', { exact: true }).waitFor({ timeout: 30000 });
   console.log('✔ firmware uploaded and installed from Settings → Symbian');
+  assert.ok(await panel.getByTestId('symbian-diagnostics').isVisible());
+  const diag = await (await fetch(base + '/api/symbian/diagnostics')).text();
+  assert.match(diag, /devices: Nokia Fake RM-84/);
 
   // ---- the library: a .sis with its platform badge ----
   await p.goto(base + '/');
@@ -56,6 +59,8 @@ try {
   await p.goto(base + '/play/' + game.id);
   await p.locator('.skin-box').waitFor();
   await p.getByTestId('symbian-note').waitFor();
+  assert.equal(await p.getByTestId('symbian-device').inputValue(), '', 'automatic device by default');
+  assert.ok(await p.getByTestId('symbian-session-diagnostics').isVisible(), 'a diagnostics link next to the game');
   assert.equal(await p.getByText('Game speed').count(), 0, 'no J2ME speed control for a Symbian game');
   assert.equal(await p.getByTestId('phone-profile-match').count(), 0, 'no J2ME profile panel');
   await p.getByRole('button', { name: 'Start', exact: true }).first().click();

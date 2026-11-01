@@ -4,7 +4,7 @@
 // No dependencies: Node 22 only. Configuration is by environment (see symbian/README.md).
 import { spawn, execFile } from 'node:child_process';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, renameSync, statSync, symlinkSync } from 'node:fs';
+import { createReadStream, createWriteStream, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, renameSync, statSync, symlinkSync } from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
@@ -30,6 +30,9 @@ const BASE = path.join(DATA, 'base');
 const SAVES = path.join(DATA, 'saves');
 const FIRMWARE_IN = path.join(DATA, 'firmware-upload');
 const DEVICES_FILE = path.join(DATA, 'devices.json');
+const DEFAULTS_FILE = path.join(DATA, 'device-defaults.json');
+// A folder the operator mounts read-only (compose: SYMBIAN_INBOX): firmware that is too big for the browser / reverse proxy path.
+const INBOX = path.resolve(env.INBOX_DIR ?? '/inbox');
 // Parts of EKA2L1's data directory (XDG_DATA_HOME/EKA2L1) that an instance shares with the base read-only (hardlinks) and the
 // drives that belong to the game and persist as its saves. UNVERIFIED layout: see docs/SYMBIAN.md.
 const SHARED = (env.INSTANCE_SHARED_DIRS ?? 'roms,drives/z').split(',').filter(Boolean);
@@ -40,14 +43,35 @@ const PERSIST = (env.INSTANCE_PERSIST_DIRS ?? 'drives/c,drives/e').split(',').fi
 if (!TOKEN || TOKEN.length < 16) { console.error('AGENT_TOKEN (at least 16 characters) is required'); process.exit(1); }
 for (const d of [DATA, PRIVATE_RUN, BASE, SAVES, FIRMWARE_IN]) mkdirSync(d, { recursive: true, mode: 0o700 });
 
-const log = (...a) => console.log(new Date().toISOString(), ...a);
+const ring = [];
+const log = (...a) => { const line = [new Date().toISOString(), ...a].join(' '); console.log(line); ring.push(line.slice(0, 500)); if (ring.length > 300) ring.shift(); };
 const json = (res, status, body, headers = {}) => { const s = JSON.stringify(body); res.writeHead(status, { 'content-type': 'application/json', 'content-length': Buffer.byteLength(s), ...headers }); res.end(s); };
 const err = (res, status, code, message) => json(res, status, { error: { code, message } });
 const sameToken = (given) => { const a = Buffer.from(String(given ?? '')), b = Buffer.from(TOKEN); return a.length === b.length && timingSafeEqual(a, b); };
 
 // ------------------------------------------------------------------ devices cache
 function readDevices() { try { return JSON.parse(readFileSync(DEVICES_FILE, 'utf8')); } catch { return []; } }
-function writeDevices(list) { writeFileSync(DEVICES_FILE + '.tmp', JSON.stringify(list)); renameSync(DEVICES_FILE + '.tmp', DEVICES_FILE); }
+function writeDevices(list) {
+  writeFileSync(DEVICES_FILE + '.tmp', JSON.stringify(list)); renameSync(DEVICES_FILE + '.tmp', DEVICES_FILE);
+  // a default that points at a device which is gone would silently send a game to another firmware: drop it
+  const d = readDefaults(), codes = new Set(list.map((x) => String(x.code).toLowerCase()));
+  const kept = Object.fromEntries(Object.entries(d).filter(([, c]) => codes.has(String(c).toLowerCase())));
+  if (Object.keys(kept).length !== Object.keys(d).length) writeDefaults(kept);
+}
+const PLATFORMS = new Set(['symbian', 'ngage', 'ngage2']);
+function readDefaults() { try { const j = JSON.parse(readFileSync(DEFAULTS_FILE, 'utf8')); return j && typeof j === 'object' ? j : {}; } catch { return {}; } }
+function writeDefaults(d) { writeFileSync(DEFAULTS_FILE + '.tmp', JSON.stringify(d)); renameSync(DEFAULTS_FILE + '.tmp', DEFAULTS_FILE); }
+/** Plain files directly in the inbox (no links, no sub-folders), names that are safe to show and to pass on. */
+function listInbox() {
+  const out = [];
+  try {
+    for (const name of readdirSync(INBOX)) {
+      if (!safeName(name) || out.length >= 200) continue;
+      try { const st = lstatSync(path.join(INBOX, name)); if (st.isFile()) out.push({ name, size: st.size }); } catch { /* vanished */ }
+    }
+  } catch { /* no inbox mounted */ }
+  return out.sort((a, b) => a.name.localeCompare(b.name));
+}
 
 // ------------------------------------------------------------------ the one EKA2L1 instance
 /** @type {null | { id: string, saveKey: string | null, maintenance: boolean, proc: import('node:child_process').ChildProcess, dir: string, since: number, log: string[], timer: NodeJS.Timeout }} */
@@ -100,10 +124,21 @@ function killInstance(inst) {
   t.unref();
 }
 
+const LAST_RUN = path.join(DATA, 'last-run.json');
+function tailFile(f, n) { try { return readFileSync(f, 'utf8').split('\n').filter(Boolean).slice(-n).map((l) => l.slice(0, 600)); } catch { return []; } }
+function emulatorLogFile(inst) { return inst.maintenance ? path.join(BASE, 'EKA2L1', 'EKA2L1.log') : path.join(inst.dir, 'xdg', 'EKA2L1', 'EKA2L1.log'); }
+/** The per-run directory is deleted when the instance ends; what the emulator said is kept for the next diagnostics request. */
+function snapshotLogs(inst) {
+  try {
+    writeFileSync(LAST_RUN, JSON.stringify({ savedAt: new Date().toISOString(), maintenance: inst.maintenance, saveKey: inst.saveKey, output: inst.log.slice(-120), eka2l1Log: tailFile(emulatorLogFile(inst), 300) }), { mode: 0o600 });
+  } catch { /* diagnostics are best effort */ }
+}
+
 async function stopInstance() {
   const inst = instance;
   if (!inst) return;
   instance = null;
+  snapshotLogs(inst);
   killInstance(inst);
   await new Promise((r) => { if (inst.proc.exitCode !== null) return r(); inst.proc.once('exit', r); setTimeout(r, 5000).unref(); });
   rmSync(inst.dir, { recursive: true, force: true }); // the per-run copy goes; saves and the base stay
@@ -153,7 +188,7 @@ async function startInstance({ saveKey, maintenance }) {
     proc.stdout.on('data', take); proc.stderr.on('data', take);
     const inst = { id, saveKey: saveKey ?? null, maintenance: !!maintenance, proc, dir, since: Date.now(), log: lines, timer: setTimeout(() => { log('instance time limit'); void stopInstance(); }, MAX_INSTANCE_MS) };
     inst.timer.unref();
-    proc.on('exit', (code, sig) => { log('EKA2L1 exited', code, sig); if (instance === inst) { instance = null; clearTimeout(inst.timer); rmSync(inst.dir, { recursive: true, force: true }); } });
+    proc.on('exit', (code, sig) => { log('EKA2L1 exited', code, sig); if (instance === inst) { instance = null; clearTimeout(inst.timer); snapshotLogs(inst); rmSync(inst.dir, { recursive: true, force: true }); } });
     instance = inst;
     log('instance started', id, maintenance ? '(maintenance)' : saveKey);
     return inst;
@@ -192,7 +227,7 @@ async function waitControl(timeoutMs = 60000) {
   }
 }
 
-async function installFirmware(job, files) {
+async function installFirmware(job, files, { keep = false } = {}) {
   try {
     await stopInstance();
     await startInstance({ saveKey: null, maintenance: true });
@@ -218,7 +253,7 @@ async function installFirmware(job, files) {
     job.state = 'failed'; job.error = String(e.message ?? e).slice(0, 400);
   } finally {
     await stopInstance();
-    for (const f of Object.values(files)) rmSync(f, { force: true }); // the originals are no longer needed: EKA2L1 keeps its own copy in the base
+    if (!keep) for (const f of Object.values(files)) rmSync(f, { force: true }); // uploads are no longer needed: EKA2L1 keeps its own copy in the base. The inbox is the operator's: never touched
   }
 }
 
@@ -254,7 +289,29 @@ async function extractCard(zip, outDir) {
   if (total > 4 * 1024 ** 3) throw Object.assign(new Error('the archive unpacks to more than 4 GB'), { status: 422, code: 'bad_card' });
   mkdirSync(outDir, { recursive: true });
   await run('unzip', ['-q', '-o', '-d', outDir, '--', zip], { timeout: 10 * 60_000 });
-  return outDir;
+  const root = findCardRoot(outDir);
+  if (!root) throw Object.assign(new Error('no system/apps folder in the archive: an N-Gage 1.0 game card dump has one (a wrapping folder is fine)'), { status: 422, code: 'bad_card' });
+  return root;
+}
+
+const childNamed = (dir, re) => { try { return readdirSync(dir).find((n) => re.test(n) && statSync(path.join(dir, n)).isDirectory()) ?? null; } catch { return null; } };
+/** The folder that holds `system/apps` (any case, up to three levels down, so a zip with a wrapping folder works); renamed to lower case, as EKA2L1 looks for it. */
+function findCardRoot(top) {
+  const queue = [[top, 0]];
+  while (queue.length) {
+    const [dir, depth] = queue.shift();
+    const sys = childNamed(dir, /^system$/i);
+    if (sys) {
+      const apps = childNamed(path.join(dir, sys), /^apps$/i);
+      if (apps) {
+        if (sys !== 'system') renameSync(path.join(dir, sys), path.join(dir, 'system'));
+        if (apps !== 'apps') renameSync(path.join(dir, 'system', apps), path.join(dir, 'system', 'apps'));
+        return dir;
+      }
+    }
+    if (depth < 3) { try { for (const n of readdirSync(dir)) { const f = path.join(dir, n); if (statSync(f).isDirectory()) queue.push([f, depth + 1]); } } catch { /* unreadable */ } }
+  }
+  return null;
 }
 
 function proxy(req, res, pathname, search, bodyBuf) {
@@ -282,7 +339,12 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && p === '/agent/health') {
       const devices = readDevices();
       let emulator = null; try { emulator = readFileSync(VERSION_FILE, 'utf8').trim(); } catch { /* not built from source */ }
-      return json(res, 200, { ok: true, emulator, firmware: { installed: devices.length > 0, devices }, instance: { running: !!instance, saveKey: instance?.saveKey ?? null, since: instance?.since ?? null }, audio: true });
+      return json(res, 200, { ok: true, emulator, firmware: { installed: devices.length > 0, devices }, defaults: readDefaults(), inbox: listInbox(), instance: { running: !!instance, saveKey: instance?.saveKey ?? null, since: instance?.since ?? null }, audio: true });
+    }
+    if (req.method === 'GET' && p === '/agent/log') {
+      if (instance) return json(res, 200, { live: true, agent: ring.slice(-120), output: instance.log.slice(-120), eka2l1Log: tailFile(emulatorLogFile(instance), 300) });
+      let last = null; try { last = JSON.parse(readFileSync(LAST_RUN, 'utf8')); } catch { /* none yet */ }
+      return json(res, 200, { live: false, agent: ring.slice(-120), output: last?.output ?? [], eka2l1Log: last?.eka2l1Log ?? [], lastRun: last ? { savedAt: last.savedAt, maintenance: last.maintenance } : null });
     }
     if (req.method === 'POST' && p === '/agent/instance') {
       const b = await readJson(req);
@@ -317,14 +379,37 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'POST' && p === '/agent/firmware/install') {
       const b = await readJson(req);
-      const pick = (k) => (b[k] ? path.join(FIRMWARE_IN, path.basename(String(b[k]))) : null);
+      const fromInbox = b.source === 'inbox';
+      const dir = fromInbox ? INBOX : FIRMWARE_IN;
+      const pick = (k) => {
+        if (!b[k]) return null;
+        const n = path.basename(String(b[k]));
+        const f = path.join(dir, n);
+        if (fromInbox) { // only plain files of the inbox itself: never a link out of it
+          try { return safeName(n) && lstatSync(f).isFile() ? f : null; } catch { return null; }
+        }
+        return f;
+      };
       const files = { ...(pick('archive') ? { archive: pick('archive') } : { rom: pick('rom'), ...(pick('rpkg') ? { rpkg: pick('rpkg') } : {}) }) };
-      if (Object.values(files).some((f) => !f || !existsSync(f))) return err(res, 400, 'bad_request', 'upload the firmware files first (rom, and rpkg or an archive)');
+      if (Object.values(files).some((f) => !f || !existsSync(f))) return err(res, 400, 'bad_request', fromInbox ? 'those files are not in the inbox folder' : 'upload the firmware files first (rom, and rpkg or an archive)');
       if (!files.archive && !files.rom) return err(res, 400, 'bad_request', 'a ROM or an archive is required');
       if ([...jobs.values()].some((j) => j.state === 'running')) return err(res, 409, 'busy', 'a firmware installation is already running');
       const job = newJob('install_device');
-      void installFirmware(job, files);
+      void installFirmware(job, files, { keep: fromInbox });
       return json(res, 202, job);
+    }
+    if (req.method === 'PUT' && p === '/agent/defaults') {
+      const b = await readJson(req);
+      if (!PLATFORMS.has(b.platform)) return err(res, 400, 'bad_request', 'platform must be symbian, ngage or ngage2');
+      const d = readDefaults();
+      if (b.code === null) delete d[b.platform];
+      else {
+        const dev = readDevices().find((x) => String(x.code).toLowerCase() === String(b.code).toLowerCase());
+        if (!dev) return err(res, 404, 'not_found', 'no such device');
+        d[b.platform] = dev.code;
+      }
+      writeDefaults(d);
+      return json(res, 200, { defaults: d });
     }
     if (req.method === 'GET' && (m = /^\/agent\/jobs\/([a-f0-9]{12})$/.exec(p))) { const j = jobs.get(m[1]); return j ? json(res, 200, j) : err(res, 404, 'not_found', 'no such job'); }
     if (req.method === 'PUT' && (m = /^\/agent\/saves\/([0-9a-f]{32})\/app$/.exec(p))) {

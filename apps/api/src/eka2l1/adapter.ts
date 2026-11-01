@@ -7,6 +7,7 @@ import type { AdapterStatus, EmulatorAdapter } from '../emulator.js';
 import { AgentClient, AgentError } from './agentClient.js';
 import { ekaKeyName } from './keymap.js';
 import { decodePng } from './png.js';
+import { DeviceChoiceError, pickDevice } from './device.js';
 
 export interface Eka2l1Options {
   agent: AgentClient;
@@ -14,6 +15,8 @@ export interface Eka2l1Options {
   saveKey: string;
   platform: Exclude<Platform, 'j2me'>;
   /** The stored game file (.sis / .sisx / .n-gage, or the .zip of an N-Gage 1.0 card). */
+  /** Firmware code the game is bound to (`GameSettings.symbianDevice`); null = the platform default / the only device. */
+  deviceCode?: string | null;
   packagePath: string;
   fileName: string;
   frameEncoding: 'raw' | 'deflate';
@@ -68,11 +71,19 @@ export class Eka2l1Adapter extends EventEmitter<AdapterEvents> implements Emulat
     const { agent } = this.o;
     try {
       const health = await agent.health();
-      if (!health.firmware.installed) throw new AgentError('No Symbian device is installed in the emulator service. Add your own firmware in Settings → Symbian first.', 412, 'no_firmware');
+      // decided BEFORE anything is started: a wrong choice must not cost a process
+      let device;
+      try {
+        device = pickDevice({ requested: this.o.deviceCode, defaults: health.defaults ?? {}, platform: this.o.platform, devices: health.firmware.devices });
+      } catch (e) {
+        if (e instanceof DeviceChoiceError) throw new AgentError(e.message, e.code === 'device_required' ? 409 : 412, e.code);
+        throw e;
+      }
+      this.log(`device ${device.manufacturer} ${device.model} (${device.code})`);
       const inst = await agent.startInstance({ saveKey: this.o.saveKey });
       this.log(`instance ${inst.id} started`);
       await this.waitForEmulator();
-      await this.ensureDevice(health);
+      await this.ensureDevice(device.code);
       const uid = await this.installAndFind(inst.app?.uid ?? null);
       this.log(`launching ${uid}`);
       await agent.control('POST', `/v1/apps/${uid}/launch`, { wait: true, timeoutMs: this.o.launchTimeoutMs ?? 60_000 }, (this.o.launchTimeoutMs ?? 60_000) + 10_000);
@@ -86,6 +97,7 @@ export class Eka2l1Adapter extends EventEmitter<AdapterEvents> implements Emulat
     } catch (e) {
       const detail = e instanceof Error ? e.message : String(e);
       await this.teardown().catch(() => undefined);
+      await this.collectLogs();
       this._state = 'exited';
       this.exitInfo = { code: 1, reason: 1, detail };
       throw e instanceof Error ? e : new Error(detail);
@@ -106,12 +118,10 @@ export class Eka2l1Adapter extends EventEmitter<AdapterEvents> implements Emulat
     }
   }
 
-  /** The installed device has to be the booted one: `device: null` means nothing is booted yet. */
-  private async ensureDevice(health: { firmware: { devices: { code: string }[] } }): Promise<void> {
+  /** The chosen device has to be the booted one: `device: null` means nothing is booted yet, another code means another firmware. */
+  private async ensureDevice(code: string): Promise<void> {
     const st = await this.o.agent.control<{ device?: { code?: string } | null }>('GET', '/v1/status');
-    if (st.device?.code) return;
-    const code = health.firmware.devices[0]?.code;
-    if (!code) throw new AgentError('No Symbian device is installed in the emulator service.', 412, 'no_firmware');
+    if (st.device?.code && st.device.code.toLowerCase() === code.toLowerCase()) return;
     this.log(`booting device ${code}`);
     await this.o.agent.control('POST', `/v1/devices/${encodeURIComponent(code)}/boot`, {}, 5 * 60_000);
   }
@@ -193,6 +203,15 @@ export class Eka2l1Adapter extends EventEmitter<AdapterEvents> implements Emulat
     }
   }
 
+  /** The emulator's own words end up in the session log: a start that fails on a real firmware has to be explainable from the UI. */
+  private async collectLogs(): Promise<void> {
+    try {
+      const l = await this.o.agent.logs();
+      for (const line of l.output.slice(-30)) this.log(`emulator: ${line}`);
+      for (const line of l.eka2l1Log.slice(-60)) this.log(`EKA2L1.log: ${line}`);
+    } catch { /* the service may be gone */ }
+  }
+
   private async pollStatus(): Promise<void> {
     if (this._state !== 'running') return;
     try {
@@ -218,6 +237,7 @@ export class Eka2l1Adapter extends EventEmitter<AdapterEvents> implements Emulat
   private async finish(info: ExitInfo): Promise<void> {
     if (this._state === 'exited') return;
     await this.teardown();
+    if (info.code !== 0) await this.collectLogs();
     this._state = 'exited';
     this.exitInfo = info;
     this.emit('exit', info);

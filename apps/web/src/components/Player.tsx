@@ -38,6 +38,8 @@ const STATE_BADGE: Record<string, string> = { running: 'prod', starting: 'dev', 
 export function Player({ gameId, toast, onExit, health }: { gameId: string; toast: (k: Toast['kind'], t: string) => void; onExit: () => void; health: HealthStatus | null }) {
   const developer=useDeveloperMode();
   const [game, setGame] = useState<GameMeta | null>(null);
+  const [symDevices, setSymDevices] = useState<{ code: string; manufacturer: string; model: string }[]>([]);
+  useEffect(() => { if (game && game.platform && game.platform !== 'j2me') api.symbianStatus().then((s) => setSymDevices(s.firmware.devices), () => undefined); }, [game?.id, game?.platform]);
   const j2me = (game?.platform ?? 'j2me') === 'j2me'; // Symbian and N-Gage games (EKA2L1) have no heap, J2ME profile or game speed
   const [session, setSession] = useState<SessionStatus | null>(null);
   const [state, setState] = useState<SessionState | 'idle'>('idle');
@@ -508,6 +510,15 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
         </Panel>
 
         {!j2me && <Panel icon="cpu" title={translateUI("Symbian emulator (experimental)")}>
+          <label className="field"><span className="label-caps">{translateUI("Device (firmware)")}</span>
+            <select className="select" data-testid="symbian-device" disabled={running} value={game?.settings.symbianDevice ?? ''} aria-label={translateUI("Device (firmware)")}
+              onChange={async (e) => { if (!game) return; try { setGame(await api.patchGame(game.id, { settings: { symbianDevice: e.target.value || null } })); } catch (err) { toast('error', (err as Error).message); } }}>
+              <option value="">{translateUI("Automatic (platform default or the only device)")}</option>
+              {game?.settings.symbianDevice && !symDevices.some((d) => d.code === game.settings.symbianDevice) && <option value={game.settings.symbianDevice}>{game.settings.symbianDevice} ({translateUI("not installed")})</option>}
+              {symDevices.map((d) => <option key={d.code} value={d.code}>{d.manufacturer} {d.model} ({d.code})</option>)}
+            </select>
+          </label>
+          <a className="btn ghost sm" href="/api/symbian/diagnostics" download data-testid="symbian-session-diagnostics">{translateUI("Download Symbian diagnostics")}</a>
           <p className="muted small" data-testid="symbian-note">{translateUI("This game runs in EKA2L1 with the firmware you added in Settings → Symbian. The phone, heap and speed options of the Java emulator do not apply; the picture has the size the game draws.")}</p>
         </Panel>}
         {j2me && (

@@ -62,9 +62,11 @@ const server = http.createServer(async (req, res) => {
     const id = Math.random().toString(16).slice(2, 10);
     jobs.set(id, { id, kind: 'install_device', state: 'running', progress: 0 });
     setTimeout(() => {
-      devices.push({ code: 'RM-84', manufacturer: 'Nokia', model: 'N-Gage (fake)' });
+      // the device code comes from the firmware file name (RM-84.rom, RH-29.rom ...) so tests can install several different devices
+      const code = /([A-Z]{2,3}-\d+)/.exec(path.basename(body.archive ?? body.rom))?.[1] ?? 'RM-84';
+      if (!devices.find((d) => d.code === code)) devices.push({ code, manufacturer: 'Nokia', model: `Fake ${code}` });
       writeFileSync(devicesFile, JSON.stringify(devices));
-      writeFileSync(path.join(data, 'roms', 'RM-84.rom'), 'fake rom');
+      writeFileSync(path.join(data, 'roms', `${code}.rom`), 'fake rom');
       writeFileSync(path.join(data, 'drives', 'z', 'system.txt'), 'fake z drive');
       current = current ?? 'RM-84';
       jobs.set(id, { id, kind: 'install_device', state: 'succeeded', progress: 1 });

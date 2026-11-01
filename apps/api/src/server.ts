@@ -293,7 +293,7 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
       if (cur) {
         const resetEmulation = (patchSettings as Record<string, unknown>).emulation === null;
         const valid = validateSettings(patchSettings, cur.settings);
-        patchSettings = valid.profileMode === 'auto' || 'device' in patchSettings ? withDevice(valid, patchSettings as Record<string, unknown>) : valid;
+        patchSettings = cur.platform && cur.platform !== 'j2me' ? patchSettings : valid.profileMode === 'auto' || 'device' in patchSettings ? withDevice(valid, patchSettings as Record<string, unknown>) : valid;
         // `valid` is a complete settings object, so "remove the options" has to survive as an explicit null
         if (resetEmulation) patchSettings = { ...(patchSettings as object), emulation: null };
       }

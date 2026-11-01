@@ -598,5 +598,18 @@
   "Done": "Готово",
   "Failed": "Ошибка",
   "Firmware installed": "Прошивка установлена",
-  "Firmware job failed": "Не удалось установить прошивку"
+  "Firmware job failed": "Не удалось установить прошивку",
+  "a proxy or tunnel in front of JGO may be refusing large files; see docs/SYMBIAN.md, \"Upload limits\", or put the files into the inbox folder": "прокси или туннель перед JGO, возможно, не пропускает большие файлы: см. docs/SYMBIAN.md, «Лимиты загрузки», или положите файлы в каталог inbox",
+  "Default device per platform": "Устройство по умолчанию для платформы",
+  "JGO does not guess which firmware fits a game. With several devices, choose one here for every game of a platform (a game can still have its own in its settings).": "JGO не угадывает, какая прошивка подходит игре. Если устройств несколько, выберите здесь одно для всех игр платформы (у игры может быть своё в её настройках).",
+  "— not set —": "— не задано —",
+  "Firmware from a folder": "Прошивка из папки",
+  "Files found in the service's inbox folder. They are read in place, never uploaded through the browser and never deleted.": "Файлы из папки inbox службы. Они читаются на месте, не загружаются через браузер и никогда не удаляются.",
+  "Archive": "Архив",
+  "Install from the folder": "Установить из папки",
+  "Device (firmware)": "Устройство (прошивка)",
+  "Automatic (platform default or the only device)": "Автоматически (по умолчанию для платформы или единственное устройство)",
+  "not installed": "не установлено",
+  "Download Symbian diagnostics": "Скачать диагностику Symbian",
+  "Versions, devices, the service log and the emulator's last words: attach it to a bug report.": "Версии, устройства, журнал службы и последние слова эмулятора: приложите к отчёту об ошибке."
 }

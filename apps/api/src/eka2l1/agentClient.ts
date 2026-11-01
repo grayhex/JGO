@@ -20,6 +20,10 @@ export interface AgentHealth {
   /** EKA2L1 version / commit the image was built from. */
   emulator: string | null;
   firmware: { installed: boolean; devices: { code: string; manufacturer: string; model: string }[] };
+  /** Per-platform default device (firmware code). */
+  defaults?: Partial<Record<'symbian' | 'ngage' | 'ngage2', string>>;
+  /** Files in the service's inbox folder. */
+  inbox?: { name: string; size: number }[];
   instance: { running: boolean; saveKey: string | null; since: number | null };
   audio: boolean;
 }
@@ -129,12 +133,21 @@ export class AgentClient {
     return (await res.json()) as { file: string };
   }
 
-  installFirmware(files: { rom?: string; rpkg?: string; archive?: string }): Promise<AgentJob> {
+  installFirmware(files: { rom?: string; rpkg?: string; archive?: string; source?: 'inbox' }): Promise<AgentJob> {
     return this.json<AgentJob>('POST', '/agent/firmware/install', files);
   }
 
   job(id: string): Promise<AgentJob> {
     return this.json<AgentJob>('GET', `/agent/jobs/${encodeURIComponent(id)}`);
+  }
+
+  /** What the service and the emulator said recently (live, or the last run when nothing is running). */
+  logs(): Promise<{ live: boolean; agent: string[]; output: string[]; eka2l1Log: string[]; lastRun?: { savedAt: string; maintenance: boolean } | null }> {
+    return this.json('GET', '/agent/log');
+  }
+
+  setDefault(platform: 'symbian' | 'ngage' | 'ngage2', code: string | null): Promise<{ defaults: Record<string, string> }> {
+    return this.json('PUT', '/agent/defaults', { platform, code });
   }
 
   deleteDevice(code: string): Promise<AgentJob> {

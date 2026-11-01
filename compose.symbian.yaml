@@ -30,6 +30,9 @@ services:
     volumes:
       # firmware (the emulator's base directory), per-game saves, the device list: keep it, it holds the user's firmware
       - jgo-symbian-data:/data
+      # Optional inbox: firmware that is too big for the browser / your reverse proxy. Put the ROM/RPKG/archive in this folder on the
+      # host and install it from Settings -> Symbian -> "Firmware from a folder". Read-only: JGO never changes or deletes these files.
+      - ${SYMBIAN_INBOX:-./symbian-inbox}:/inbox:ro
     # Only the JGO app can reach it. The network has no route out: a game cannot reach the internet or your LAN.
     networks: [symbian]
     read_only: true

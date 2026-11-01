@@ -146,6 +146,28 @@ describe('Symbian service (real agent, fake EKA2L1)', () => {
     assert.ok(!all.some((f) => /\.(rom|rpkg)$/i.test(f)), all.join('\n'));
   });
 
+  it('binds a game to a device: validates the code, rejects a device that is not installed at start, accepts the installed one', async () => {
+    const patch = (settings: object) => fetch(`${env.base}/api/games/${gameId}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ settings }) });
+    assert.equal((await patch({ symbianDevice: '../etc' })).status, 400);
+    const ok = await patch({ symbianDevice: 'XX-1' });
+    assert.equal(ok.status, 200, await ok.clone().text());
+    assert.equal(((await ok.json()) as any).settings.symbianDevice, 'XX-1');
+    const start = await fetch(`${env.base}/api/sessions`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ gameId }) });
+    assert.equal(start.status, 412);
+    assert.equal(((await start.json()) as any).error, 'device_missing');
+    assert.equal(((await (await patch({ symbianDevice: 'RM-84' })).json()) as any).settings.symbianDevice, 'RM-84');
+    assert.equal(((await (await patch({ symbianDevice: null })).json()) as any).settings.symbianDevice, undefined, 'null clears it');
+  });
+
+  it('sets a platform default through the API and rejects an unknown device', async () => {
+    const put = (body: object) => fetch(`${env.base}/api/symbian/defaults`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    assert.equal((await put({ platform: 'ngage', code: 'NOPE-1' })).status, 404);
+    assert.equal((await put({ platform: 'wp7', code: 'RM-84' })).status, 400);
+    assert.equal((await put({ platform: 'ngage', code: 'RM-84' })).status, 200);
+    assert.deepEqual(((await (await fetch(`${env.base}/api/symbian/status`)).json()) as any).defaults, { ngage: 'RM-84' });
+    assert.equal((await put({ platform: 'ngage', code: null })).status, 200);
+  });
+
   it('rejects a firmware file over the service limit with 413', async () => {
     const big = await postFirmware(env.base, 'rom', 'big.rom', Buffer.alloc(80 * 1024, 1));
     assert.equal(big.status, 413, JSON.stringify(big.body));
@@ -179,6 +201,18 @@ describe('Symbian service (real agent, fake EKA2L1)', () => {
     const del = await fetch(`${env.base}/api/sessions/${s.id}`, { method: 'DELETE' });
     assert.ok(del.status === 200 || del.status === 204);
     await waitFor(async () => !((await (await fetch(`${env.base}/api/symbian/status`)).json()) as any).busy, 'the service to become idle', 8000);
+  });
+
+  it('offers a diagnostics report with the service log and the emulator\'s last words', async () => {
+    const r = await fetch(`${env.base}/api/symbian/diagnostics`);
+    assert.equal(r.status, 200);
+    assert.match(r.headers.get('content-disposition') ?? '', /attachment/);
+    const t = await r.text();
+    assert.match(t, /service: reachable/);
+    assert.match(t, /devices: Nokia Fake RM-84 \(RM-84\)/);
+    assert.match(t, /--- service log/);
+    assert.match(t, /instance started/, 'the agent log tells what happened');
+    assert.doesNotMatch(t, new RegExp(TOKEN), 'the token never appears in a report');
   });
 
   it('keeps the game\'s saves in the service and removes them with the game', async () => {

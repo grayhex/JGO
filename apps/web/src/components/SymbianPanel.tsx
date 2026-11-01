@@ -1,7 +1,7 @@
 import { t as translateUI } from '../i18n';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SymbianJob, SymbianStatus } from '@j2me-web/protocol';
-import { api } from '../api';
+import { api, type ApiError } from '../api';
 import { Icon } from './Icon';
 
 type Toaster = (kind: 'info' | 'error', text: string) => void;
@@ -17,6 +17,7 @@ export function SymbianPanel({ toast }: { toast: Toaster }) {
   const [files, setFiles] = useState<{ rom?: File; rpkg?: File; archive?: File }>({});
   const [working, setWorking] = useState<string | null>(null);
   const [job, setJob] = useState<SymbianJob | null>(null);
+  const [inboxPick, setInboxPick] = useState<{ rom?: string; rpkg?: string; archive?: string }>({});
   const timer = useRef<number | null>(null);
 
   const load = useCallback(() => { api.symbianStatus().then(setSt, (e) => toast('error', (e as Error).message)); }, [toast]);
@@ -51,7 +52,23 @@ export function SymbianPanel({ toast }: { toast: Toaster }) {
       setWorking(null);
       follow(await api.symbianInstall(names));
       setFiles({});
-    } catch (e) { setWorking(null); toast('error', (e as Error).message); }
+    } catch (e) {
+      setWorking(null);
+      const status = (e as ApiError).status;
+      toast('error', status === 413 || status === 0
+        ? `${(e as Error).message} — ${translateUI('a proxy or tunnel in front of JGO may be refusing large files; see docs/SYMBIAN.md, "Upload limits", or put the files into the inbox folder')}`
+        : (e as Error).message);
+    }
+  };
+
+  const installFromInbox = async () => {
+    try {
+      const names: Record<string, string> = {};
+      if (inboxPick.rom) names.rom = inboxPick.rom;
+      if (inboxPick.rpkg) names.rpkg = inboxPick.rpkg;
+      if (inboxPick.archive) names.archive = inboxPick.archive;
+      follow(await api.symbianInstall({ ...(names.archive ? { archive: names.archive } : { rom: names.rom!, ...(names.rpkg ? { rpkg: names.rpkg } : {}) }), source: 'inbox' }));
+    } catch (e) { toast('error', (e as Error).message); }
   };
 
   if (!st) return <p className="muted">…</p>;
@@ -77,6 +94,18 @@ export function SymbianPanel({ toast }: { toast: Toaster }) {
                 <strong>{d.manufacturer} {d.model}</strong> <code>{d.code}</code>{' '}
                 <button className="btn sm danger" disabled={st.busy || jobRunning} onClick={async () => { if (confirm(translateUI('Remove this device and its firmware from the service?'))) { try { follow(await api.symbianRemove(d.code)); } catch (e) { toast('error', (e as Error).message); } } }}>{translateUI("Remove")}</button>
               </li>))}</ul>}
+          {st.firmware.devices.length > 1 && (
+            <>
+              <h3>{translateUI("Default device per platform")}</h3>
+              <p className="muted small">{translateUI("JGO does not guess which firmware fits a game. With several devices, choose one here for every game of a platform (a game can still have its own in its settings).")}</p>
+              {(['ngage', 'ngage2', 'symbian'] as const).map((pl) => (
+                <label className="field" key={pl}><span className="label-caps">{pl === 'ngage' ? 'N-Gage 1.0' : pl === 'ngage2' ? 'N-Gage 2.0' : 'S60'}</span>
+                  <select className="select" value={st.defaults[pl] ?? ''} data-testid={`default-${pl}`} onChange={async (e) => { try { await api.symbianDefault(pl, e.target.value || null); load(); } catch (err) { toast('error', (err as Error).message); } }}>
+                    <option value="">{translateUI("— not set —")}</option>
+                    {st.firmware.devices.map((d) => <option key={d.code} value={d.code}>{d.manufacturer} {d.model} ({d.code})</option>)}
+                  </select>
+                </label>))}
+            </>)}
           <h3>{translateUI("Add firmware")}</h3>
           <div className="btn-row" role="radiogroup" aria-label={translateUI("Firmware format")}>
             <button className={`btn sm${mode === 'rom' ? ' primary' : ''}`} onClick={() => setMode('rom')} aria-pressed={mode === 'rom'}>{translateUI("ROM + RPKG")}</button>
@@ -89,8 +118,22 @@ export function SymbianPanel({ toast }: { toast: Toaster }) {
             </>)
             : <label className="field"><span className="label-caps">{translateUI("Archive (.zip, .7z, .rar, .rpkg)")}</span><input type="file" accept=".zip,.7z,.rar,.rpkg" onChange={(e) => setFiles((f) => ({ ...f, ...(e.target.files?.[0] ? { archive: e.target.files[0] } : {}) }))} data-testid="fw-archive" /></label>}
           <p className="muted small">{translateUI("Files up to")} {mb(st.maxFirmwareBytes)}. {translateUI("They are sent to the service only and are not kept in JGO or in its image. Installing can take several minutes.")}</p>
+          <p><a className="btn sm" href="/api/symbian/diagnostics" download data-testid="symbian-diagnostics">{translateUI("Download Symbian diagnostics")}</a> <span className="muted small">{translateUI("Versions, devices, the service log and the emulator's last words: attach it to a bug report.")}</span></p>
           <button className="btn primary" disabled={!ready || !!working || jobRunning || st.busy} onClick={install} data-testid="fw-install"><Icon name="upload" /> {translateUI("Upload and install")}</button>
           {working && <p className="muted" role="status">{working}</p>}
+          {st.inbox.length > 0 && (
+            <div data-testid="inbox">
+              <h3>{translateUI("Firmware from a folder")}</h3>
+              <p className="muted small">{translateUI("Files found in the service's inbox folder. They are read in place, never uploaded through the browser and never deleted.")}</p>
+              {(['rom', 'rpkg', 'archive'] as const).map((slot) => (
+                <label className="field" key={slot}><span className="label-caps">{slot === 'rom' ? 'ROM' : slot === 'rpkg' ? 'RPKG' : translateUI('Archive')}</span>
+                  <select className="select" value={inboxPick[slot] ?? ''} data-testid={`inbox-${slot}`} onChange={(e) => setInboxPick((p) => ({ ...p, [slot]: e.target.value || undefined }))}>
+                    <option value="">—</option>
+                    {st.inbox.map((f) => <option key={f.name} value={f.name}>{f.name} ({mb(f.size)})</option>)}
+                  </select>
+                </label>))}
+              <button className="btn" disabled={!(inboxPick.rom || inboxPick.archive) || jobRunning || st.busy} onClick={installFromInbox} data-testid="inbox-install">{translateUI("Install from the folder")}</button>
+            </div>)}
           {job && <p role="status" className={job.state === 'failed' ? 'note err' : 'muted'}>{translateUI(job.state === 'running' ? 'Working…' : job.state === 'succeeded' ? 'Done' : 'Failed')}{job.state === 'failed' && job.error ? `: ${job.error}` : ''}</p>}
         </>
       )}

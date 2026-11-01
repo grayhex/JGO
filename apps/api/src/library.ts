@@ -110,6 +110,11 @@ export function validateSettings(input: unknown, base: GameSettings = DEFAULT_SE
     else if (typeof o.device !== 'string' || !/^[a-z0-9][a-z0-9-]{0,120}$/.test(o.device)) throw new UploadError('bad_settings', 'invalid device id');
     else out.device = o.device;
   }
+  if (o.symbianDevice !== undefined) {
+    if (o.symbianDevice === null || o.symbianDevice === '') delete out.symbianDevice;
+    else if (typeof o.symbianDevice !== 'string' || !/^[A-Za-z0-9._-]{1,32}$/.test(o.symbianDevice)) throw new UploadError('bad_settings', 'invalid Symbian device code');
+    else out.symbianDevice = o.symbianDevice;
+  }
   if (o.skinId !== undefined) {
     if (!isPhoneId(o.skinId)) throw new UploadError('bad_settings', 'unknown phone skin');
     out.skinId = o.skinId;
