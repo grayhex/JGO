@@ -49,7 +49,7 @@ node tools/symbian/check-upload.mjs https://ваш-адрес --mb 600 --token <
 
 ## 3. Прошивка
 
-**Вариант А — через браузер.** *Add firmware* → «ROM + RPKG» (ROM обязателен, RPKG по ситуации) или «Firmware archive» → *Upload and install*.
+**Вариант А — через браузер.** *Add firmware* → «ROM + RPKG» (ROM обязателен, RPKG по ситуации) или «Firmware archive» → *Upload and install*. Для заводского комплекта выберите «Factory kit (.vpl + .fpsx)»: один VPL, его образы с исходными именами и вариант. Предварительный ROM-дамп не нужен; требуется пересборка службы с `+jgo-vpl1`. Подробнее — [FACTORY_FIRMWARE.md](FACTORY_FIRMWARE.md).
 
 **Вариант Б — из папки** (без HTTP, надёжнее для больших файлов):
 
@@ -64,6 +64,10 @@ docker compose -f compose.yaml -f compose.build.yaml -f compose.symbian.yaml -f 
 производителем, моделью и кодом (например `Nokia … (RH-…)`). Если задание завершилось ошибкой — текст ошибки в панели; приложите **диагностику** (ссылка
 «Download Symbian diagnostics» в той же панели).
 
+**Место на диске.** Прошивке при установке нужно примерно вдвое больше её размера (оценка, не измерено на настоящей прошивке; настраивается `INSTALL_SPACE_FACTOR`).
+Службе нужны том `jgo-symbian-data` с запасом: панель показывает свободное место и предупреждает, когда его меньше 5 ГБ. Если места не хватает, загрузка и установка
+отклоняются сразу (`507 insufficient_storage`), а не оставляют полуустановленное устройство. Сборка образа сама занимает десятки ГБ на хосте.
+
 Несколько прошивок (N-Gage Classic, S60v3, Belle…): для каждой платформы выберите устройство по умолчанию в «Default device per platform» либо задайте
 устройство конкретной игре. JGO не угадывает.
 
@@ -74,6 +78,8 @@ docker compose -f compose.yaml -f compose.build.yaml -f compose.symbian.yaml -f 
 2. Откройте игру → панель справа «Symbian emulator (experimental)»: при нескольких прошивках выберите «Device (firmware)».
 3. **Start.** Первый запуск: загрузка пакета → установка → старт приложения → первый кадр. Ждите до минуты; ориентир — состояние «starting» → «running» и размер
    картинки в чипе «Display» (например `176×208`).
+
+Панель плеера показывает готовность до Start: службу, реальный product code прошивки, профиль/ОС и источник выбора. При отсутствии firmware скин не заменяет её. Несколько устройств без выбора блокируют запуск. «Use matching skin» меняет только корпус; `/phones` также не меняет firmware. Фильтр платформ в библиотеке помогает разделять тестовые игры. Прогресс загрузки прошивки можно отменить до установки; мониторинг job возобновляется после перезагрузки страницы. Подробности — [PHONES.md](PHONES.md).
 
 ## 5. Что проверить и записать
 
@@ -109,12 +115,14 @@ docker compose exec jgo-symbian ls -R /data/saves | head -40
 | `409 device_required` | несколько прошивок, выбор не задан | шаг 4.2 или устройство по умолчанию |
 | `412 device_missing` | задано устройство, которого нет (удалили?) | выбрать другое в настройках игры |
 | `503 symbian_unavailable` | служба выключена или не отвечает | шаг 2 |
+| `507 insufficient_storage` | в томе службы не хватает места | освободить место / расширить том (`docker system df`, панель «Free space») |
 | `413` при загрузке | лимит в прокси/туннеле (HTML) или JGO (JSON `too_large`) | `check-upload.mjs`; inbox |
 | «The game did not show a picture within 60 s» | игра стартовала, но кадра нет | диагностика: смотрите `EKA2L1.log` (паника, нехватка файлов, ошибка графики) |
 | «The package installed, but no application appeared» | пакет не поставился (не та прошивка/версия Symbian, нет зависимостей) | диагностика; попробуйте другую прошивку |
 | «lists N applications and JGO cannot tell which one is the game» | в установленной системе уже есть несистемные приложения | пришлите диагностику (список приложений в `EKA2L1.log`); JGO не станет угадывать |
 | Чёрный экран / артефакты | программный OpenGL | в диагностике ищите строки `Driver.Graphics`; пришлите |
 | Нет звука | цепочка EKA2L1 → PulseAudio → parec **не проверена** | `docker compose exec jgo-symbian pactl list short sinks` (должен быть `jgo_sink`), `… pactl list short sink-inputs` во время игры |
+| Установка заводского комплекта: `bad_request`/`variant_required`/`fpsx_corrupt`/`firmware_file_missing` | см. [FACTORY_FIRMWARE.md](FACTORY_FIRMWARE.md): не тот вариант, повреждён или не хватает образа | диагностика + имена файлов комплекта |
 | Очень медленно | программный OpenGL | пришлите FPS и `docker stats` |
 
 Команды внутри контейнера:
@@ -132,3 +140,5 @@ docker compose exec jgo-symbian cat /data/last-run.json | head -c 4000
 4. Что именно вы ждали и что получили.
 
 Не присылайте и не выкладывайте сами файлы прошивки и игры: они принадлежат их правообладателям, а JGO их не собирает.
+
+Шаблон отчёта: [NATIVE_TEST_MATRIX.md](NATIVE_TEST_MATRIX.md). Проверки интерфейса с fake-эмулятором не заменяют этот ручной прогон.

@@ -1,4 +1,4 @@
-import { isPhoneId } from '@j2me-web/protocol';
+import { isPhoneId, isEmulatedDeviceId } from '@j2me-web/protocol';
 import { createHash, randomBytes } from 'node:crypto';
 import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
@@ -90,6 +90,11 @@ export function validateEmulation(input: unknown): EmulationTweaks {
 export function validateSettings(input: unknown, base: GameSettings = DEFAULT_SETTINGS): GameSettings {
   const o = (input ?? {}) as Record<string, unknown>;
   const out: GameSettings = { ...base };
+  if (o.emulatedDeviceId !== undefined) {
+    if (o.emulatedDeviceId === null || o.emulatedDeviceId === '') delete out.emulatedDeviceId;
+    else if (!isEmulatedDeviceId(o.emulatedDeviceId)) throw new UploadError('bad_settings', 'unknown emulated device profile');
+    else out.emulatedDeviceId = o.emulatedDeviceId;
+  }
   const num = (v: unknown, lo: number, hi: number, name: string): number => {
     if (typeof v !== 'number' || !Number.isInteger(v) || v < lo || v > hi) throw new UploadError('bad_settings', `${name} must be an integer in ${lo}..${hi}`);
     return v;

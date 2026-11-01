@@ -1,5 +1,5 @@
 import { t as translateUI } from '../i18n';
-import { GENRES, type GameMeta, type HealthStatus, type ScanReport } from '@j2me-web/protocol';
+import { GENRES, GAME_PLATFORMS, GAME_PLATFORM_LABELS, isGamePlatform, type GamePlatform, type GameMeta, type HealthStatus, type ScanReport } from '@j2me-web/protocol';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../api';
 
@@ -51,6 +51,9 @@ function Cover({ g }: { g: GameMeta }) {
 export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: Toast['kind'], t: string) => void; onPlay: (id: string) => void; health: HealthStatus | null; query: string; onQuery: (v: string) => void }) {
   const [games, setGames] = useState<GameMeta[] | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
+  const [platform, setPlatform] = useState<GamePlatform | 'all'>(() => {
+    try { const value = localStorage.getItem('jgo.library.platform'); return isGamePlatform(value) ? value : 'all'; } catch { return 'all'; }
+  });
   const [view, setViewState] = useState<View>(loadView);
   const setView = (v: View) => { setViewState(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* storage unavailable */ } };
   const [dragging, setDragging] = useState(false);
@@ -155,7 +158,10 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
 
   const groups = useMemo(() => {
     const m = new Map<string, GameMeta[]>();
-    for (const g of games ?? []) (m.get(g.groupKey) ?? m.set(g.groupKey, []).get(g.groupKey)!).push(g);
+    for (const g of games ?? []) {
+      if (platform !== 'all' && (g.platform ?? 'j2me') !== platform) continue;
+      (m.get(g.groupKey) ?? m.set(g.groupKey, []).get(g.groupKey)!).push(g);
+    }
     const needle = query.trim().toLowerCase();
     return [...m.values()]
       .map((vs) => vs.sort((a, b) => b.createdAt.localeCompare(a.createdAt)))
@@ -164,7 +170,7 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
       .filter((vs) => (filter === 'favorites' ? vs.some((g) => g.favorite) : filter === 'recent' ? vs.some((g) => g.lastPlayedAt) : true))
       .filter((vs) => matchesStatus(vs, status))
       .sort((a, b) => compareGroups(a, b, filter === 'recent' && sort === 'name' ? 'played' : sort)); // "Recent" keeps its order unless another one is chosen
-  }, [games, query, filter, genre, status, sort]);
+  }, [games, query, filter, genre, status, sort, platform]);
 
   // games per genre (one per group, so the versions of a game count once), from what is already loaded
   const genreCounts = useMemo(() => {
@@ -196,6 +202,13 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
 
       <div className="lib-toolbar" role="search">
         <input className="input lib-search" type="search" placeholder={translateUI("Search games or vendors")} value={query} onChange={(e) => onQuery(e.target.value)} aria-label={translateUI("Search")} data-testid="search" />
+        <select className="select compact" aria-label={translateUI('Game platform')} data-testid="platform-filter" value={platform} onChange={e => {
+          const value = e.target.value as GamePlatform | 'all'; setPlatform(value);
+          try { localStorage.setItem('jgo.library.platform', value); } catch { /* storage unavailable */ }
+        }}>
+          <option value="all">{translateUI('All platforms')}</option>
+          {GAME_PLATFORMS.map(p => <option key={p} value={p}>{GAME_PLATFORM_LABELS[p]}</option>)}
+        </select>
         <select className="select compact" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} aria-label={translateUI("Sort by")} data-testid="sort">
           {SORT_KEYS.map((k) => <option key={k} value={k}>{translateUI(SORT_LABEL[k])}</option>)}
         </select>
@@ -242,7 +255,9 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
       <div className={`lib-grid${view === 'list' ? ' list' : ''}`} data-view={view}>
         {groups.map((vs) => {
           const sel = vs.find((v) => v.id === chosen[vs[0]!.groupKey]) ?? vs[0]!;
-          const bad = sel.classVersion >= 49;
+          const java = (sel.platform ?? 'j2me') === 'j2me';
+          const bad = java && sel.classVersion >= 49;
+          const blocked = bad || (java && health?.ok === false);
           const unconfirmed = !sel.classification || sel.classification.unconfirmed;
           const genreButton = (
             <button className={`badge plain genre-badge${unconfirmed ? ' unconfirmed' : ''}`} onClick={() => setGenreFor(sel)} data-testid="genre-badge"
@@ -277,8 +292,8 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
           );
           if (view === 'list') return (
             <article className="card game-card game-row" key={sel.groupKey}>
-              <button className="row-cover" tabIndex={-1} aria-hidden onClick={() => onPlay(sel.id)} disabled={bad || health?.ok === false}><Cover g={sel} /></button>
-              <button className="card-main row-title" onClick={() => onPlay(sel.id)} disabled={bad || health?.ok === false} title={translateUI(bad ? 'Java 5+ class files are not supported by KEmulator' : `Play ${sel.name}`)}>
+              <button className="row-cover" tabIndex={-1} aria-hidden onClick={() => onPlay(sel.id)} disabled={blocked}><Cover g={sel} /></button>
+              <button className="card-main row-title" onClick={() => onPlay(sel.id)} disabled={blocked} title={translateUI(bad ? 'Java 5+ class files are not supported by KEmulator' : `Play ${sel.name}`)}>
                 <h3>{sel.name}</h3>
                 <span className="row-flags">{flags}</span>
               </button>
@@ -291,7 +306,7 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
           );
           return (
             <article className="card game-card" key={sel.groupKey}>
-              <button className="card-main" onClick={() => onPlay(sel.id)} disabled={bad || health?.ok === false} title={translateUI(bad ? 'Java 5+ class files are not supported by KEmulator' : `Play ${sel.name}`)}>
+              <button className="card-main" onClick={() => onPlay(sel.id)} disabled={blocked} title={translateUI(bad ? 'Java 5+ class files are not supported by KEmulator' : `Play ${sel.name}`)}>
                 <Cover g={sel} />
                 <div className="meta">
                   <h3>{sel.name}</h3>

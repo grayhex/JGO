@@ -1,0 +1,118 @@
+diff --git a/src/emu/control/src/native.cpp b/src/emu/control/src/native.cpp
+index 81615ba..119bf02 100644
+--- a/src/emu/control/src/native.cpp
++++ b/src/emu/control/src/native.cpp
+@@ -27,6 +27,7 @@
+ #include <system/devices.h>
+ #include <system/epoc.h>
+ #include <system/installation/archive.h>
++#include <system/installation/firmware.h>
+ #include <system/installation/rpkg.h>
+ #include <utils/apacmd.h>
+ #include <vfs/vfs.h>
+@@ -293,7 +294,7 @@ namespace eka2l1::control {
+             auto p = req.path;
+             require(!p.empty() && p[0] == "v1", "not_found", "unknown API version", 404);
+             if (p == std::vector<std::string>{ "v1", "capabilities" } && req.method == "GET")
+-                return response::from_json({ { "platform", frontend.platform }, { "hostScreenshot", false }, { "accelerometer", bool(frontend.acceleration) }, { "touchSpaces", json::array{ "guest", "normalized" } } });
++                return response::from_json({ { "platform", frontend.platform }, { "hostScreenshot", false }, { "firmwareFormats", json::array{ "rom", "rpkg", "archive", "vpl" } }, { "accelerometer", bool(frontend.acceleration) }, { "touchSpaces", json::array{ "guest", "normalized" } } });
+             if (req.method == "RESOLVE" && p == std::vector<std::string>{ "v1", "files" }) {
+                 const auto raw = req.param("path");
+                 require(!raw.empty(), "bad_request", "path query parameter required", 400);
+@@ -312,8 +313,31 @@ namespace eka2l1::control {
+                     const auto storage = sys().get_config()->storage;
+                     const auto roms = add_path(storage, "roms/"), drives = add_path(storage, "drives/z/");
+                     const bool isolate = body["isolateDrives"].boolean();
+-                    auto result = body.contains("archive") ? loader::install_archive(manager, required_string(body, "archive"), roms, drives, isolate, [&req](std::size_t done, std::size_t total) { if (req.progress && total) req.progress(double(done) / total); }, nullptr) : loader::install_rom_with_optional_rpkg(manager, required_string(body, "rom"), body["rpkg"].string(), roms, drives, isolate, [&req](std::size_t done, std::size_t total) { if (req.progress && total) req.progress(double(done) / total); }, nullptr);
++                    const auto progress = [&req](std::size_t done, std::size_t total) { if (req.progress && total) req.progress(double(done) / total); };
++                    device_installation_error result;
++                    if (body.contains("vpl")) {
++                        require(!body.contains("rom") && !body.contains("rpkg") && !body.contains("archive"), "bad_request", "vpl cannot be combined with rom, rpkg or archive", 400);
++                        // Ask whether the member exists BEFORE reading it: the non-const operator[] of control::json inserts a null member,
++                        // which would make an absent variant look present (and then "not a number").
++                        const bool has_variant = body.contains("variant");
++                        const auto variant = has_variant ? body["variant"].number(-1) : -1;
++                        require(!has_variant || (body["variant"].is_number() && std::isfinite(variant) && variant >= 0 && variant <= 65535 && std::floor(variant) == variant), "bad_request", "variant must be a zero-based integer", 400);
++                        result = install_firmware(manager, required_string(body, "vpl"), storage, roms, isolate,
++                            [variant](const std::vector<std::string> &variants) {
++                                require(!variants.empty(), "vpl_invalid", "the VPL has no variants");
++                                require(variant >= 0 || variants.size() == 1, "variant_required", "the VPL has multiple variants; supply their zero-based variant index", 409);
++                                const int selected = variant >= 0 ? int(variant) : 0;
++                                require(std::size_t(selected) < variants.size(), "bad_request", "variant is outside the VPL variant list", 400);
++                                return selected;
++                            }, progress, nullptr);
++                        require(result != device_installation_vpl_file_invalid, "vpl_invalid", "invalid VPL manifest");
++                        require(result != device_installation_not_exist, "firmware_file_missing", "a VPL component is missing, unsafe or not a regular file; provide the complete factory kit with original filenames");
++                        require(result != device_installation_fpsx_corrupt, "fpsx_corrupt", "a referenced FPSX image is corrupt or unsupported");
++                    } else {
++                        result = body.contains("archive") ? loader::install_archive(manager, required_string(body, "archive"), roms, drives, isolate, progress, nullptr) : loader::install_rom_with_optional_rpkg(manager, required_string(body, "rom"), body["rpkg"].string(), roms, drives, isolate, progress, nullptr);
++                    }
+                     require(result == device_installation_none, "install_failed", "device installation failed: " + std::to_string(int(result)));
++                    manager->save_devices();
+                     if (body["boot"].boolean(true))
+                         require(frontend.boot(int(manager->total()) - 1), "boot_failed", "boot failed");
+                     frontend.changed(native_change::devices);
+diff --git a/src/emu/system/src/installation/firmware.cpp b/src/emu/system/src/installation/firmware.cpp
+index 6e7c278..f095d73 100644
+--- a/src/emu/system/src/installation/firmware.cpp
++++ b/src/emu/system/src/installation/firmware.cpp
+@@ -33,6 +33,7 @@
+ #include <loader/rom.h>
+ 
+ #include <fstream>
++#include <filesystem>
+ #include <pugixml.hpp>
+ 
+ #include <fat/fat.h>
+@@ -300,6 +301,15 @@ namespace eka2l1 {
+         const std::string full_vpl = eka2l1::absolute_path(vpl_path, cur_dir);
+         const std::string full_folder = eka2l1::file_directory(full_vpl);
+ 
++        // Factory kits are accepted from a network upload. Never follow VPLs or
++        // their component names out of the kit directory, nor allocate an unbounded XML.
++        namespace fs = std::filesystem;
++        std::error_code fs_error;
++        const auto manifest_status = fs::symlink_status(fs::u8path(full_vpl), fs_error);
++        if (fs_error || !fs::is_regular_file(manifest_status)
++            || fs::file_size(fs::u8path(full_vpl), fs_error) > 4 * 1024 * 1024 || fs_error) {
++            return device_installation_vpl_file_invalid;
++        }
+         common::ro_std_file_stream doc_stream(full_vpl, true);
+ 
+         std::vector<std::uint8_t> temp_buf;
+@@ -355,10 +365,9 @@ namespace eka2l1 {
+         int i = 0;
+ 
+         for (auto &variant : all_variants) {
+-            if (i == variant_index) {
++            if (i++ == variant_index) {
+                 final_variant = variant;
+-            } else {
+-                i++;
++                break;
+             }
+         }
+ 
+@@ -400,9 +409,19 @@ namespace eka2l1 {
+                     continue;
+                 }
+ 
+-                const std::string full_fpsx_path = eka2l1::add_path(full_folder, fname.first_child().value());
+-                if (!common::exists(full_fpsx_path)) {
+-                    continue;
++                const std::string component = fname.first_child().value();
++                const auto component_path = fs::u8path(component);
++                if (component.empty() || component == "." || component == ".."
++                    || component.find_first_of("/\\:") != std::string::npos
++                    || component_path.filename() != component_path) {
++                    LOG_ERROR(SYSTEM, "Unsafe VPL component name: {}", component);
++                    return device_installation_not_exist;
++                }
++                const std::string full_fpsx_path = eka2l1::add_path(full_folder, component);
++                const auto component_status = fs::symlink_status(fs::u8path(full_fpsx_path), fs_error);
++                if (fs_error || !fs::is_regular_file(component_status)) {
++                    LOG_ERROR(SYSTEM, "Missing or non-regular VPL component: {}", component);
++                    return device_installation_not_exist;
+                 }
+ 
+                 filenames.push_back(full_fpsx_path);

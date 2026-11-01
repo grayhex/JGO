@@ -1,6 +1,6 @@
 import { useLocale, setLocale } from '../i18n';
 import { t as translateUI } from '../i18n';
-import type { HealthStatus } from '@j2me-web/protocol';
+import type { HealthStatus, SymbianStatus } from '@j2me-web/protocol';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Icon, type IconName } from './Icon';
 import { Seg } from './ui';
@@ -25,8 +25,9 @@ export function Link({ to, children, className, onNavigate, ...rest }: { to: str
 
 const COLLAPSE = 'j2me-web.sidebar';
 
-export function Shell({ path, go, health, title, subtitle, children }: {
+export function Shell({ path, go, health, symbian, title, subtitle, children }: {
   path: string; go: (to: string) => void; health: HealthStatus | null;
+  symbian?: SymbianStatus | null;
   title: string; subtitle?: string; children: ReactNode;
 }) {
   const locale=useLocale();
@@ -70,10 +71,14 @@ export function Shell({ path, go, health, title, subtitle, children }: {
           <div className="runtime" title={translateUI(health ? `KEmulator ${health.kemulator.commit?.slice(0, 9) ?? '?'} · Java ${health.java.version ?? 'missing'}` : 'Checking the server')}>
             <span className={`dot ${ok ? '' : 'bad'}`} aria-hidden />
             <span className="runtime-text">
-              <b>{translateUI(health ? (ok ? 'Emulator ready' : 'Runtime not ready') : 'Connecting…')}</b>
+              <b>{translateUI(health ? (ok ? 'Java ME ready' : 'Java ME unavailable') : 'Connecting…')}</b>
               {translateUI(health ? '{active}/{max} sessions · v{version}' : 'checking server', health ? { active: health.activeSessions, max: health.maxSessions, version: health.version } : undefined)}
             </span>
           </div>
+          {symbian?.configured && <div className="runtime" data-testid="symbian-runtime" title={`EKA2L1 ${symbian.emulator ?? ''}`}>
+            <span className={`dot ${symbian.reachable && symbian.firmware.installed ? '' : 'bad'}`} aria-hidden />
+            <span className="runtime-text"><b>{translateUI(!symbian.reachable ? 'EKA2L1 unreachable' : symbian.firmware.installed ? 'EKA2L1 ready' : 'EKA2L1 needs firmware')}</b>{translateUI(symbian.busy ? 'busy' : 'idle')}</span>
+          </div>}
           <button className="nav-item hide-mobile" onClick={() => setCollapsed((c) => !c)} aria-pressed={collapsed} title={translateUI(collapsed ? 'Expand sidebar' : 'Collapse sidebar')}>
             <Icon name="sidebar" />
             <span className="nav-label">{translateUI(collapsed ? 'Expand' : 'Collapse')}</span>

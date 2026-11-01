@@ -26,3 +26,8 @@ tools/audit/build/
 symbian-data/
 jgo-symbian-data/
 symbian-inbox/
+
+# User-supplied factory firmware kits
+*.vpl
+*.fpsx
+work/

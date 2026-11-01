@@ -1,0 +1,154 @@
+{
+  "manufacturer": "Nokia",
+  "input": {
+    "kind": "touchscreen",
+    "pointer": true,
+    "externalKeypad": true
+  },
+  "measuredOn": "2026-11-01",
+  "model": "N8",
+  "year": 2010,
+  "variant": "Dark Grey",
+  "screen": [
+    360,
+    640
+  ],
+  "screenRect": [
+    244,
+    273,
+    540,
+    960
+  ],
+  "apertureCleanup": [
+    243,
+    258,
+    783,
+    1249
+  ],
+  "crop": [
+    140,
+    40,
+    880,
+    1497
+  ],
+  "zoomBottom": 1375,
+  "outline": [
+    [
+      "M",
+      222,
+      60
+    ],
+    [
+      "L",
+      807,
+      60
+    ],
+    [
+      "C",
+      818,
+      60,
+      827,
+      69,
+      829,
+      82
+    ],
+    [
+      "L",
+      860,
+      211
+    ],
+    [
+      "L",
+      863,
+      1247
+    ],
+    [
+      "L",
+      831,
+      1456
+    ],
+    [
+      "C",
+      828,
+      1468,
+      823,
+      1474,
+      807,
+      1475
+    ],
+    [
+      "L",
+      219,
+      1475
+    ],
+    [
+      "C",
+      202,
+      1473,
+      198,
+      1465,
+      194,
+      1450
+    ],
+    [
+      "L",
+      163,
+      1303
+    ],
+    [
+      "L",
+      163,
+      219
+    ],
+    [
+      "L",
+      193,
+      84
+    ],
+    [
+      "C",
+      196,
+      67,
+      203,
+      60,
+      222,
+      60
+    ],
+    [
+      "Z"
+    ]
+  ],
+  "buttons": [
+    {
+      "id": "menu",
+      "label": "Menu / Home",
+      "action": null,
+      "polygon": [
+        [
+          273,
+          1400
+        ],
+        [
+          384,
+          1400
+        ],
+        [
+          384,
+          1430
+        ],
+        [
+          273,
+          1430
+        ]
+      ]
+    }
+  ],
+  "sourceSize": [
+    1024,
+    1536
+  ],
+  "notes": [
+    "Photographic references and measurement notes are in references.md.",
+    "Native Symbian / N-Gage requires the separately selected EKA2L1 profile and verified firmware. Artwork never supplies firmware."
+  ]
+}

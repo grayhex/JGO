@@ -29,12 +29,14 @@ RUN --mount=type=secret,id=extra_ca,required=false \
     && git init -q . && git remote add origin "$EKA2L1_REPO" \
     && git fetch -q --depth 1 origin "$EKA2L1_COMMIT" && git checkout -q FETCH_HEAD \
     && git submodule update --init --recursive --depth 1 --jobs 4
+COPY symbian/patches/ /tmp/jgo-eka2l1-patches/
+RUN for patch in /tmp/jgo-eka2l1-patches/*.patch; do git apply --check "$patch" && git apply "$patch"; done
 RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
       -DEKA2L1_BUILD_TESTS=OFF -DEKA2L1_BUILD_TOOLS=OFF -DEKA2L1_SCRIPTING_LUA=OFF \
     && cmake --build build --target eka2l1_qt -j"$(nproc)" \
     && mkdir -p /out && cp -a build/bin/. /out/ \
     && rm -f /out/*.a \
-    && echo "EKA2L1 master-$(echo "$EKA2L1_COMMIT" | cut -c1-7)" > /out/VERSION
+    && echo "EKA2L1 master-$(echo "$EKA2L1_COMMIT" | cut -c1-7)+jgo-vpl1" > /out/VERSION
 
 # ---- 2. node binary for the agent (the agent has no dependencies) --------------------------------------------------------------
 FROM ${BASE_REGISTRY}/node:22-bookworm-slim AS node
@@ -52,7 +54,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && mkdir -p /data /opt/eka2l1 /opt/jgo-symbian && chown jgo:jgo /data
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY --from=eka-build /out/ /opt/eka2l1/
-COPY symbian/agent/agent.mjs symbian/agent/policy.mjs /opt/jgo-symbian/
+COPY symbian/agent/agent.mjs symbian/agent/policy.mjs symbian/agent/factory.mjs /opt/jgo-symbian/
 COPY symbian/entrypoint.sh /opt/jgo-symbian/entrypoint.sh
 
 ENV EKA2L1_BIN=/opt/eka2l1/eka2l1_qt \

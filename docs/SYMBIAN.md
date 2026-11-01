@@ -207,3 +207,7 @@ EKA2L1_BIN=/путь/к/eka2l1_qt node --import tsx --test apps/api/src/eka2l1/e
 Сборка бинарника вручную: см. `symbian/Dockerfile` (зависимости и команды `cmake`).
 
 **Первый тест с настоящей прошивкой и игрой:** [SYMBIAN_TESTING.md](SYMBIAN_TESTING.md).
+
+## Заводские комплекты VPL/FPSX
+
+Новый путь вызывает десктопный `install_firmware` через патч Control API закреплённого EKA2L1. Требуется пересборка службы; веб-обновления недостаточно. Подробности загрузки без ROM-дампа, вариантов, inbox и проверок — [FACTORY_FIRMWARE.md](FACTORY_FIRMWARE.md).

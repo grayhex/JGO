@@ -53,17 +53,30 @@ const server = http.createServer(async (req, res) => {
   const is = (...x) => p.length === x.length && x.every((s, i) => s === '*' || s === p[i]);
   if (p[0] !== 'v1') return error(res, 404, 'not_found', 'unknown API version');
   if (is('v1') && req.method === 'GET') return json(res, 200, { api: 1, endpoints: [] });
-  if (is('v1', 'capabilities')) return json(res, 200, { platform: 'fake', hostScreenshot: false, accelerometer: false, touchSpaces: ['guest', 'normalized'] });
+  if (is('v1', 'capabilities')) return json(res, 200, { platform: 'fake', firmwareFormats: process.env.FAKE_VPL_SUPPORTED === '0' ? ['rom','rpkg','archive'] : ['rom','rpkg','archive','vpl'], hostScreenshot: false, accelerometer: false, touchSpaces: ['guest', 'normalized'] });
   if (is('v1', 'status')) return json(res, 200, { api: 1, started: true, busy: false, device: devices.find((d) => d.code === current) ? { ...devices.find((d) => d.code === current), current: true } : null, session, frames, screen: session.state === 'running' ? { width: W, height: H, mode: 0, current: 0, modes: [0] } : null });
   if (is('v1', 'devices') && req.method === 'GET') return json(res, 200, { devices: devices.map((d, index) => ({ index, ...d, name: d.model, current: d.code === current })), current: devices.find((d) => d.code === current) ?? null });
   if (is('v1', 'devices') && req.method === 'POST') {
-    if (!body.rom && !body.archive) return error(res, 400, 'bad_request', 'rom is required');
-    for (const f of [body.rom, body.rpkg, body.archive].filter(Boolean)) if (!existsSync(f)) return error(res, 404, 'not_found', 'firmware file not found');
+    if (!body.rom && !body.archive && !body.vpl) return error(res, 400, 'bad_request', 'rom is required');
+    for (const f of [body.rom, body.rpkg, body.archive, body.vpl].filter(Boolean)) if (!existsSync(f)) return error(res, 404, 'not_found', 'firmware file not found');
+    // Deliberately tiny FAKE fixture parser, not an implementation of Nokia VPL/FPSX.
+    // The production path calls EKA2L1's real desktop install_firmware routine.
+    if (body.vpl) {
+      const xml = readFileSync(body.vpl, 'utf8');
+      const variants = [...xml.matchAll(/<Variant>([\s\S]*?)<\/Variant>/g)].map(m => m[1]);
+      if (!variants.length) return error(res, 422, 'vpl_invalid', 'invalid VPL manifest');
+      if (variants.length > 1 && body.variant === undefined) return error(res, 409, 'variant_required', 'choose a VPL variant');
+      const selected = variants[body.variant ?? 0];
+      if (!selected) return error(res, 400, 'bad_request', 'variant is outside the VPL variant list');
+      for (const [,name] of selected.matchAll(/<Name>(.*?)<\/Name>/g)) {
+        if (/[\\/]/.test(name) || name.includes('..') || !existsSync(path.join(path.dirname(body.vpl), name))) return error(res, 422, 'firmware_file_missing', 'a referenced FPSX image is missing');
+      }
+    }
     const id = Math.random().toString(16).slice(2, 10);
     jobs.set(id, { id, kind: 'install_device', state: 'running', progress: 0 });
     setTimeout(() => {
       // the device code comes from the firmware file name (RM-84.rom, RH-29.rom ...) so tests can install several different devices
-      const code = /([A-Z]{2,3}-\d+)/.exec(path.basename(body.archive ?? body.rom))?.[1] ?? 'RM-84';
+      const code = /([A-Z]{2,3}-\d+)/.exec(path.basename(body.vpl ?? body.archive ?? body.rom))?.[1] ?? 'RM-84';
       if (!devices.find((d) => d.code === code)) devices.push({ code, manufacturer: 'Nokia', model: `Fake ${code}` });
       writeFileSync(devicesFile, JSON.stringify(devices));
       writeFileSync(path.join(data, 'roms', `${code}.rom`), 'fake rom');

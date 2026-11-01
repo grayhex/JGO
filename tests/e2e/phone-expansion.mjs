@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright';
 
-const ids = ['sony-ericsson-w995', 'sony-ericsson-k790i', 'motorola-razr-v3', 'nokia-5800', 'samsung-s5230'];
+const ids = ['sony-ericsson-w995', 'sony-ericsson-k790i', 'motorola-razr-v3', 'nokia-5800', 'samsung-s5230', 'nokia-n-gage-classic', 'nokia-n-gage-qd', 'nokia-n70', 'nokia-5320-xpressmusic', 'nokia-n8'];
 const data = mkdtempSync(path.join(tmpdir(), 'jgo-phones-'));
 const port = 20500 + Math.floor(Math.random() * 300), base = `http://127.0.0.1:${port}`;
 mkdirSync('test-results', { recursive: true });
@@ -41,8 +41,8 @@ try {
   assert.equal(await page.locator('.skin-picker').count(), 0, 'the player has no phone picker');
   const pickPhone = async (model) => {
     await page.getByRole('link', { name: 'Phones' }).click();
-    await page.locator('.phone-pick').nth(9).waitFor();
-    assert.equal(await page.locator('.phone-pick').count(), 10);
+    await page.locator('.phone-pick').nth(14).waitFor();
+    assert.equal(await page.locator('.phone-pick').count(), 15);
     await page.getByRole('button', { name: model }).click();
     await page.waitForURL('**/play/' + game.id);
   };
@@ -52,6 +52,7 @@ try {
     if (await page.locator('.stage-bar').getByRole('radio', { name: 'Phone', exact: true }).count()) await page.locator('.stage-bar').getByRole('radio', { name: 'Phone', exact: true }).click();
     await pickPhone(c.model);
     await page.locator(`.skin-box[data-skin="${id}"][data-view=full]`).waitFor();
+    await page.locator('.stage .skin-body').evaluate(img => img.decode());
     await wait(async () => {
       const settings = (await (await fetch(base + '/api/games/' + game.id)).json()).settings;
       return settings.skinId === id && settings.width === c.screen.width && settings.height === c.screen.height;
@@ -91,11 +92,13 @@ try {
       await page.getByTestId('keypad').getByRole('button', { name: '5 jkl', exact: true }).click();
       await wait(async () => (await logs()).includes('KEY_DOWN 53') && (await logs()).includes('KEY_UP 53'), id + ' external 5');
       // a monoblock is only a display: "screen only" has no meaning there, so there is no such view
-      assert.equal(await page.locator('.stage-bar').getByRole('radio', { name: 'Screen', exact: true }).count(), 0, id + ' has no Screen view');
+      if (id === 'nokia-n8') await page.locator('.stage-bar').getByRole('radio', { name: 'Screen', exact: true }).click();
+      else assert.equal(await page.locator('.stage-bar').getByRole('radio', { name: 'Screen', exact: true }).count(), 0, id + ' has no Screen view');
     }
-    if (c.input.kind === 'touchscreen') {
+    if (c.input.kind === 'touchscreen' && id !== 'nokia-n8') {
       await page.reload();
       await page.locator(`.skin-box[data-skin="${id}"][data-view=full]`).waitFor();
+    await page.locator('.stage .skin-body').evaluate(img => img.decode());
       assert.equal((await (await fetch(base + '/api/sessions')).json()).find(s => s.state === 'running').id, running.id, 'reload attaches the same session');
       await page.locator('.ctrl-col').getByRole('button', { name: 'Stop', exact: true }).click();
       await page.waitForFunction(() => document.querySelector('[data-testid=state-badge]').textContent.includes('exited'));
@@ -112,17 +115,27 @@ try {
     const zoomLcd = await page.getByTestId('skin-lcd').boundingBox();
     assert.ok(zoomLcd.width > fullLcd.width + 1, id + ' zoom enlarges the physical LCD area');
     assert.ok(metrics.w >= fullCanvas.width - 1, id + ' integer scaling may retain size but never shrink the game');
+    await page.locator('.stage .skin-body').evaluate(img => img.decode());
     await page.locator('.stage-card').screenshot({ path: `test-results/${id}-zoom.png` });
     await page.reload();
     await page.locator(`.skin-box[data-skin="${id}"][data-view=screen]`).waitFor();
     const attached = (await (await fetch(base + '/api/sessions')).json()).find(s => s.state === 'running');
     assert.equal(attached.id, running.id, 'reload retains phone and attaches same session');
     await page.locator('.stage-bar').getByRole('radio', { name: 'Phone', exact: true }).click();
+    await page.locator('.stage .skin-body').evaluate(img => img.decode());
     await page.locator('.stage-card').screenshot({ path: `test-results/${id}-dark.png` });
     await page.locator('.ctrl-col').getByRole('button', { name: 'Stop', exact: true }).click();
     await page.waitForFunction(() => document.querySelector('[data-testid=state-badge]').textContent.includes('exited'));
     console.log(`PASS ${id}: real ${c.screen.width}×${c.screen.height}, ${c.input.kind} input, zoom and persisted session.`);
   }
+  for (const width of [390, 768]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.waitForTimeout(200);
+    const bounds = await page.locator('.skin-box').boundingBox();
+    assert.ok(bounds.width <= width && bounds.x >= 0, 'phone fits responsive viewport');
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+  }
+  console.log('PASS responsive viewports for the expanded phone catalog.');
   assert.deepEqual(errors, []);
 } finally {
   await browser?.close();

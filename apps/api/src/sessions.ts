@@ -18,6 +18,8 @@ import {
 import { ResourceMeter } from './procstats.js';
 import { writeMidletsIni, writeSoundfontProperty } from './appSettings.js';
 import { findPreset, loadDevicePresets } from './devices.js';
+import { nativePhonePlan } from '@j2me-web/protocol';
+import { readSymbianStatus } from './eka2l1/status.js';
 import { KEmulatorAdapter, type ExitInfo, type FrameMsg } from './kemulator/adapter.js';
 import type { EmulatorAdapter } from './emulator.js';
 import { AgentClient, AgentError } from './eka2l1/agentClient.js';
@@ -472,6 +474,16 @@ export class SessionManager {
 
   async create(game: GameMeta, overrides: GameSettings, owner: string): Promise<Session> {
     const external = (game.platform ?? 'j2me') !== 'j2me';
+    if (external) {
+      let currentSaveKey: string | null = null;
+      const status = await readSymbianStatus(this.cfg, health => { currentSaveKey = health.instance.saveKey; });
+      // A local session can be replaced normally. A firmware job or an instance
+      // owned by another service client must not cost the running Java session.
+      if (status.busy && currentSaveKey && this.active().some(s => s.game.platform && s.game.platform !== 'j2me' && symbianSaveKey(s.owner, s.game.id) === currentSaveKey)) status.busy = false;
+      const plan = nativePhonePlan(game.platform as 'symbian' | 'ngage' | 'ngage2', overrides, status);
+      if (!plan.ready) throw new SessionError(plan.code!, plan.message, plan.code === 'symbian_unavailable' ? 503 : plan.code === 'device_required' || plan.code === 'symbian_busy' ? 409 : 412);
+      overrides = { ...overrides, symbianDevice: plan.firmwareCode!, layout: 'nokia' };
+    }
     if (!external && game.classVersion >= 49) {
       throw new SessionError('unsupported_jar', `This JAR contains Java ${game.classVersion - 44}+ class files; KEmulator only runs J2ME-era classes (version <= 48).`, 422);
     }

@@ -187,3 +187,40 @@ describe('N-Gage 1.0 card upload', () => {
     await assert.rejects(upload(makeZip({ '../evil/system/apps/x': 'x' })), (e: unknown) => e instanceof AgentError && e.status === 422);
   });
 });
+
+// ---- a full volume must refuse a firmware before it leaves a half-written device behind ----
+import http from 'node:http';
+describe('free space guard', () => {
+  let proc: ChildProcess, data: string, base: string, agent: AgentClient;
+  before(async () => {
+    data = mkdtempSync(path.join(tmpdir(), 'jgo-disk-'));
+    const port = await free();
+    base = `http://127.0.0.1:${port}`;
+    proc = spawn(process.execPath, [path.join(root, 'symbian/agent/agent.mjs')], { env: { PATH: process.env.PATH ?? '', AGENT_TOKEN: TOKEN, AGENT_PORT: String(port), AGENT_HOST: '127.0.0.1', CONTROL_PORT: String(await free()), DATA_DIR: data, EKA2L1_BIN: path.join(root, 'tests/fixtures/fake-eka2l1/fake-eka2l1.mjs'), MAX_FIRMWARE_BYTES: String(1e15), INSTALL_SPACE_FACTOR: '1e12' }, stdio: 'ignore' });
+    for (let i = 0; i < 100; i++) { try { if ((await fetch(`${base}/agent/ping`)).ok) break; } catch { /* wait */ } await new Promise((r) => setTimeout(r, 100)); }
+    agent = new AgentClient({ baseUrl: base, token: TOKEN });
+  });
+  after(async () => { proc?.kill('SIGTERM'); await new Promise((r) => setTimeout(r, 300)); rmSync(data, { recursive: true, force: true }); });
+
+  it('reports the free space of the volume', async () => {
+    const h = await agent.health();
+    assert.ok(h.disk && h.disk.total > 0 && h.disk.free > 0 && h.disk.free <= h.disk.total);
+  });
+
+  it('refuses an upload that cannot fit, before reading it (507)', async () => {
+    const status = await new Promise<number>((resolve, reject) => {
+      const r = http.request(`${base}/agent/firmware/rom?name=huge.rom`, { method: 'PUT', headers: { authorization: `Bearer ${TOKEN}`, 'content-length': String(1e14) } }, (res) => { res.resume(); resolve(res.statusCode ?? 0); });
+      r.on('error', reject);
+      r.flushHeaders();
+    });
+    assert.equal(status, 507);
+  });
+
+  it('refuses to install a firmware whose unpacking would not fit (507) and starts nothing', async () => {
+    const up = await fetch(`${base}/agent/firmware/rom?name=RM-84.rom`, { method: 'PUT', headers: { authorization: `Bearer ${TOKEN}` }, body: 'x' });
+    const rom = ((await up.json()) as { file: string }).file;
+    await assert.rejects(agent.installFirmware({ rom }), (e: unknown) => e instanceof AgentError && e.status === 507 && e.code === 'insufficient_storage' && /free space/.test(e.message));
+    assert.equal((await agent.health()).firmware.installed, false);
+    assert.equal((await agent.health()).instance.running, false);
+  });
+});

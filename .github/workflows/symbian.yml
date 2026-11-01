@@ -6,10 +6,10 @@ name: Symbian service (EKA2L1)
 # Slow (EKA2L1 and FFmpeg are compiled), so it only runs when the service changes. On main the image is published as :edge.
 on:
   pull_request:
-    paths: ['symbian/**', 'compose.symbian*.yaml', '.github/workflows/symbian.yml']
+    paths: ['symbian/**', 'compose.symbian*.yaml', '.github/workflows/symbian.yml', 'tests/scripts/vpl-real-smoke.mjs', 'tests/fixtures/factory-kit.mjs']
   push:
     branches: [main]
-    paths: ['symbian/**', 'compose.symbian*.yaml', '.github/workflows/symbian.yml']
+    paths: ['symbian/**', 'compose.symbian*.yaml', '.github/workflows/symbian.yml', 'tests/scripts/vpl-real-smoke.mjs', 'tests/fixtures/factory-kit.mjs']
   workflow_dispatch:
 
 permissions:
@@ -64,6 +64,10 @@ jobs:
           # what must not pass through
           test "$(curl -s -o /dev/null -w '%{http_code}' -H "$auth" 'http://127.0.0.1:8766/v1/files?path=/etc/passwd')" = 403
           curl -fsS -X DELETE -H "$auth" http://127.0.0.1:8766/agent/instance
+          # REAL desktop VPL installer via the patched Control API. Synthetic
+          # manifests/invalid FPSX only: verifies format dispatch and failures,
+          # variant choice and missing/unsafe paths without proprietary firmware.
+          AGENT_URL=http://127.0.0.1:8766 AGENT_TOKEN=ci-token-0123456789abcdef node tests/scripts/vpl-real-smoke.mjs
           docker logs sym | tail -20
           docker rm -f sym
       - name: Version file
