@@ -286,7 +286,9 @@ jobs:
           bash tests/fixtures/testmidlet3d/build.sh runtime/build/kemulator/KEmulator.jar
           bash tests/fixtures/labgames/build.sh runtime/build/kemulator/KEmulator.jar
       - name: Container smoke (2D + audio, M3G on llvmpipe)
-        run: TOKEN=ci-token-0123456789abcdef node tests/e2e/container-smoke.mjs
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          TOKEN=ci-token-0123456789abcdef node tests/e2e/container-smoke.mjs
       - name: Hardening is in effect
         run: |
           docker compose exec -T app sh -c 'test "$(id -u)" = 10001 && ! touch /x 2>/dev/null && grep -q "CapEff:.0000000000000000" /proc/self/status'
