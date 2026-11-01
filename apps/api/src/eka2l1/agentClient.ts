@@ -1,4 +1,5 @@
 import type { Readable } from 'node:stream';
+import type { FirmwareInstallRequest } from '@j2me-web/protocol';
 
 /** Errors of the jgo-symbian service or of EKA2L1 behind it, with the HTTP status and EKA2L1's error code when it sent one. */
 export class AgentError extends Error {
@@ -121,8 +122,8 @@ export class AgentClient {
   }
 
   /** Streams one firmware file (no length known in advance: the service enforces its own limit while it writes). */
-  async uploadFirmware(slot: 'rom' | 'rpkg' | 'archive', name: string, body: Readable, signal?: AbortSignal): Promise<{ file: string }> {
-    const res = await this.raw('PUT', `/agent/firmware/${slot}?name=${encodeURIComponent(name)}`, {
+  async uploadFirmware(slot: 'rom' | 'rpkg' | 'archive' | 'vpl' | 'fpsx', name: string, body: Readable, signal?: AbortSignal, bundle?: string): Promise<{ file: string }> {
+    const res = await this.raw('PUT', `/agent/firmware/${slot}?name=${encodeURIComponent(name)}${bundle ? `&bundle=${encodeURIComponent(bundle)}` : ''}`, {
       body: body as unknown as BodyInit,
       headers: { 'content-type': 'application/octet-stream' },
       timeoutMs: 60 * 60_000,
@@ -133,8 +134,11 @@ export class AgentClient {
     return (await res.json()) as { file: string };
   }
 
-  installFirmware(files: { rom?: string; rpkg?: string; archive?: string; source?: 'inbox' }): Promise<AgentJob> {
+  installFirmware(files: FirmwareInstallRequest): Promise<AgentJob> {
     return this.json<AgentJob>('POST', '/agent/firmware/install', files);
+  }
+  discardFirmwareBundle(bundle: string): Promise<void> {
+    return this.json('DELETE', `/agent/firmware/bundles/${bundle}`);
   }
 
   job(id: string): Promise<AgentJob> {

@@ -1,0 +1,10 @@
+{
+  "tool": "image_gen",
+  "date": "2026-11-01",
+  "sourceGeneration": "exec-bb48deb3-ad0a-4f5a-b8eb-f279526147c6.png",
+  "phoneInstruction": "Nokia N-Gage Classic original 2003, silver grey face with patterned grey central faceplate, landscape taco-shaped handheld 133.7 mm wide by 69.7 mm high. CRITICAL the screen itself is PORTRAIT 176:208 = 11:13 in CENTER of landscape body. Left round silver four-way navigation pad WITH orange center mark, green call upper left, red end upper right. On RIGHT of screen asymmetric curved four rows of 3 numeric keys: 1 2 3 / 4 5 6 / 7 8 9 / * 0 #, orange 5 and 7 legends. Music/radio/menu shortcuts lower left. Softkeys and C/pencil at bottom beside screen. N-GAGE logo below display. Faithfully follow the provided frontal museum photo geometry and button count.",
+  "method": "Original frontal illustration conditioned on the linked photographic reference.",
+  "technicalEdits": "Measured silhouette alpha and LCD aperture; crop, resize and lossless exports. See layout.json and tools/phones/export_measured.py.",
+  "referenceDossier": "apps/web/public/phones/nokia-n-gage-classic/references.md",
+  "historicalAcceptance": "review-draft"
+}

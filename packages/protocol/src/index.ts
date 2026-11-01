@@ -1,5 +1,9 @@
 export * from './phones.js';
 export * from './catalog.js';
+export * from './phoneSkins.js';
+export * from './platforms.js';
+export * from './emulatedDevices.js';
+import type { Platform, EmulatorBackend } from './platforms.js';
 /**
  * Wire protocol shared by the API and the web client. It is provider-neutral:
  * nothing here knows about Docker, Cloudflare or KEmulator internals.
@@ -36,6 +40,8 @@ export interface GameFileEntry {
 }
 
 export interface GameSettings {
+  /** Explicit emulator profile; absent = choose a compatible profile for the skin/platform. */
+  emulatedDeviceId?: string;
   /** Options beyond the phone profile; see {@link EmulationTweaks}. */
   emulation?: EmulationTweaks;
   skinId?: import('./phones.js').PhoneId;
@@ -58,24 +64,6 @@ export interface GameSettings {
   symbianDevice?: string;
 }
 
-/**
- * What a game is written for. `j2me` runs in KEmulator; the other three run in EKA2L1 (the optional jgo-symbian service):
- * `symbian` = an S60 application (.sis/.sisx), `ngage` = an N-Gage 1.0 game card (a zipped card dump),
- * `ngage2` = an N-Gage 2.0 package (.n-gage).
- */
-export const PLATFORMS = ['j2me', 'symbian', 'ngage', 'ngage2'] as const;
-export type Platform = (typeof PLATFORMS)[number];
-export const isPlatform = (v: unknown): v is Platform => typeof v === 'string' && (PLATFORMS as readonly string[]).includes(v);
-export type EmulatorBackend = 'kemulator' | 'eka2l1';
-export const backendOf = (p: Platform): EmulatorBackend => (p === 'j2me' ? 'kemulator' : 'eka2l1');
-/** The platform of a file, from its name; `null` when the extension says nothing (a .zip needs the user's word). */
-export function platformOfFile(name: string): Platform | null {
-  const n = name.toLowerCase();
-  if (n.endsWith('.jar')) return 'j2me';
-  if (n.endsWith('.sis') || n.endsWith('.sisx')) return 'symbian';
-  if (n.endsWith('.n-gage')) return 'ngage2';
-  return null;
-}
 
 export interface GameMeta {
   id: string;
@@ -614,4 +602,17 @@ export interface SymbianJob {
   state: 'running' | 'succeeded' | 'failed';
   progress: number | null;
   error?: string | null;
+  errorCode?: string | null;
+}
+
+/** Factory images keep their original names together in one isolated upload bundle. */
+export interface FirmwareInstallRequest {
+  rom?: string;
+  rpkg?: string;
+  archive?: string;
+  vpl?: string;
+  bundle?: string;
+  /** Zero-based index in the VPL VariantPackingList. Required for multiple variants. */
+  variant?: number;
+  source?: 'inbox';
 }

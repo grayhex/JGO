@@ -10,6 +10,7 @@ import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { promisify } from 'node:util';
 import { checkControl, safeName, SAVE_KEY } from './policy.mjs';
+import { factoryDirectory, factoryUploadPath, factoryInstallFiles } from './factory.mjs';
 
 const run = promisify(execFile);
 const env = process.env;
@@ -215,6 +216,8 @@ function control(method, urlPath, body, timeoutMs = 20000) {
 
 // ------------------------------------------------------------------ jobs (firmware install)
 const jobs = new Map();
+const factoryUploads = new Set();
+const installingBundles = new Set();
 function newJob(kind) { const id = randomBytes(6).toString('hex'); const j = { id, kind, state: 'running', progress: 0, error: null, started: Date.now() }; jobs.set(id, j); if (jobs.size > 20) jobs.delete(jobs.keys().next().value); return j; }
 
 async function waitControl(timeoutMs = 60000) {
@@ -227,14 +230,19 @@ async function waitControl(timeoutMs = 60000) {
   }
 }
 
-async function installFirmware(job, files, { keep = false } = {}) {
+async function installFirmware(job, files, { keep = false, bundleDir = null, variant } = {}) {
+  let completed = 'succeeded';
   try {
     await stopInstance();
     await startInstance({ saveKey: null, maintenance: true });
     await waitControl(90000);
-    const body = { boot: false, ...(files.archive ? { archive: files.archive } : { rom: files.rom, ...(files.rpkg ? { rpkg: files.rpkg } : {}) }) };
+    if (files.vpl) {
+      const caps = await control('GET', '/v1/capabilities', undefined, 10000);
+      if (!caps.body?.firmwareFormats?.includes('vpl')) throw Object.assign(new Error('This EKA2L1 build does not support factory VPL installation through its Control API. Rebuild jgo-symbian with the JGO VPL patch; no ROM dump is required.'), { code: 'vpl_not_supported' });
+    }
+    const body = { boot: false, ...(files.vpl ? { vpl: files.vpl, ...(variant !== undefined ? { variant } : {}) } : files.archive ? { archive: files.archive } : { rom: files.rom, ...(files.rpkg ? { rpkg: files.rpkg } : {}) }) };
     const start = await control('POST', '/v1/devices?async=1', body, 30000);
-    if (start.status !== 202 && start.status !== 200) throw new Error(start.body?.error?.message ?? `install request failed (HTTP ${start.status})`);
+    if (start.status !== 202 && start.status !== 200) throw Object.assign(new Error(start.body?.error?.message ?? `install request failed (HTTP ${start.status})`), { code: start.body?.error?.code });
     if (start.status === 202) {
       const jid = start.body.id;
       for (;;) {
@@ -242,18 +250,28 @@ async function installFirmware(job, files, { keep = false } = {}) {
         const j = await control('GET', `/v1/jobs/${jid}`, undefined, 10000);
         job.progress = j.body?.progress ?? job.progress;
         if (j.body?.state === 'succeeded') break;
-        if (j.body?.state === 'failed') throw new Error(j.body?.error?.message ?? 'the emulator could not install that firmware');
+        if (j.body?.state === 'failed') throw Object.assign(new Error(j.body?.error?.message ?? 'the emulator could not install that firmware'), { code: j.body?.error?.code });
         if (Date.now() - job.started > 45 * 60_000) throw new Error('installing the firmware took more than 45 minutes');
       }
     }
     const list = await control('GET', '/v1/devices', undefined, 10000);
     writeDevices((list.body?.devices ?? []).map((d) => ({ code: d.code, manufacturer: d.manufacturer, model: d.model })));
-    job.state = 'succeeded'; job.progress = 1;
+    job.progress = 1;
   } catch (e) {
-    job.state = 'failed'; job.error = String(e.message ?? e).slice(0, 400);
+    completed = 'failed'; job.error = String(e.message ?? e).slice(0, 400); job.errorCode = e.code ?? null;
   } finally {
-    await stopInstance();
-    if (!keep) for (const f of Object.values(files)) rmSync(f, { force: true }); // uploads are no longer needed: EKA2L1 keeps its own copy in the base. The inbox is the operator's: never touched
+    try {
+      await stopInstance();
+      if (!keep && bundleDir) rmSync(bundleDir, { recursive: true, force: true });
+      else if (!keep) for (const f of Object.values(files)) rmSync(f, { force: true });
+    } catch (e) {
+      completed = 'failed'; job.error ??= String(e.message ?? e).slice(0, 400); job.errorCode ??= 'cleanup_failed';
+    } finally {
+      if (bundleDir) installingBundles.delete(bundleDir);
+      // A completed job means its instance and staged files are gone: the UI
+      // can safely refresh readiness or retry without racing final cleanup.
+      job.state = completed;
+    }
   }
 }
 
@@ -370,15 +388,36 @@ const server = http.createServer(async (req, res) => {
       }
       return json(res, 200, { path: dest });
     }
-    if (req.method === 'PUT' && (m = /^\/agent\/firmware\/(rom|rpkg|archive)$/.exec(p))) {
+    if (req.method === 'PUT' && (m = /^\/agent\/firmware\/(rom|rpkg|archive|vpl|fpsx)$/.exec(p))) {
       const name = safeName(url.searchParams.get('name'));
       if (!name) return err(res, 400, 'bad_request', 'invalid file name');
+      if (m[1] === 'vpl' || m[1] === 'fpsx') {
+        if (name !== url.searchParams.get('name')) return err(res, 400, 'bad_request', 'factory filenames must be preserved exactly');
+        const bundle = url.searchParams.get('bundle');
+        const dest = factoryUploadPath(FIRMWARE_IN, bundle, name, m[1]);
+        const dir = path.dirname(dest);
+        if (installingBundles.has(dir) || [...factoryUploads].some(f => path.dirname(f) === dir)) return err(res, 409, 'busy', 'this factory bundle is being uploaded or installed');
+        factoryUploads.add(dest);
+        try { await saveUpload(req, dest, m[1] === 'vpl' ? Math.min(MAX_FIRMWARE, 4 * 1024 * 1024) : MAX_FIRMWARE); }
+        finally { factoryUploads.delete(dest); }
+        return json(res, 200, { file: name, bundle });
+      }
       const dest = path.join(FIRMWARE_IN, `${m[1]}-${createHash('sha256').update(name).digest('hex').slice(0, 8)}-${name}`);
       await saveUpload(req, dest, MAX_FIRMWARE);
       return json(res, 200, { file: path.basename(dest) });
     }
     if (req.method === 'POST' && p === '/agent/firmware/install') {
       const b = await readJson(req);
+      if ([b.rom, b.archive, b.vpl].filter(Boolean).length !== 1 || (b.rpkg && !b.rom)) return err(res, 400, 'bad_request', 'choose exactly one firmware format');
+      if (b.vpl) {
+        if ([...jobs.values()].some(j => j.state === 'running')) return err(res, 409, 'busy', 'a firmware installation is already running');
+        const factory = factoryInstallFiles(FIRMWARE_IN, INBOX, b);
+        if (factory.bundleDir && [...factoryUploads].some(f => path.dirname(f) === factory.bundleDir)) return err(res, 409, 'busy', 'finish uploading all factory images first');
+        if (factory.bundleDir) installingBundles.add(factory.bundleDir);
+        const job = newJob('install_device');
+        void installFirmware(job, factory.files, factory);
+        return json(res, 202, job);
+      }
       const fromInbox = b.source === 'inbox';
       const dir = fromInbox ? INBOX : FIRMWARE_IN;
       const pick = (k) => {
@@ -397,6 +436,12 @@ const server = http.createServer(async (req, res) => {
       const job = newJob('install_device');
       void installFirmware(job, files, { keep: fromInbox });
       return json(res, 202, job);
+    }
+    if (req.method === 'DELETE' && (m = /^\/agent\/firmware\/bundles\/([a-f0-9]{32})$/.exec(p))) {
+      const dir = factoryDirectory(FIRMWARE_IN, m[1]);
+      if (installingBundles.has(dir) || [...factoryUploads].some(f => path.dirname(f) === dir)) return err(res, 409, 'busy', 'this factory bundle is in use');
+      rmSync(dir, { recursive: true, force: true });
+      return json(res, 200, { ok: true });
     }
     if (req.method === 'PUT' && p === '/agent/defaults') {
       const b = await readJson(req);

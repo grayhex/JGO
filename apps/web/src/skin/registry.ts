@@ -1,11 +1,12 @@
 import { getServerSettings } from '../serverSettings';
+import { PHONE_SKIN_IDS } from '@j2me-web/protocol';
 import { useEffect, useState } from 'react';
 import { ACTIONS, type Action } from '../input';
 import { parseHitboxSvg } from './hitboxes';
 import type { Hitbox, LoadedSkin, SkinConfig, SkinViewId } from './types';
 
 /** Handsets in picker order. Files: /phones/<id>/ (see public/phones/README.md). */
-export const SKIN_IDS = ['nokia-6100', 'nokia-6230i', 'sony-ericsson-k750i', 'nokia-n95', 'nokia-e71', 'sony-ericsson-w995', 'sony-ericsson-k790i', 'motorola-razr-v3', 'nokia-5800', 'samsung-s5230'] as const;
+export const SKIN_IDS = PHONE_SKIN_IDS;
 export type SkinId = (typeof SKIN_IDS)[number];
 /** 240x320 is the default emulated screen and the N95's real display. */
 export const DEFAULT_SKIN: SkinId = 'nokia-n95';

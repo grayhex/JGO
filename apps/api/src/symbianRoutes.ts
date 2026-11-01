@@ -4,12 +4,15 @@ import { AgentError, agentFromConfig } from './eka2l1/agentClient.js';
 import { UploadError } from './jar.js';
 import type { SessionManager } from './sessions.js';
 import { SessionError } from './sessions.js';
+import { readSymbianStatus } from './eka2l1/status.js';
 
 /** Where each uploaded firmware file may come from; EKA2L1 decides what is really inside (we only keep names and sizes sane). */
 const SLOTS: Record<string, RegExp | null> = {
   rom: null, // ROM dumps come under many names (.rom, .bin, .v04.50 ...)
   rpkg: /\.rpkg$/i,
   archive: /\.(zip|7z|rar|rpkg)$/i,
+  vpl: /\.vpl$/i,
+  fpsx: /\.fpsx$/i,
 };
 
 function toHttp(e: unknown): never {
@@ -63,31 +66,27 @@ export function registerSymbianRoutes(app: FastifyInstance, c: { cfg: Config; se
   });
 
   app.get('/api/symbian/status', async () => {
-    const base = { experimental: true, configured: !!agent, maxFirmwareBytes: cfg.maxFirmwareBytes, maxPackageBytes: cfg.maxPackageBytes };
-    if (!agent) return { ...base, reachable: false, emulator: null, firmware: { installed: false, devices: [] }, defaults: {}, inbox: [], busy: false, message: 'SYMBIAN_AGENT_URL is not set' };
-    try {
-      const h = await agent.health();
-      return { ...base, reachable: true, emulator: h.emulator, firmware: h.firmware, defaults: h.defaults ?? {}, inbox: h.inbox ?? [], busy: h.instance.running, message: null };
-    } catch (e) {
-      return { ...base, reachable: false, emulator: null, firmware: { installed: false, devices: [] }, defaults: {}, inbox: [], busy: false, message: e instanceof Error ? e.message : String(e) };
-    }
+    return readSymbianStatus(cfg);
   });
 
   // One file per request, streamed through to the service; the answer names the stored file for the install call below.
-  app.post<{ Querystring: { slot?: string } }>('/api/symbian/firmware', async (req) => {
+  app.post<{ Querystring: { slot?: string; bundle?: string } }>('/api/symbian/firmware', async (req) => {
     const a = need();
     const slot = req.query.slot ?? '';
-    if (!(slot in SLOTS)) throw new UploadError('bad_request', 'slot must be rom, rpkg or archive');
+    if (!Object.hasOwn(SLOTS, slot)) throw new UploadError('bad_request', 'slot must be rom, rpkg, archive, vpl or fpsx');
+    const bundle = req.query.bundle;
+    const factory = slot === 'vpl' || slot === 'fpsx';
+    if (factory ? !bundle || !/^[a-f0-9]{32}$/.test(bundle) : bundle !== undefined) throw new UploadError('bad_request', 'VPL/FPSX uploads require a 32-hex bundle id; other formats must not use one');
     if (!req.isMultipart()) throw new UploadError('bad_request', 'Expected multipart/form-data with one file');
     const part = await req.file({ limits: { fileSize: cfg.maxFirmwareBytes + 1 } });
     if (!part) throw new UploadError('no_file', 'No file in the upload', 400);
     const name = part.filename ?? '';
     const rule = SLOTS[slot];
     if (!name || name.length > 120 || /[\\/\0]/.test(name)) throw new UploadError('bad_request', 'Invalid file name');
-    if (rule && !rule.test(name)) throw new UploadError('bad_file', slot === 'rpkg' ? 'A firmware package is an .rpkg file' : 'A firmware archive is a .zip, .7z, .rar or .rpkg file');
+    if (rule && !rule.test(name)) throw new UploadError('bad_file', `Invalid ${slot} firmware file extension`);
     noGame();
     try {
-      const r = await a.uploadFirmware(slot as 'rom' | 'rpkg' | 'archive', name, part.file);
+      const r = await a.uploadFirmware(slot as 'rom' | 'rpkg' | 'archive' | 'vpl' | 'fpsx', name, part.file, undefined, bundle);
       if (part.file.truncated) throw new UploadError('too_large', `Firmware files are limited to ${Math.round(cfg.maxFirmwareBytes / 1048576)} MB`, 413);
       return r;
     } catch (e) {
@@ -98,7 +97,7 @@ export function registerSymbianRoutes(app: FastifyInstance, c: { cfg: Config; se
     }
   });
 
-  app.post<{ Body: { rom?: unknown; rpkg?: unknown; archive?: unknown; source?: unknown } }>('/api/symbian/firmware/install', async (req, reply) => {
+  app.post<{ Body: { rom?: unknown; rpkg?: unknown; archive?: unknown; vpl?: unknown; bundle?: unknown; variant?: unknown; source?: unknown } }>('/api/symbian/firmware/install', async (req, reply) => {
     const a = need();
     noGame();
     const b = req.body ?? {};
@@ -108,12 +107,20 @@ export function registerSymbianRoutes(app: FastifyInstance, c: { cfg: Config; se
       return v;
     };
     const rom = pick(b.rom), rpkg = pick(b.rpkg), archive = pick(b.archive);
+    const vpl = pick(b.vpl), bundle = pick(b.bundle);
     if (b.source !== undefined && b.source !== 'inbox') throw new UploadError('bad_request', 'source must be "inbox" or absent');
     const source = b.source === 'inbox' ? ({ source: 'inbox' } as const) : {};
-    if (!archive && !rom) throw new UploadError('bad_request', 'Upload a ROM (and its RPKG) or a firmware archive first');
+    if ([rom, archive, vpl].filter(Boolean).length !== 1 || (rpkg && !rom)) throw new UploadError('bad_request', 'Choose exactly one format: ROM (+ RPKG), archive, or VPL + FPSX');
+    if (vpl && !/\.vpl$/i.test(vpl)) throw new UploadError('bad_file', 'A factory kit manifest is a .vpl file');
+    if (vpl && b.source !== 'inbox' ? !bundle || !/^[a-f0-9]{32}$/.test(bundle) : bundle !== undefined) throw new UploadError('bad_request', 'An uploaded factory kit needs its bundle id; inbox files must not use one');
+    if (b.variant !== undefined && (!vpl || typeof b.variant !== 'number' || !Number.isInteger(b.variant) || b.variant < 0 || b.variant > 65535)) throw new UploadError('bad_request', 'variant must be a zero-based VPL variant index');
     try {
-      return reply.code(202).send(await a.installFirmware({ ...(archive ? { archive } : { rom, ...(rpkg ? { rpkg } : {}) }), ...source }));
+      return reply.code(202).send(await a.installFirmware({ ...(vpl ? { vpl, ...(bundle ? { bundle } : {}), ...(typeof b.variant === 'number' ? { variant: b.variant } : {}) } : archive ? { archive } : { rom, ...(rpkg ? { rpkg } : {}) }), ...source }));
     } catch (e) { return toHttp(e); }
+  });
+  app.delete<{ Params: { bundle: string } }>('/api/symbian/firmware/bundles/:bundle', async (req, reply) => {
+    if (!/^[a-f0-9]{32}$/.test(req.params.bundle)) throw new UploadError('bad_request', 'Invalid bundle id');
+    try { await need().discardFirmwareBundle(req.params.bundle); return reply.code(204).send(); } catch (e) { return toHttp(e); }
   });
 
   app.get<{ Params: { id: string } }>('/api/symbian/jobs/:id', async (req) => {

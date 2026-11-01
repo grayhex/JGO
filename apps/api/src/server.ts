@@ -1,4 +1,7 @@
 import { isGenre, isPlatform, platformOfFile, resolvePhone } from '@j2me-web/protocol';
+import { emulatedDevice, javaPreset, nativePhonePlan, type DevicePreset } from '@j2me-web/protocol';
+import { phoneCatalog } from './phones.js';
+import { readSymbianStatus } from './eka2l1/status.js';
 import { execFile } from 'node:child_process';
 import { createReadStream, readFileSync } from 'node:fs';
 import { createHmac, timingSafeEqual } from 'node:crypto';
@@ -97,6 +100,13 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
   };
   /** Auto mode follows the phone table. Advanced mode lets explicit fields override a preset. */
   const withDevice = (settings: GameSettings, explicit: Record<string, unknown>): GameSettings => {
+    if (settings.emulatedDeviceId) {
+      const profile = emulatedDevice(settings.emulatedDeviceId)!;
+      if (profile.engine !== 'kemulator') throw new UploadError('incompatible_profile', 'Java ME requires a KEmulator profile');
+      const preset = javaPreset(profile, devicePresets().presets);
+      if (!preset) throw new UploadError('devices_unavailable', `Required KEmulator preset unavailable: ${profile.presetId}`, 503);
+      return { ...settings, device: preset.id, width: preset.width, height: preset.height, layout: profile.layout };
+    }
     if (settings.profileMode === 'auto') {
       if (!settings.skinId) throw new SessionError('bad_settings', 'Automatic mode requires a skin', 400);
       const { preset, layout } = resolvePhone(settings.skinId, devicePresets().presets);
@@ -269,6 +279,18 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
   });
 
   app.get('/api/devices', async () => devicePresets());
+  app.get('/api/phones', async () => {
+    let presets: DevicePreset[] = [];
+    try { presets = devicePresets().presets; } catch { /* per-profile unavailability */ }
+    return phoneCatalog(presets, await readSymbianStatus(cfg));
+  });
+  app.get<{ Params: { id: string } }>('/api/games/:id/phone', async req => {
+    const game = library.get(req.params.id);
+    if (!game) throw new UploadError('not_found', 'Game not found', 404);
+    if ((game.platform ?? 'j2me') === 'j2me') throw new UploadError('not_applicable', 'Native readiness applies to Symbian and N-Gage games.', 404);
+    const status = await readSymbianStatus(cfg);
+    return { status, plan: nativePhonePlan(game.platform as 'symbian' | 'ngage' | 'ngage2', game.settings, status) };
+  });
 
   app.get<{ Params: { id: string } }>('/api/games/:id/analysis', async (req) => {
     const g = library.get(req.params.id);
@@ -293,9 +315,14 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
       if (cur) {
         const resetEmulation = (patchSettings as Record<string, unknown>).emulation === null;
         const valid = validateSettings(patchSettings, cur.settings);
-        patchSettings = cur.platform && cur.platform !== 'j2me' ? patchSettings : valid.profileMode === 'auto' || 'device' in patchSettings ? withDevice(valid, patchSettings as Record<string, unknown>) : valid;
+        if (cur.platform && cur.platform !== 'j2me' && valid.emulatedDeviceId) {
+          const profile = emulatedDevice(valid.emulatedDeviceId)!;
+          if (profile.engine !== 'eka2l1' || !profile.platforms.includes(cur.platform)) throw new UploadError('incompatible_profile', 'This emulation profile does not support the game platform');
+        }
+        patchSettings = cur.platform && cur.platform !== 'j2me' ? patchSettings : valid.emulatedDeviceId || valid.profileMode === 'auto' || 'device' in patchSettings ? withDevice(valid, patchSettings as Record<string, unknown>) : valid;
         // `valid` is a complete settings object, so "remove the options" has to survive as an explicit null
         if (resetEmulation) patchSettings = { ...(patchSettings as object), emulation: null };
+        if ((req.body.settings as Record<string, unknown>).emulatedDeviceId === null) patchSettings = { ...(patchSettings as object), emulatedDeviceId: null };
       }
     }
     const g = library.update(req.params.id, { ...(typeof req.body?.favorite === 'boolean' ? { favorite: req.body.favorite } : {}), settings: patchSettings });
@@ -343,7 +370,7 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
     const requested = (req.body?.settings ?? {}) as Record<string, unknown>;
     const merged = validateSettings(req.body?.settings, game.settings);
     // a preset only rewrites size/layout when it is (re)selected in this request; otherwise the saved values stand
-    const settings = merged.profileMode === 'auto' || 'device' in requested ? withDevice(merged, requested) : merged;
+    const settings = game.platform && game.platform !== 'j2me' ? merged : merged.emulatedDeviceId || merged.profileMode === 'auto' || 'device' in requested ? withDevice(merged, requested) : merged;
     const s = await sessions.create(game, settings, owner);
     return reply.code(201).send(s.status());
   });

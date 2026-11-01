@@ -1,0 +1,10 @@
+{
+  "tool": "image_gen",
+  "date": "2026-11-01",
+  "sourceGeneration": "exec-27ae655b-2a3d-4073-a448-cd770052c552.png",
+  "phoneInstruction": "Nokia N70 Music Edition black 2006 (N70 hardware introduced 2005), upright narrow candybar, overall 108.8 mm tall by 53 mm wide. Follow the photo. Top N70 mark left, narrow earpiece center, square front camera upper right, NOKIA just above LCD. Center screen portrait 176:208 = 11:13, 2.1 inch, thick bezels. Below screen 5-way rounded-square silver D-pad with physically separate center OK, two soft keys upper flanks, green call left red end right. Compact traditional black 12 numeric keys in 4 rows of 3; narrow menu/pencil keys on left of number pad, multimedia/C on right. Fine silver border, realistic black plastic and reflective metal.",
+  "method": "Original frontal illustration conditioned on the linked photographic reference.",
+  "technicalEdits": "Measured silhouette alpha and LCD aperture; crop, resize and lossless exports. See layout.json and tools/phones/export_measured.py.",
+  "referenceDossier": "apps/web/public/phones/nokia-n70/references.md",
+  "historicalAcceptance": "review-draft"
+}

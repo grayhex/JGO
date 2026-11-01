@@ -3,8 +3,9 @@
 // protocol, firmware upload, saves); it says nothing about what the real EKA2L1 does with a real game or firmware.
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { createServer } from 'node:net';
+import { request as httpRequest } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
@@ -25,10 +26,10 @@ async function uploadPkg(base: string, name: string, bytes: Buffer, platform?: s
   return { status: r.status, body: (await r.json()) as any };
 }
 
-async function postFirmware(base: string, slot: string, name: string, bytes: Buffer) {
+async function postFirmware(base: string, slot: string, name: string, bytes: Buffer, bundle?: string) {
   const fd = new FormData();
   fd.append('file', new Blob([new Uint8Array(bytes)]), name);
-  const r = await fetch(`${base}/api/symbian/firmware?slot=${slot}`, { method: 'POST', body: fd });
+  const r = await fetch(`${base}/api/symbian/firmware?slot=${slot}${bundle ? `&bundle=${bundle}` : ''}`, { method: 'POST', body: fd });
   return { status: r.status, body: (await r.json()) as any };
 }
 
@@ -222,4 +223,69 @@ describe('Symbian service (real agent, fake EKA2L1)', () => {
     assert.equal(d.status, 204);
     await waitFor(() => !existsSync(savesRoot) || readdirSync(savesRoot).length === 0, 'the service to drop the saves', 5000);
   });
+
+  it('serializes uploads in a factory bundle, including filenames that differ only by case', async () => {
+    const bundle = 'd'.repeat(32);
+    const agentBase = env.app.cfg.symbianAgentUrl!;
+    const headers = { authorization: `Bearer ${TOKEN}` };
+    const upload = httpRequest(`${agentBase}/agent/firmware/fpsx?bundle=${bundle}&name=Core.fpsx`, { method: 'PUT', headers });
+    const finished = new Promise<number>((resolve, reject) => {
+      upload.on('response', response => { response.resume(); response.on('end', () => resolve(response.statusCode!)); });
+      upload.on('error', reject);
+    });
+    try {
+      upload.write('held upload');
+      await waitFor(() => existsSync(path.join(agentData, 'firmware-upload', 'factory', bundle, 'Core.fpsx.part')), 'the first image upload', 5000);
+      const conflict = await fetch(`${agentBase}/agent/firmware/fpsx?bundle=${bundle}&name=core.fpsx`, { method: 'PUT', headers, body: 'conflicting image' });
+      assert.equal(conflict.status, 409, 'a concurrent case-alias cannot bypass the bundle lock');
+      upload.end(' completed');
+      assert.equal(await finished, 200);
+      assert.equal((await fetch(`${env.base}/api/symbian/firmware/bundles/${bundle}`, { method: 'DELETE' })).status, 204);
+    } finally { upload.destroy(); }
+  });
+
+  it('installs an original-named VPL/FPSX kit through JGO, without a pre-dumped ROM', async () => {
+    const bundle = 'a'.repeat(32);
+    const xml = '<VariantPackingList><Variant><VariantIdentification><Description>Factory synthetic</Description></VariantIdentification><FileList><File><FileType>Binary</FileType><FileSubType>Mcu</FileSubType><Name>core.fpsx</Name></File></FileList></Variant></VariantPackingList>';
+    const up = await postFirmware(env.base, 'vpl', 'RM-596.vpl', Buffer.from(xml), bundle);
+    assert.equal(up.status, 200, JSON.stringify(up.body)); assert.equal(up.body.file, 'RM-596.vpl');
+    assert.equal((await postFirmware(env.base, 'fpsx', 'core.fpsx', Buffer.from('synthetic fake-only image'), bundle)).status, 200);
+    const staging = path.join(agentData, 'firmware-upload', 'factory', bundle);
+    assert.equal(readFileSync(path.join(staging, 'RM-596.vpl'), 'utf8'), xml);
+    assert.equal((await postFirmware(env.base, 'fpsx', 'core.fpsx', Buffer.from('overwrite'), bundle)).status, 400);
+    const install = await fetch(env.base + '/api/symbian/firmware/install', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ vpl: up.body.file, bundle, variant: 0 }) });
+    assert.equal(install.status, 202);
+    const job = await install.json() as any;
+    const done = await waitFor(async () => { const j = await (await fetch(env.base + '/api/symbian/jobs/' + job.id)).json() as any; return j.state !== 'running' ? j : null; }, 'factory installation', 30000, 200);
+    assert.equal(done.state, 'succeeded', JSON.stringify(done));
+    assert.ok(!existsSync(staging), 'all uploaded kit images are cleaned after installation');
+    assert.ok(((await (await fetch(env.base + '/api/symbian/status')).json()) as any).firmware.devices.some((d: any) => d.code === 'RM-596'));
+    assert.equal(readdirSync(env.dataDir, { recursive: true }).some(f => /\.(vpl|fpsx)$/i.test(String(f))), false, 'JGO never retains firmware');
+  });
+
+  it('refuses incomplete kits, invalid variants, wrong bundle ids and mixed firmware formats', async () => {
+    const call = (body: object) => fetch(env.base + '/api/symbian/firmware/install', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    assert.equal((await call({ vpl: 'x.vpl' })).status, 400);
+    assert.equal((await call({ vpl: 'x.vpl', bundle: '../escape' })).status, 400);
+    assert.equal((await call({ vpl: 'x.vpl', bundle: 'a'.repeat(32), variant: -1 })).status, 400);
+    assert.equal((await call({ vpl: 'x.vpl', bundle: 'a'.repeat(32), rom: 'x.rom' })).status, 400);
+    assert.equal((await call({ rom: 'x.rom', variant: 1 })).status, 400);
+    assert.equal((await postFirmware(env.base, 'fpsx', 'core.fpsx', Buffer.from('image'))).status, 400);
+    const bundle = 'b'.repeat(32);
+    const xml = '<VariantPackingList><Variant><VariantIdentification><Description>Missing image</Description></VariantIdentification><FileList><File><FileType>Binary</FileType><FileSubType>Mcu</FileSubType><Name>absent.fpsx</Name></File></FileList></Variant></VariantPackingList>';
+    await postFirmware(env.base, 'vpl', 'RM-596.vpl', Buffer.from(xml), bundle);
+    assert.equal((await call({ vpl: 'RM-596.vpl', bundle })).status, 400, 'a manifest alone is not a complete kit');
+    await postFirmware(env.base, 'fpsx', 'other.fpsx', Buffer.from('synthetic image'), bundle);
+    const install = await call({ vpl: 'RM-596.vpl', bundle });
+    assert.equal(install.status, 202);
+    const job = await install.json() as any;
+    const done = await waitFor(async () => { const j = await (await fetch(env.base + '/api/symbian/jobs/' + job.id)).json() as any; return j.state !== 'running' ? j : null; }, 'missing-image failure', 30000, 200);
+    assert.equal(done.state, 'failed'); assert.equal(done.errorCode, 'firmware_file_missing');
+    assert.ok(!existsSync(path.join(agentData, 'firmware-upload', 'factory', bundle)));
+    const unused = 'c'.repeat(32);
+    await postFirmware(env.base, 'vpl', 'RM-596.vpl', Buffer.from(xml), unused);
+    assert.equal((await fetch(env.base + '/api/symbian/firmware/bundles/' + unused, { method: 'DELETE' })).status, 204);
+    assert.ok(!existsSync(path.join(agentData, 'firmware-upload', 'factory', unused)));
+  });
+
 });

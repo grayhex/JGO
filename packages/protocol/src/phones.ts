@@ -1,4 +1,5 @@
 import type { DevicePreset, LayoutId } from './index.js';
+import { isPhoneSkinId, type PhoneSkinId } from './phoneSkins.js';
 /** IDs are actual presets.xml IDs, never generated device names. */
 export const PHONE_PROFILES = {
   'nokia-6100': { device: '128x128-common-full-screen', exact: false, reason: 'No Nokia 6100 preset; generic 128×128, emulator platform unchanged.' },
@@ -11,11 +12,17 @@ export const PHONE_PROFILES = {
   'motorola-razr-v3': { device: '176x220-common-full-screen', exact: false, reason: 'No full-size RAZR V3 preset; generic 176×220 with Nokia-compatible codes, emulator platform unchanged.' },
   'nokia-5800': { device: '360x640-common-full-screen', exact: false, reason: 'No 5800 preset; generic 360×640 with pointer input, emulator platform unchanged.' },
   'samsung-s5230': { device: '240x400-common-full-screen', exact: false, reason: 'No S5230 preset; generic 240×400 with pointer input, emulator platform unchanged.' },
+  'nokia-n-gage-classic': { device: '176x208-nokia-full-screen', exact: false, reason: '176×208 Nokia N70 Java ME preset; reports NokiaN70, not N-Gage firmware.' },
+  'nokia-n-gage-qd': { device: '176x208-nokia-full-screen', exact: false, reason: '176×208 Nokia N70 Java ME preset; reports NokiaN70, not N-Gage QD firmware.' },
+  'nokia-n70': { device: '176x208-nokia-full-screen', exact: true, reason: 'presets.xml identifies Nokia N70. Java ME only; no Symbian firmware.' },
+  'nokia-5320-xpressmusic': { device: '240x320-common-full-screen', exact: false, reason: 'No 5320 preset; generic 240×320, emulator platform unchanged.' },
+  'nokia-n8': { device: '360x640-common-full-screen', exact: false, reason: 'No N8 preset; generic 360×640 with pointer input, emulator platform unchanged.' },
 } as const;
-export type PhoneId = keyof typeof PHONE_PROFILES;
-export function isPhoneId(value: unknown): value is PhoneId { return typeof value === 'string' && Object.hasOwn(PHONE_PROFILES, value); }
+/** Backward-compatible Java ME mapping. Native profiles live in emulatedDevices.ts. */
+export type PhoneId = PhoneSkinId;
+export const isPhoneId = isPhoneSkinId;
 /** Key layout a phone is played with: its own when the model has one (Sony Ericsson), else the one of its device preset. */
-const OWN_LAYOUT: Partial<Record<PhoneId, LayoutId>> = { 'sony-ericsson-k750i': 'sonyericsson', 'sony-ericsson-w995': 'sonyericsson', 'sony-ericsson-k790i': 'sonyericsson' };
+export const OWN_LAYOUT: Partial<Record<PhoneId, LayoutId>> = { 'sony-ericsson-k750i': 'sonyericsson', 'sony-ericsson-w995': 'sonyericsson', 'sony-ericsson-k790i': 'sonyericsson' };
 export function resolvePhone(id: PhoneId, presets: DevicePreset[]) {
   const match = PHONE_PROFILES[id];
   const preset = presets.find((p) => p.id === match.device);

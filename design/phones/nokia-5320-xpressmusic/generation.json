@@ -1,0 +1,10 @@
+{
+  "tool": "image_gen",
+  "date": "2026-11-01",
+  "sourceGeneration": "exec-2f910d4c-6658-42b4-b072-ecd8b4831a5d.png",
+  "phoneInstruction": "Nokia 5320 XpressMusic 2008 original Black/Blue candybar 108 mm tall by 46 mm wide. Follow photo closely: narrow upright rounded bar with black glossy face and vivid cyan/blue edge stripe and squared blue D-pad ring below screen. Small front camera upper left and slim earpiece center; NOKIA left and XpressMusic right above screen. Portrait 240:320=3:4 display in upper half, physical size 2 inch. Center black OK inset in blue square directional ring. Flanking soft keys, green call/red end, left menu and right C. 12 black numeric keys four rows three columns, softly curved segmented keys with fine white legends. Music controls at left edge only visible subtly in straight frontal view.",
+  "method": "Original frontal illustration conditioned on the linked photographic reference.",
+  "technicalEdits": "Measured silhouette alpha and LCD aperture; crop, resize and lossless exports. See layout.json and tools/phones/export_measured.py.",
+  "referenceDossier": "apps/web/public/phones/nokia-5320-xpressmusic/references.md",
+  "historicalAcceptance": "review-draft"
+}
