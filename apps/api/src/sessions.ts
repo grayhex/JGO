@@ -18,11 +18,11 @@ import {
 import { ResourceMeter } from './procstats.js';
 import { writeMidletsIni, writeSoundfontProperty } from './appSettings.js';
 import { findPreset, loadDevicePresets } from './devices.js';
-import { nativePhonePlan } from '@j2me-web/protocol';
+import { emulatedDevice, nativePhonePlan, type StartFailure } from '@j2me-web/protocol';
 import { readSymbianStatus } from './eka2l1/status.js';
 import { KEmulatorAdapter, type ExitInfo, type FrameMsg } from './kemulator/adapter.js';
 import type { EmulatorAdapter } from './emulator.js';
-import { AgentClient, AgentError } from './eka2l1/agentClient.js';
+import { AgentError, agentFromConfig } from './eka2l1/agentClient.js';
 import { Eka2l1Adapter } from './eka2l1/adapter.js';
 import { newId, type Library } from './library.js';
 import type { Config } from './config.js';
@@ -32,6 +32,8 @@ export class SessionError extends Error {
     public code: string,
     message: string,
     public status = 400,
+    /** Machine-readable facts for the client (for example why a Symbian start failed). */
+    public details?: unknown,
   ) {
     super(message);
   }
@@ -71,6 +73,8 @@ export class Session {
   logTail: string[] = [];
   diagnostics: string[] = [];
   exit: ExitInfo | null = null;
+  /** Why a Symbian / N-Gage start failed (see StartFailure). */
+  failure: StartFailure | null = null;
   framesDropped = 0;
   /** The size of the last picture, when the emulator says it (EKA2L1); J2ME sessions use the settings. */
   private picture: { width: number; height: number } | null = null;
@@ -139,6 +143,7 @@ export class Session {
       fps: Math.round(st.fps * 10) / 10,
       exitCode: this.exit?.code ?? null,
       exitDetail: this.exit?.detail ?? null,
+      ...(this.failure ? { failure: this.failure } : {}),
       title: this.title,
       softkeys: this.softkeys,
       logTail: this.logTail.slice(-60),
@@ -480,9 +485,11 @@ export class SessionManager {
       // A local session can be replaced normally. A firmware job or an instance
       // owned by another service client must not cost the running Java session.
       if (status.busy && currentSaveKey && this.active().some(s => s.game.platform && s.game.platform !== 'j2me' && symbianSaveKey(s.owner, s.game.id) === currentSaveKey)) status.busy = false;
-      const plan = nativePhonePlan(game.platform as 'symbian' | 'ngage' | 'ngage2', overrides, status);
-      if (!plan.ready) throw new SessionError(plan.code!, plan.message, plan.code === 'symbian_unavailable' ? 503 : plan.code === 'device_required' || plan.code === 'symbian_busy' ? 409 : 412);
-      overrides = { ...overrides, symbianDevice: plan.firmwareCode!, layout: 'nokia' };
+      const plan = nativePhonePlan(game.platform as 'symbian' | 'ngage' | 'ngage2', overrides, status, game.packageFormat);
+      if (!plan.ready) throw new SessionError(plan.code!, plan.message, plan.code === 'symbian_unavailable' ? 503 : plan.code === 'device_required' || plan.code === 'symbian_busy' ? 409 : plan.code === 'incompatible_package' || plan.code === 'no_compatible_firmware' ? 422 : 412);
+      // the picture is announced at the size of the phone that matches the firmware (176x208 for an N70), not at a J2ME default
+      const dev = plan.deviceId ? emulatedDevice(plan.deviceId) : undefined;
+      overrides = { ...overrides, symbianDevice: plan.firmwareCode!, layout: 'nokia', ...(dev ? { width: dev.screen.width, height: dev.screen.height } : {}), ...(plan.skinId && !overrides.skinId ? { skinId: plan.skinId } : {}) };
     }
     if (!external && game.classVersion >= 49) {
       throw new SessionError('unsupported_jar', `This JAR contains Java ${game.classVersion - 44}+ class files; KEmulator only runs J2ME-era classes (version <= 48).`, 422);
@@ -563,13 +570,13 @@ export class SessionManager {
   }
 
   /**
-   * A Symbian / N-Gage game: run by EKA2L1 in the optional jgo-symbian container. Nothing of KEmulator is involved. The container's
+   * A Symbian / N-Gage game: run by EKA2L1 in the optional mgo-symbian container. Nothing of KEmulator is involved. The container's
    * own saves live under a key made of the owner and the game, so two games never share a drive.
    */
   private async createExternal(game: GameMeta, overrides: GameSettings, owner: string): Promise<Session> {
     const platform = game.platform as 'symbian' | 'ngage' | 'ngage2';
     if (!this.cfg.symbianAgentUrl) {
-      throw new SessionError('symbian_unavailable', 'Symbian and N-Gage games need the optional jgo-symbian service (EKA2L1), which is not configured on this server. See docs/SYMBIAN.md.', 503);
+      throw new SessionError('symbian_unavailable', 'Symbian and N-Gage games need the optional mgo-symbian service (EKA2L1), which is not configured on this server. See docs/SYMBIAN.md.', 503);
     }
     const file = this.lib.packagePath(game.id);
     if (!file) throw new SessionError('missing_package', 'The game file is missing from the library', 410);
@@ -578,7 +585,7 @@ export class SessionManager {
     mkdirSync(bridgeDir, { recursive: true, mode: 0o700 });
     this.lib.pruneLogs();
     const adapter = new Eka2l1Adapter({
-      agent: new AgentClient({ baseUrl: this.cfg.symbianAgentUrl, token: this.cfg.symbianAgentToken }),
+      agent: agentFromConfig(this.cfg)!,
       saveKey: symbianSaveKey(owner, game.id),
       deviceCode: overrides.symbianDevice ?? game.settings.symbianDevice ?? null,
       platform,
@@ -596,16 +603,29 @@ export class SessionManager {
       return session;
     } catch (e) {
       session.state = 'failed';
+      const failure = adapter.getFailure();
+      if (failure) {
+        // keep the reason where the diagnostics and the UI can find it: not only in a toast
+        session.failure = failure;
+        session.exit = { code: 1, reason: 1, detail: failure.message };
+        session.endedAt = Date.now();
+        throw new SessionError(
+          failure.cause === 'no_firmware' ? 'no_firmware' : failure.cause === 'device' ? ((e as AgentError).code === 'device_required' ? 'device_required' : 'device_missing') : failure.cause === 'service' ? 'symbian_unavailable' : 'start_failed',
+          failure.message,
+          failure.cause === 'no_firmware' || (failure.cause === 'device' && (e as AgentError).code !== 'device_required') ? 412 : failure.cause === 'device' ? 409 : failure.cause === 'service' ? 503 : 500,
+          { failure, sessionId: session.id },
+        );
+      }
       const code = e instanceof AgentError ? (e.code === 'no_firmware' || e.code === 'device_missing' || e.code === 'device_required' ? e.code : e.status === 0 ? 'symbian_unavailable' : 'start_failed') : 'start_failed';
       throw new SessionError(code, `${(e as Error).message}`, code === 'no_firmware' || code === 'device_missing' ? 412 : code === 'device_required' ? 409 : code === 'symbian_unavailable' ? 503 : 500);
     }
   }
 
-  /** Removes a Symbian game's drives from the jgo-symbian service (best effort: the service may be switched off). */
+  /** Removes a Symbian game's drives from the mgo-symbian service (best effort: the service may be switched off). */
   async deleteExternalSaves(owner: string, gameId: string): Promise<void> {
     if (!this.cfg.symbianAgentUrl) return;
     try {
-      await new AgentClient({ baseUrl: this.cfg.symbianAgentUrl, token: this.cfg.symbianAgentToken }).deleteSaves(symbianSaveKey(owner, gameId));
+      await agentFromConfig(this.cfg)!.deleteSaves(symbianSaveKey(owner, gameId));
     } catch { /* the saves stay in the service until it is reachable again; the next delete or a volume wipe removes them */ }
   }
 

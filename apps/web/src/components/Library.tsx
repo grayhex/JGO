@@ -1,5 +1,5 @@
 import { t as translateUI } from '../i18n';
-import { GENRES, GAME_PLATFORMS, GAME_PLATFORM_LABELS, isGamePlatform, type GamePlatform, type GameMeta, type HealthStatus, type ScanReport } from '@j2me-web/protocol';
+import { GENRES, PACKAGE_FORMAT_LABEL, GAME_PLATFORMS, GAME_PLATFORM_LABELS, isGamePlatform, type GamePlatform, type GameMeta, type HealthStatus, type ScanReport } from '@j2me-web/protocol';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../api';
 
@@ -275,6 +275,7 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
           const flags = (
             <>
               {sel.platform && sel.platform !== 'j2me' && <span className="badge mock" data-testid="platform-badge" title={translateUI("Runs in EKA2L1 (experimental), not in the Java emulator")}>{PLATFORM_LABEL[sel.platform]}</span>}
+              {sel.platform === 'symbian' && sel.packageFormat && sel.packageFormat !== 'unknown' && <span className="badge plain" data-testid="package-generation" title={translateUI(PACKAGE_FORMAT_LABEL[sel.packageFormat])}>{sel.packageFormat === 'sis-legacy' ? 'S60 ≤2nd' : 'S60 3rd+'}</span>}
               {sel.warnings.length > 0 && <span className="badge mock" title={translateUI(sel.warnings.join('\n'))}>!</span>}
               {sel.sourceMissing && <span className="badge plain" title={translateUI("The file is no longer in the library folder; the game stays here with its saves")}>{translateUI("file gone")}</span>}
               {sel.info?.status === 'ambiguous' && <span className="badge mock" title={translateUI("Several MobyGames matches: open the info to choose")}>{translateUI("review")}</span>}

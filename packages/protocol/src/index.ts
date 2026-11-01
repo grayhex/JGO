@@ -3,6 +3,7 @@ export * from './catalog.js';
 export * from './phoneSkins.js';
 export * from './platforms.js';
 export * from './emulatedDevices.js';
+export * from './packageFormat.js';
 import type { Platform, EmulatorBackend } from './platforms.js';
 /**
  * Wire protocol shared by the API and the web client. It is provider-neutral:
@@ -59,7 +60,7 @@ export interface GameSettings {
   device?: string;
   /**
    * Symbian / N-Gage games: the firmware (an EKA2L1 "device", by its firmware code, e.g. `RM-84`) this game runs on. Unset = the
-   * per-platform default of the Symbian service, or the only installed device. JGO never guesses between several (see docs/SYMBIAN.md).
+   * per-platform default of the Symbian service, or the only installed device. MGO never guesses between several (see docs/SYMBIAN.md).
    */
   symbianDevice?: string;
 }
@@ -87,6 +88,8 @@ export interface GameMeta {
   /** Other uploaded versions of the same (vendor, name). */
   groupKey: string;
   settings: GameSettings;
+  /** Symbian .sis/.sisx: the Symbian generation the package was built for (see packageFormat.ts). */
+  packageFormat?: import('./packageFormat.js').PackageFormat;
   warnings: string[];
   /** 'upload' (web upload) or 'import' (scanned from the library directory). */
   origin?: 'upload' | 'import';
@@ -339,9 +342,39 @@ export interface ResourceUsage {
   cpuPercentNow: number;
 }
 
+/**
+ * Why a Symbian / N-Gage game did not get as far as a picture. Collected from what EKA2L1 actually answered (launch response,
+ * session states, screenshot probes, its own log), never guessed; `hints` are the explanations MGO derives from those facts.
+ */
+export type StartFailureCause = 'no_firmware' | 'device' | 'service' | 'install_failed' | 'launch_rejected' | 'app_crashed' | 'app_exited' | 'no_picture' | 'screenshot_error';
+export interface StartFailure {
+  stage: 'device' | 'install' | 'launch' | 'first_frame';
+  cause: StartFailureCause;
+  message: string;
+  /** The facts point at the game / firmware pairing rather than at MGO's configuration. */
+  likelyIncompatibleGame: boolean;
+  uid: string | null;
+  appName: string | null;
+  platform: string;
+  firmware: { code: string; manufacturer: string; model: string; os: string | null } | null;
+  launch: { httpStatus: number; code: string | null; message: string | null; session: unknown } | null;
+  /** Session states EKA2L1 reported while MGO waited for the picture (only the changes). */
+  timeline: { atMs: number; state: string; screenVisible: boolean | null; lastExit: unknown }[];
+  /** What /v1/screenshot answered (only the changes). */
+  screenshots: { atMs: number; result: 'ok' | 'no_screen' | 'unavailable' | 'error'; httpStatus: number | null; code: string | null; frame: number | null }[];
+  status: unknown;
+  /** Error-level lines of EKA2L1's own log, and the lines about fonts. */
+  emulatorErrors: string[];
+  fontNotes: string[];
+  hints: string[];
+  elapsedMs: number;
+}
+
 export interface SessionStatus {
   /** Which emulator runs the game. */
   backend?: EmulatorBackend;
+  /** Set when a Symbian / N-Gage start failed: the facts and the explanation. */
+  failure?: StartFailure;
   layout: LayoutId;
   heapMb: number;
   id: string;
@@ -576,7 +609,7 @@ export interface DevicePreset {
   notes: string[];
 }
 
-/** State of the optional jgo-symbian service (EKA2L1), as `/api/symbian/status` reports it. Experimental. */
+/** State of the optional mgo-symbian service (EKA2L1), as `/api/symbian/status` reports it. Experimental. */
 export interface SymbianStatus {
   experimental: true;
   /** SYMBIAN_AGENT_URL is set. */

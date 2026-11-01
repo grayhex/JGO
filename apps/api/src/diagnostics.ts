@@ -44,6 +44,25 @@ export interface DiagnosticsInput {
   bridgeDir: string;
   javaBin: string;
   version: string;
+  /** More sections, for example the Symbian service's own report. */
+  extra?: { title: string; body: string }[];
+}
+
+/** The failure of a Symbian / N-Gage start in words: what stopped, the facts it rests on, and what MGO concludes. */
+export function describeFailure(f: NonNullable<SessionStatus['failure']>): string {
+  const L: string[] = [];
+  L.push(`RESULT: ${f.cause} at step "${f.stage}" after ${(f.elapsedMs / 1000).toFixed(1)} s`, `MESSAGE: ${f.message}`);
+  L.push(`APPLICATION: ${f.appName ?? '(unknown)'} UID ${f.uid ?? '(none yet)'}   PLATFORM: ${f.platform}`);
+  L.push(`FIRMWARE: ${f.firmware ? `${f.firmware.manufacturer} ${f.firmware.model} (${f.firmware.code})${f.firmware.os ? `, ${f.firmware.os}` : ''}` : '(not chosen)'}`);
+  if (f.likelyIncompatibleGame) L.push('', '>>> The facts point at an INCOMPATIBILITY between this game and EKA2L1 / this firmware, not at MGO settings. <<<');
+  if (f.launch) L.push('', `LAUNCH ANSWER: HTTP ${f.launch.httpStatus}${f.launch.code ? ` ${f.launch.code}` : ''}${f.launch.message ? ` "${f.launch.message}"` : ''}${f.launch.session ? ` session=${JSON.stringify(f.launch.session)}` : ''}`);
+  if (f.timeline.length) L.push('', 'SESSION STATES SEEN (ms since the start of the wait):', ...f.timeline.map((t) => `  +${t.atMs} ms  state=${t.state}  screenVisible=${t.screenVisible}${t.lastExit ? `  lastExit=${JSON.stringify(t.lastExit)}` : ''}`));
+  if (f.screenshots.length) L.push('', 'SCREENSHOT ANSWERS (changes only):', ...f.screenshots.map((t) => `  +${t.atMs} ms  ${t.result}${t.httpStatus ? ` HTTP ${t.httpStatus}` : ''}${t.code ? ` ${t.code}` : ''}${t.frame !== null ? ` frame ${t.frame}` : ''}`));
+  L.push('', `EMULATOR STATUS: ${JSON.stringify(f.status)}`);
+  if (f.emulatorErrors.length) L.push('', 'ERROR LINES OF THE EMULATOR LOG:', ...f.emulatorErrors.map((x) => `  ${x}`));
+  if (f.fontNotes.length) L.push('', 'FONT LINES:', ...f.fontNotes.map((x) => `  ${x}`));
+  if (f.hints.length) L.push('', 'WHAT THIS MEANS:', ...f.hints.map((x) => `  - ${x}`));
+  return L.join('\n');
 }
 
 /**
@@ -53,17 +72,20 @@ export interface DiagnosticsInput {
 export async function buildDiagnostics(i: DiagnosticsInput): Promise<string> {
   const out: string[] = [];
   const section = (title: string, body: string) => out.push(`==== ${title} ====`, body, '');
-  out.push(`JGO ${i.version} diagnostics for "${i.gameName}" - ${new Date().toISOString()}`, '');
+  out.push(`MGO ${i.version} diagnostics for "${i.gameName}" - ${new Date().toISOString()}`, '');
   const { logTail: _ignored, ...status } = i.status;
+  if (i.status.failure) section('start failure', describeFailure(i.status.failure));
   section('session', JSON.stringify(status, null, 2));
   section('game settings', JSON.stringify(i.settings, null, 2));
-  const pid = i.status.state === 'running' || i.status.state === 'stopping' ? findJvmPid(i.bridgeDir) : null;
-  if (pid === null) section('JVM', '(the emulator is not running, so there is no live JVM data)');
+  const pid = i.status.backend !== 'eka2l1' && (i.status.state === 'running' || i.status.state === 'stopping') ? findJvmPid(i.bridgeDir) : null;
+  if (i.status.backend === 'eka2l1') section('JVM', '(this game runs in EKA2L1, not in the Java emulator)');
+  else if (pid === null) section('JVM', '(the emulator is not running, so there is no live JVM data)');
   else {
     section('JVM version', await jcmd(i.javaBin, pid, 'VM.version'));
     section('JVM heap', await jcmd(i.javaBin, pid, 'GC.heap_info'));
     section('JVM threads', await jcmd(i.javaBin, pid, 'Thread.print'));
   }
   section(`emulator log (last ${i.logTail.length} lines)`, i.logTail.join('\n'));
+  for (const e of i.extra ?? []) section(e.title, e.body);
   return out.join('\n');
 }

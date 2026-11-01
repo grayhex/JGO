@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// jgo-symbian agent: the only thing JGO talks to in the Symbian container. It starts and stops EKA2L1 (one at a time), gives every
+// mgo-symbian agent: the only thing MGO talks to in the Symbian container. It starts and stops EKA2L1 (one at a time), gives every
 // game its own data directory, takes uploads, captures the sound, and passes an allow-list of EKA2L1's /v1 control API through.
 // No dependencies: Node 22 only. Configuration is by environment (see symbian/README.md).
 import { spawn, execFile } from 'node:child_process';
@@ -14,7 +14,21 @@ import { factoryDirectory, factoryUploadPath, factoryInstallFiles } from './fact
 
 const run = promisify(execFile);
 const env = process.env;
-const TOKEN = env.AGENT_TOKEN ?? '';
+/**
+ * The shared secret between MGO and this service. Either AGENT_TOKEN, or AGENT_TOKEN_FILE: a file on a volume both containers mount;
+ * it is created here on the first start, so the default compose file needs no token to be typed in.
+ */
+function loadToken() {
+  if (env.AGENT_TOKEN) return env.AGENT_TOKEN;
+  const f = env.AGENT_TOKEN_FILE;
+  if (!f) return '';
+  try { const t = readFileSync(f, 'utf8').trim(); if (t.length >= 16) return t; } catch { /* not there yet */ }
+  const t = randomBytes(24).toString('hex');
+  mkdirSync(path.dirname(f), { recursive: true });
+  writeFileSync(f, t + '\n', { mode: 0o644 }); // readable by the app container (another uid); the volume is shared with that container only
+  return t;
+}
+const TOKEN = loadToken();
 const PORT = Number(env.AGENT_PORT ?? 8766);
 const HOST = env.AGENT_HOST ?? '0.0.0.0';
 const CONTROL_PORT = Number(env.CONTROL_PORT ?? 8765);
@@ -41,7 +55,7 @@ const SHARED = (env.INSTANCE_SHARED_DIRS ?? 'roms,drives/z').split(',').filter(B
 const PASS_ENV = (env.EKA2L1_ENV_PASSTHROUGH ?? '').split(',').filter((n) => /^[A-Z][A-Z0-9_]{0,63}$/.test(n));
 const PERSIST = (env.INSTANCE_PERSIST_DIRS ?? 'drives/c,drives/e').split(',').filter(Boolean);
 
-if (!TOKEN || TOKEN.length < 16) { console.error('AGENT_TOKEN (at least 16 characters) is required'); process.exit(1); }
+if (!TOKEN || TOKEN.length < 16) { console.error('AGENT_TOKEN (at least 16 characters) or AGENT_TOKEN_FILE is required'); process.exit(1); }
 for (const d of [DATA, PRIVATE_RUN, BASE, SAVES, FIRMWARE_IN]) mkdirSync(d, { recursive: true, mode: 0o700 });
 
 const ring = [];
@@ -258,7 +272,7 @@ async function installFirmware(job, files, { keep = false, bundleDir = null, var
     await waitControl(90000);
     if (files.vpl) {
       const caps = await control('GET', '/v1/capabilities', undefined, 10000);
-      if (!caps.body?.firmwareFormats?.includes('vpl')) throw Object.assign(new Error('This EKA2L1 build does not support factory VPL installation through its Control API. Rebuild jgo-symbian with the JGO VPL patch; no ROM dump is required.'), { code: 'vpl_not_supported' });
+      if (!caps.body?.firmwareFormats?.includes('vpl')) throw Object.assign(new Error('This EKA2L1 build does not support factory VPL installation through its Control API. Rebuild mgo-symbian with the MGO VPL patch; no ROM dump is required.'), { code: 'vpl_not_supported' });
     }
     const body = { boot: false, ...(files.vpl ? { vpl: files.vpl, ...(variant !== undefined ? { variant } : {}) } : files.archive ? { archive: files.archive } : { rom: files.rom, ...(files.rpkg ? { rpkg: files.rpkg } : {}) }) };
     const start = await control('POST', '/v1/devices?async=1', body, 30000);
@@ -550,5 +564,5 @@ const server = http.createServer(async (req, res) => {
   }
 });
 server.requestTimeout = 0; server.headersTimeout = 20000; server.keepAliveTimeout = 5000;
-server.listen(PORT, HOST, () => log(`jgo-symbian agent on ${HOST}:${PORT}`));
+server.listen(PORT, HOST, () => log(`mgo-symbian agent on ${HOST}:${PORT}`));
 for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, async () => { await stopInstance(); process.exit(0); });

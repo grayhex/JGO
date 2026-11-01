@@ -1,5 +1,5 @@
 name: Bug report
-description: A game does not start, looks wrong, or JGO misbehaves
+description: A game does not start, looks wrong, or MGO misbehaves
 labels: [bug]
 body:
   - type: markdown
@@ -9,7 +9,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: JGO version
+      label: MGO version
       description: Shown in the sidebar of the web UI, or the image tag
       placeholder: 0.1.0-beta.1
     validations: { required: true }

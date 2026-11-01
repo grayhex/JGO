@@ -4,7 +4,7 @@ import { AgentError, agentFromConfig } from './eka2l1/agentClient.js';
 import { UploadError } from './jar.js';
 import type { SessionManager } from './sessions.js';
 import { SessionError } from './sessions.js';
-import { readSymbianStatus } from './eka2l1/status.js';
+import { readSymbianStatus, symbianDiagnosticsText } from './eka2l1/status.js';
 
 /** Where each uploaded firmware file may come from; EKA2L1 decides what is really inside (we only keep names and sizes sane). */
 const SLOTS: Record<string, RegExp | null> = {
@@ -25,7 +25,7 @@ function toHttp(e: unknown): never {
 
 /**
  * Settings for the optional Symbian service: its state and the user's own firmware. The service lives in another container
- * (jgo-symbian); JGO only streams the firmware files to it, they are never stored here and never pass through the repository.
+ * (mgo-symbian); MGO only streams the firmware files to it, they are never stored here and never pass through the repository.
  */
 export function registerSymbianRoutes(app: FastifyInstance, c: { cfg: Config; sessions: SessionManager }): void {
   const { cfg, sessions } = c;
@@ -52,17 +52,7 @@ export function registerSymbianRoutes(app: FastifyInstance, c: { cfg: Config; se
 
   // A plain-text report to attach to a bug report: versions, devices (codes only), the service log and the emulator's last words.
   app.get('/api/symbian/diagnostics', async (_req, reply) => {
-    const out: string[] = [`JGO Symbian diagnostics, ${new Date().toISOString()}`, `limits: firmware ${Math.round(cfg.maxFirmwareBytes / 1048576)} MB, package ${Math.round(cfg.maxPackageBytes / 1048576)} MB`];
-    if (!agent) out.push('service: not configured (SYMBIAN_AGENT_URL is empty)');
-    else {
-      try {
-        const h = await agent.health();
-        out.push(`service: reachable, EKA2L1 ${h.emulator ?? 'unknown build'}`, `devices: ${h.firmware.devices.map((d) => `${d.manufacturer} ${d.model} (${d.code})`).join('; ') || 'none'}`, `defaults: ${JSON.stringify(h.defaults ?? {})}`, `inbox: ${(h.inbox ?? []).map((f) => `${f.name} ${f.size}`).join('; ') || 'empty'}`, `disk: ${h.disk ? `${(h.disk.free / 1024 ** 3).toFixed(1)} GB free of ${(h.disk.total / 1024 ** 3).toFixed(1)} GB` : 'unknown'}`, `instance: ${h.instance.running ? 'running' : 'idle'}`);
-        const l = await agent.logs();
-        out.push('', `--- service log (${l.live ? 'live' : `last run${l.lastRun ? ' ' + l.lastRun.savedAt : ''}`}) ---`, ...l.agent, '', '--- emulator output ---', ...l.output, '', '--- EKA2L1.log ---', ...l.eka2l1Log);
-      } catch (e) { out.push(`service: ${e instanceof Error ? e.message : String(e)}`); }
-    }
-    return reply.header('content-type', 'text/plain; charset=utf-8').header('content-disposition', 'attachment; filename="jgo-symbian-diagnostics.txt"').send(out.join('\n') + '\n');
+    return reply.header('content-type', 'text/plain; charset=utf-8').header('content-disposition', 'attachment; filename="mgo-symbian-diagnostics.txt"').send(await symbianDiagnosticsText(cfg));
   });
 
   app.get('/api/symbian/status', async () => {

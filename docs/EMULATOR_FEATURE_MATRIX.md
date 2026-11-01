@@ -1,8 +1,8 @@
-# KEmulator nnmod v2.22 → JGO: матрица возможностей
+# KEmulator nnmod v2.22 → MGO: матрица возможностей
 
-Технический аудит: что умеет эмулятор, что из этого доходит до пользователя JGO и что нет. Предмет аудита — KEmulator nnmod v2.22,
+Технический аудит: что умеет эмулятор, что из этого доходит до пользователя MGO и что нет. Предмет аудита — KEmulator nnmod v2.22,
 commit `9ec1005af5448bca63a420e1dfa884ef53842d0f` (исходники: `src/main/emulator/…`, `BridgeFrontendDocs.md`), с патчами `runtime/patches/0001…0009` (состояние на момент аудита; что добавлено после — в разделе 9)
-и слои JGO: Rust-адаптер → Node API → React UI → тесты.
+и слои MGO: Rust-адаптер → Node API → React UI → тесты.
 
 ## Как читать
 
@@ -10,7 +10,7 @@ commit `9ec1005af5448bca63a420e1dfa884ef53842d0f` (исходники: `src/main
 
 | Метка | Значение |
 |---|---|
-| **[S]** | прочитан исходный код KEmulator `9ec1005` (`файл:строка` — по стоковым исходникам, до патчей JGO) или код JGO |
+| **[S]** | прочитан исходный код KEmulator `9ec1005` (`файл:строка` — по стоковым исходникам, до патчей MGO) или код MGO |
 | **[R]** | выполнено на настоящем эмуляторе через `tools/audit/probe.mjs`; результат сохранён в `tools/audit/results.json` |
 | **[T]** | покрыто существующим автотестом репозитория |
 | **[D]** | взято из документации; своим запуском не подтверждено |
@@ -25,7 +25,7 @@ node tools/audit/probe.mjs media apis      # или выборочно; резу
 
 Пробы не содержат чужих материалов: MIDlet — CC0, MP3/WAV/MIDI/PNG генерируются, AMR — **синтетический** битовый поток (проверяет путь декодера, а не качество звука).
 
-Классы выводов (раздел 7): **дефект** — подтверждённая ошибка; **нет функции** — ядро умеет, JGO не показывает; **не подтверждено** — запускалось не всё нужное; **ограничение ядра** — KEmulator этого не делает в Bridge-режиме.
+Классы выводов (раздел 7): **дефект** — подтверждённая ошибка; **нет функции** — ядро умеет, MGO не показывает; **не подтверждено** — запускалось не всё нужное; **ограничение ядра** — KEmulator этого не делает в Bridge-режиме.
 
 ---
 
@@ -39,11 +39,11 @@ node tools/audit/probe.mjs media apis      # или выборочно; резу
 | `T <id> D/M/U <x> <y>` | `BridgeInput.java:64` → `mouseDown/mouseDrag/mouseUp` **[S]** | passthrough | `pointerEvent:302`; `sessions.ts` ограничивает id `& 7` и координаты | `Player.tsx` `pointer:317` (с учётом поворота картинки) | `bridge-regressions.test.ts:116`, `tests/e2e/orientation.mjs`; **[R]** `POINTER_DOWN 100,100` | работает; `hasPointerEvents()` = true по умолчанию (`AppSettings.java:131`, **[R]** `apis`) |
 | `C <id>` | `BridgeInput.java:83` → `commandsCache.get(id).invoke()` **[S]** | passthrough | `invokeCommand:307`; событие `cmd` | модальное меню команд в `Player.tsx` (событие `menu`) | `bridge-regressions.test.ts:97`; **[R]** неизвестный id → `IllegalArgumentException`, сессия жива | работает |
 | `P <id> 0/1` | `BridgeInput.java:91` → `PermissionWaitData.resolve` **[S]** | passthrough | `answerPermission:311`; таймаут и «нет зрителей — отказ» в `sessions.ts` | окно «Permission request» (`Player.tsx:573`) | `bridge-regressions.test.ts:131,144` | работает |
-| `X <0/1>` | `BridgeInput.java:113` → `AppSettings.xrayView` **[S]** | passthrough | **нет** метода | **нет** | **[R]** `X 1`/`X 0` принимаются; `X 2` → `IllegalArgumentException` | **ограничение ядра**: режим включается, но `BridgeOutput.sendBuffer:102-103` всегда копирует `screenImageAwt`, строка с x-ray закомментирована **[S]** → картинка не меняется. JGO правильно ничего не предлагает (issue I-09) |
+| `X <0/1>` | `BridgeInput.java:113` → `AppSettings.xrayView` **[S]** | passthrough | **нет** метода | **нет** | **[R]** `X 1`/`X 0` принимаются; `X 2` → `IllegalArgumentException` | **ограничение ядра**: режим включается, но `BridgeOutput.sendBuffer:102-103` всегда копирует `screenImageAwt`, строка с x-ray закомментирована **[S]** → картинка не меняется. MGO правильно ничего не предлагает (issue I-09) |
 | `E …` (текст) | `BridgeInput.java:110` → `RuntimeException("Not implemented")` **[S]**; в спецификации «WIP» | — | **нет** | **нет** | **[R]** `E hello` → `Not implemented`, сессия жива | **ограничение ядра** → ввод текста невозможен (I-01) |
 | `I` (резерв) | `BridgeInput.java:107` → `Not implemented` **[S]** | — | — | — | **[R]** то же | не используется |
 | неизвестный / битый | `BridgeInput.java:118` `IllegalArgumentException`; битый `K D` → `ArrayIndexOutOfBounds`, `K D abc` → `NumberFormatException`; цикл ловит `RuntimeException` (`BridgeInput.run`) **[S]** | — | — | — | **[R]** `Z 1`, `S 2`, `K D`, `K D abc`, `P 12345 1` — исключение в логе, кадры продолжают идти | устойчиво |
-| `Q` (расширение JGO) | патч `0009` → `MIDlet.invokeDestroyApp(true)` + `System.exit(0)` | `main.rs:473` `request_quit` (закрытие `inputpipe`, SIGKILL через `--grace-ms`, 8 с по умолчанию) | `adapter.ts` `stop:316` | кнопки Stop/Restart | `tests/integration/reliability.test.ts`, `tests/e2e/recovery.mjs` | работает (в спецификации Bridge такой команды нет) |
+| `Q` (расширение MGO) | патч `0009` → `MIDlet.invokeDestroyApp(true)` + `System.exit(0)` | `main.rs:473` `request_quit` (закрытие `inputpipe`, SIGKILL через `--grace-ms`, 8 с по умолчанию) | `adapter.ts` `stop:316` | кнопки Stop/Restart | `tests/integration/reliability.test.ts`, `tests/e2e/recovery.mjs` | работает (в спецификации Bridge такой команды нет) |
 
 Пауза, шаг, speed, suspend/resume **во входящем протоколе отсутствуют** → раздел 3.
 
@@ -63,7 +63,7 @@ node tools/audit/probe.mjs media apis      # или выборочно; резу
 | `A` область текста | в спецификации есть; **отправителя в ядре нет**: `getCaret()` отдаёт `DummyCaret` (`BridgeOutput.java:167`, `DummyCaret.java`: все методы пусты) **[S]** | пакет попадает в `default:` и отбрасывается | нет | **[R]** 0 пакетов `A` при `Form`+`TextField` | **ограничение ядра** (I-01) |
 | `P` разрешение | `BridgeOutput.showSecurityDialog:219` → `PermissionWaitData.request` **[S]** | `permission` + таймаут | окно запроса | `bridge-regressions.test.ts:131,144` | работает |
 | `U` URL | в стоке **не отправляется нигде**; патч `0008` — из `Emulator.openUrlExternally` **[S]** | фильтр схем `http(s)/mailto/tel` → `url` | только тост «blocked» (`Player.tsx:175`) | `bridge-regressions.test.ts:131`; **[R]** `U` у `kemnet` | **нет функции**: ссылку нельзя открыть (I-06) |
-| `I` иконка | `BridgeOutput.setWindowIcon:177` (патч `0005` — защита от `null`) **[S]** | в `default:` отбрасывается | нет | **[R]** 16×16 RGBA, 1024 байта | не нужен: иконку библиотеки JGO берёт из JAR |
+| `I` иконка | `BridgeOutput.setWindowIcon:177` (патч `0005` — защита от `null`) **[S]** | в `default:` отбрасывается | нет | **[R]** 16×16 RGBA, 1024 байта | не нужен: иконку библиотеки MGO берёт из JAR |
 | кадры | `BridgeOutput.repaint:72`, синхронизация `readypipe`/`readpipe` **[S]** | Rust `main.rs:411`, `onFrame` → WS | `canvas` | везде | работает; размер фиксируется при старте (`-screen`) |
 | звук (вне спецификации) | `runtime/audio` `WebMixerProvider` → FIFO `audio` | Rust `b'A'` (`main.rs:304`) → `onAudio` → WS `0x02` | `PcmAudio` | `tests/integration/audio.test.ts` | работает (раздел 5) |
 
@@ -71,7 +71,7 @@ node tools/audit/probe.mjs media apis      # или выборочно; резу
 
 Меню `EmulatorScreen.java` (SWT) — единственный пользователь этих функций; во Bridge-режиме `BridgeFrontend` не создаёт ничего из этого, а канала управления нет.
 
-| Функция SWT | Ядро | Команда Bridge | В JGO | Итог |
+| Функция SWT | Ядро | Команда Bridge | В MGO | Итог |
 |---|---|---|---|---|
 | Restart / Load JAR | `Emulator.loadGame` (`EmulatorScreen.java:1410`) | — | новая сессия (Restart, библиотека) | заменено эквивалентом |
 | **Pause / Step / Resume** | `EmulatorScreen.pause():1303` (`AppSettings.steps=0`), `pauseStep:1307`, `resumeStep` | **нет** | нет | нет функции, нужен патч ядра (I-02) |
@@ -91,14 +91,14 @@ node tools/audit/probe.mjs media apis      # или выборочно; резу
 | Disable network access | `Settings.networkNotAvailable` | — | вместо этого изоляция сети (netns): игра получает `UnknownHostException` | иная семантика (I-14) |
 | Check update / Help / About | — | — | — | не применимо |
 
-## 4. Настройки ядра и что из них записывает JGO
+## 4. Настройки ядра и что из них записывает MGO
 
 Два источника настроек (оба читаются в Bridge-режиме **[S]**):
 
-* `AppSettings.load` — на игру, секция `midlets.ini` в каталоге пользователя (`-Dkem.userpath`, у JGO `data/saves/<owner>/<игра>`). JGO пишет **9 ключей**: `ScreenWidth`, `ScreenHeight`, `KeyLeftSoft`, `KeyRightSoft`, `KeyFire`, `KeyUp`, `KeyDown`, `KeyLeft`, `KeyRight`, а при выбранном пресете ещё `DevicePreset`, `IgnoreFullScreenMode`, `MIDPPlatform` (`apps/api/src/appSettings.ts`).
-* `Property.loadProperties` — глобальные, файл `property.txt` в том же каталоге (`ui/swt/Property.java:327-330`). JGO его **не создаёт**, значения — по умолчанию. **[R]** файл `property.txt` читается Bridge-режимом: `SoundfontPath=…` в нём приводит к открытию SF2 (раздел 5).
+* `AppSettings.load` — на игру, секция `midlets.ini` в каталоге пользователя (`-Dkem.userpath`, у MGO `data/saves/<owner>/<игра>`). MGO пишет **9 ключей**: `ScreenWidth`, `ScreenHeight`, `KeyLeftSoft`, `KeyRightSoft`, `KeyFire`, `KeyUp`, `KeyDown`, `KeyLeft`, `KeyRight`, а при выбранном пресете ещё `DevicePreset`, `IgnoreFullScreenMode`, `MIDPPlatform` (`apps/api/src/appSettings.ts`).
+* `Property.loadProperties` — глобальные, файл `property.txt` в том же каталоге (`ui/swt/Property.java:327-330`). MGO его **не создаёт**, значения — по умолчанию. **[R]** файл `property.txt` читается Bridge-режимом: `SoundfontPath=…` в нём приводит к открытию SF2 (раздел 5).
 
-Ключи, которые существуют в ядре и **никак не доступны** из JGO (перечень — из `AppSettings.java` и `Property.java`, фиктивных ключей в JGO нет):
+Ключи, которые существуют в ядре и **никак не доступны** из MGO (перечень — из `AppSettings.java` и `Property.java`, фиктивных ключей в MGO нет):
 
 | Группа | Ключи |
 |---|---|
@@ -107,9 +107,9 @@ node tools/audit/probe.mjs media apis      # или выборочно; резу
 | Среда игры | `MIDPLocale`, `FileEncoding`, `SystemProperties`, `FontSmallSize`/`FontMediumSize`/`FontLargeSize` |
 | 3D | `M3GAA`, `M3GTexFilter`, `M3GMipmapping`, `M3GThread`, `M3GFlushImmediately`, `M3GForcePerspectiveCorrection`, `M3GIgnoreOverwrite`, `M3GDisableLightClamp`, `Mascot*` |
 | Глобальные (`property.txt`) | `SoundfontPath`, `MIDIGlobalSequencer`, `MIDIReopenDevice`, `UseMaSmwForMIDI`, `WavCache`, `EnableVlc`, `VlcDir`, `EnableMediaDump`, `OTTConverter`, `3D_Graphics_Engine`, `Micro3D_Engine`, `M3GContextMode`, `DefaultFont`/`MonospacedFont`, `SecurityEnabled`, `ProtectedPackages`, `NetworkNotAvailable`, `ProxyType`… |
-| Аргументы запуска | `-xray`, `-rec`, `-fontname/-fontsmall/-fontmedium/-fontlarge`, `-key`, `-cp`, `-lwj/-swerve`, `-mascotgl/-mascotsw` (`Emulator.parseLaunchArgs:754`); JGO передаёт `-bridge -s -screen -jar [-jad] [-midlet]` (`adapter.ts` `buildJavaArgs`) |
+| Аргументы запуска | `-xray`, `-rec`, `-fontname/-fontsmall/-fontmedium/-fontlarge`, `-key`, `-cp`, `-lwj/-swerve`, `-mascotgl/-mascotsw` (`Emulator.parseLaunchArgs:754`); MGO передаёт `-bridge -s -screen -jar [-jad] [-midlet]` (`adapter.ts` `buildJavaArgs`) |
 
-Практическое значение: JGO получает **значения по умолчанию ядра**, а не «настройки игры». Это не дефект, но все «профили», которые советуют по forum/KEmulator-гайдам для конкретных игр, в JGO недостижимы (I-07).
+Практическое значение: MGO получает **значения по умолчанию ядра**, а не «настройки игры». Это не дефект, но все «профили», которые советуют по forum/KEmulator-гайдам для конкретных игр, в MGO недостижимы (I-07).
 
 ## 5. Отдельные исследования
 
@@ -120,7 +120,7 @@ node tools/audit/probe.mjs media apis      # или выборочно; резу
 | Рисуется ли `TextBox`? | Да, **только для чтения**: патч `0006` (`TextBoxHeadless`) рисует текст в кадр, `getString/setString/insert/delete` работают как модель. **[T]** `bridge-regressions.test.ts:57`; **[R]** `packets`: пакеты `D`=`B`, `T`=`Name`, 1 кадр |
 | Рисуется ли `List`? | Да, `ListHeadless`; стрелки и Fire работают. **[T]** `bridge-regressions.test.ts:41` |
 | Можно ли набрать текст в `TextField` формы? | **Нет.** **[R]** `textfield`: в `Form` с `TextField("Name","player")` отправлены клавиши `5 6 7 1 Fire`, касание и `E zzz` — значение осталось `player`, `caret=0`, `itemStateChanged` не вызывался, пакетов `A` ноль, в логе `RuntimeException: Not implemented` |
-| Почему | три причины в ядре, **[S]**: (1) `BridgeInput` не реализует `E` (`:110`); (2) нет отправителя `A`, `getCaret()` = `DummyCaret` с пустыми методами; (3) `TextBoxHeadless` и `Form`/`TextField` не принимают символы клавиш. Для JGO (Node/React) данных для окна ввода просто нет |
+| Почему | три причины в ядре, **[S]**: (1) `BridgeInput` не реализует `E` (`:110`); (2) нет отправителя `A`, `getCaret()` = `DummyCaret` с пустыми методами; (3) `TextBoxHeadless` и `Form`/`TextField` не принимают символы клавиш. Для MGO (Node/React) данных для окна ввода просто нет |
 | Что нужно | патч ядра (приём `E`, отправка `A` с областью и текстом, вызов `TextField.setString` + `itemStateChanged`) и клиентская часть (поле ввода поверх области `A`, для `TextBox` — экранное поле). Задача I-01 (P0): без этого не проходятся игры, требующие ввода имени |
 
 ### 5.2 Звук: WAV, MP3, AMR, MIDI, тон
@@ -135,7 +135,7 @@ node tools/audit/probe.mjs media apis      # или выборочно; резу
 | AMR-NB (синтетический поток, 12,2 кбит/с) | OK, `getDuration`=1,5 с | 1,82 с / 7479 (шум) | путь декодера работает; качество на настоящих AMR **не подтверждено** |
 | SMF MIDI (нота C4) | OK, `getDuration`=0,5 с | 1,63 с / 1067 | работает |
 
-Список типов, который ядро объявляет игре (**[R]**): `audio/midi audio/x-midi audio/wav audio/x-wav audio/x-tone-seq audio/amr audio/x-amr audio/mpeg audio/mp3`; протоколы: `device://tone capture://video capture://image file http https`. **Видео (`video/*`) нет**: VLC (`Settings.enableVlc = true`, `Settings.java:112`) в образе JGO не установлен — ограничение окружения, не проверялось.
+Список типов, который ядро объявляет игре (**[R]**): `audio/midi audio/x-midi audio/wav audio/x-wav audio/x-tone-seq audio/amr audio/x-amr audio/mpeg audio/mp3`; протоколы: `device://tone capture://video capture://image file http https`. **Видео (`video/*`) нет**: VLC (`Settings.enableVlc = true`, `Settings.java:112`) в образе MGO не установлен — ограничение окружения, не проверялось.
 
 ### 5.3 MIDI SoundFont
 
@@ -146,7 +146,7 @@ node tools/audit/probe.mjs media apis      # или выборочно; резу
 | без `property.txt` | OK | 0 |
 | `SoundfontPath=<файл>` в `property.txt` каталога игры | OK | **2** |
 
-Вывод: настройка **работает без патчей**, достаточно записать файл. В JGO такой настройки нет, поэтому MIDI-музыка играет встроенным «аварийным» банком Gervill. Это функция, которой нет в JGO (I-04); слуховое качество я не оценивал.
+Вывод: настройка **работает без патчей**, достаточно записать файл. В MGO такой настройки нет, поэтому MIDI-музыка играет встроенным «аварийным» банком Gervill. Это функция, которой нет в MGO (I-04); слуховое качество я не оценивал.
 
 ### 5.4 Пауза и скорость
 
@@ -154,7 +154,7 @@ node tools/audit/probe.mjs media apis      # или выборочно; резу
 
 ### 5.5 Отладочные функции
 
-Ядро содержит модель данных (`debug/Memory.java`, `Profiler.java`, `MediaUtils.java`, трассировка методов в `CustomMethodAdapter.java`), но потребители — SWT-окна. Через Bridge не доступно ничего, кроме лога (stdout/stderr → панель «Emulator log»). Для JGO это нормально для пользователя; для разработчика совместимости полезен экспорт диагностики (I-09). Фиктивных переключателей в JGO нет.
+Ядро содержит модель данных (`debug/Memory.java`, `Profiler.java`, `MediaUtils.java`, трассировка методов в `CustomMethodAdapter.java`), но потребители — SWT-окна. Через Bridge не доступно ничего, кроме лога (stdout/stderr → панель «Emulator log»). Для MGO это нормально для пользователя; для разработчика совместимости полезен экспорт диагностики (I-09). Фиктивных переключателей в MGO нет.
 
 ### 5.6 Необязательные JSR (**[R]** `apis`, пробный MIDlet `ApiProbe`)
 
@@ -181,7 +181,7 @@ node tools/audit/probe.mjs media apis      # или выборочно; резу
 | `docs/BRIDGE.md` (раздел «Звук») | «не проверено: MP3, AMR» | MP3/AMR/MIDI/тон проверены (5.2) | **исправлено** |
 | `README.md`, `README.en.md` | «экраны TextBox и List Bridge не реализует» | рисуются, не работает ввод текста | **исправлено** (README переписан) |
 | спецификация `BridgeFrontendDocs.md` | `U` и `A` описаны как существующие | `U` в стоке никем не отправляется (добавлен патчем `0008`), `A` не отправляется вовсе | зафиксировано здесь и в таблицах |
-| `BridgeFrontendDocs.md` | «код выхода 29 = ошибка чтения `inputpipe`» и т. п. | в JGO дополнительно используются 27/28 из-за гонки при остановке (`docs/BRIDGE.md` п. 16) | согласовано, дублирования нет |
+| `BridgeFrontendDocs.md` | «код выхода 29 = ошибка чтения `inputpipe`» и т. п. | в MGO дополнительно используются 27/28 из-за гонки при остановке (`docs/BRIDGE.md` п. 16) | согласовано, дублирования нет |
 | `docs/COMPATIBILITY.md` | «выбор пресета в UI не добавлен» | выбор есть (ранее исправлено) | уже исправлено |
 
 Расхождений между патчами не найдено: `0001–0009` независимо применяются к `9ec1005` (`runtime/scripts/build-kemulator.sh` останавливает сборку при провале), `0006` и `0009` оба меняют `BridgeInput/BridgeOutput`, но в разных участках.
@@ -192,7 +192,7 @@ node tools/audit/probe.mjs media apis      # или выборочно; резу
 * D-1. SMS (`javax.wireless.messaging`) → `NullPointerException` из `BridgeFrontend.getMessage()==null`; игра теряет поток (I-03).
 * D-2. Устаревшие предупреждения и противоречия в коде и документации (раздел 6) — исправлены в этом аудите.
 
-**Отсутствующие функции** (ядро умеет, JGO не показывает)
+**Отсутствующие функции** (ядро умеет, MGO не показывает)
 * F-1. Ввод текста (**ограничение ядра** + клиент) — I-01.
 * F-2. Пауза, шаг, suspend/resume MIDlet, автопауза скрытой вкладки — I-02.
 * F-3. Выбор MIDI SoundFont (работает записью `property.txt`) — I-04.
@@ -275,4 +275,4 @@ node tools/audit/probe.mjs media apis      # или выборочно; резу
 
 * Не оценивал качество звука на слух и производительность на реальных играх.
 * AMR проверен синтетическим потоком; видео и камера не проверялись (нет VLC и камеры).
-* Аудит выполнен для KEmulator `9ec1005` с патчами JGO; другая версия ядра потребует повторного запуска `tools/audit/probe.mjs`.
+* Аудит выполнен для KEmulator `9ec1005` с патчами MGO; другая версия ядра потребует повторного запуска `tools/audit/probe.mjs`.

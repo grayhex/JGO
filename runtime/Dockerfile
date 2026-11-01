@@ -40,7 +40,7 @@ RUN npm ci && npm run build && npm prune --omit=dev && node /tmp/jgo-release-pru
 # ---- Gateway (optional image): the only container with a published port ---------------
 # The app container sits on an internal Docker network without a route out, so a MIDlet cannot call the
 # internet or the LAN; this nginx forwards the browser's HTTP and WebSocket traffic to it.
-#   docker build -f runtime/Dockerfile --target gateway -t jgo-gateway .
+#   docker build -f runtime/Dockerfile --target gateway -t mgo-gateway .
 FROM ${BASE_REGISTRY}/nginx:1.27-alpine AS gateway
 COPY infrastructure/local/nginx.conf /etc/nginx/conf.d/default.conf
 COPY infrastructure/local/jgo-proxy.conf /etc/nginx/jgo-proxy.conf
@@ -56,9 +56,9 @@ COPY --from=app-build /usr/local/bin/node /usr/local/bin/node
 # The token volume can be written by NAS-selected UID:GID (e.g. 1000:10 or 10001:10001).
 # It is a sticky directory, like /tmp; the token itself stays a private 0600 file.
 RUN useradd --system --uid 10001 --home-dir /nonexistent --shell /usr/sbin/nologin j2me \
-    && mkdir -p /data /opt/kemulator /jgo-auth \
+    && mkdir -p /data /opt/kemulator /jgo-auth /symbian-auth \
     && chown j2me /data \
-    && chmod 1777 /jgo-auth
+    && chmod 1777 /jgo-auth && chown j2me /symbian-auth
 COPY --from=kem-build /out/kemulator /opt/kemulator
 COPY --from=adapter-build /src/target/release/kem-adapter /usr/local/bin/kem-adapter
 COPY --from=app-build /app /app

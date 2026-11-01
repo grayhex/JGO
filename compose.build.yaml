@@ -1,6 +1,8 @@
 # Developer-only override: compose.yaml intentionally pulls published GHCR images.
 # Build from this checkout (with Dockerfile, upstream KEmulator sources, Rust, etc.):
 #   docker compose -f compose.yaml -f compose.build.yaml up -d --build
+# The mgo-symbian image compiles EKA2L1 and FFmpeg (30-60 minutes the first time); build only the Java ME part with:
+#   docker compose -f compose.yaml -f compose.build.yaml up -d --build app gateway
 services:
   app:
     build:
@@ -8,11 +10,17 @@ services:
       dockerfile: runtime/Dockerfile
       args:
         BASE_REGISTRY: ${BASE_REGISTRY:-docker.io/library}
-        JGO_VERSION: ${JGO_VERSION:-dev}
+        JGO_VERSION: ${MGO_VERSION:-${JGO_VERSION:-dev}}
   gateway:
     build:
       context: .
       dockerfile: runtime/Dockerfile
       target: gateway
+      args:
+        BASE_REGISTRY: ${BASE_REGISTRY:-docker.io/library}
+  mgo-symbian:
+    build:
+      context: .
+      dockerfile: symbian/Dockerfile
       args:
         BASE_REGISTRY: ${BASE_REGISTRY:-docker.io/library}

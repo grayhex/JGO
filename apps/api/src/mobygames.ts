@@ -299,7 +299,7 @@ export class MobyClient {
         let res: Response;
         this.requests++;
         try {
-          res = await this.doFetch(url, { headers: { Accept: 'application/json', 'User-Agent': 'JGO (self-hosted J2ME web player)' }, signal: AbortSignal.timeout(20_000), redirect: 'error' });
+          res = await this.doFetch(url, { headers: { Accept: 'application/json', 'User-Agent': 'MGO (self-hosted J2ME web player)' }, signal: AbortSignal.timeout(20_000), redirect: 'error' });
         } catch (e) {
           if (attempt < 1) { await this.sleep(1500); continue; }
           throw new MobyError('network', this.redact(`Cannot reach MobyGames: ${(e as Error).message}`), 502);
@@ -387,7 +387,7 @@ export class MobyClient {
       }
       let res: Response;
       try {
-        res = await this.doFetch(url, { headers: { Accept: 'image/*', 'User-Agent': 'JGO (self-hosted J2ME web player)' }, signal: AbortSignal.timeout(20_000), redirect: 'manual' });
+        res = await this.doFetch(url, { headers: { Accept: 'image/*', 'User-Agent': 'MGO (self-hosted J2ME web player)' }, signal: AbortSignal.timeout(20_000), redirect: 'manual' });
       } catch (e) {
         throw new MobyError('network', `Image download failed: ${(e as Error).message}`, 502);
       }

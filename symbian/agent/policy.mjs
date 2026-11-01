@@ -1,6 +1,6 @@
-// What a client of the jgo-symbian service may ask EKA2L1. EKA2L1's control API has no authentication and can write files anywhere
+// What a client of the mgo-symbian service may ask EKA2L1. EKA2L1's control API has no authentication and can write files anywhere
 // ("host:" paths, PUT /v1/files) and change its configuration, so the service never passes it through as it is: only the routes the
-// JGO adapter needs, with paths pinned to the directories of the running instance.
+// MGO adapter needs, with paths pinned to the directories of the running instance.
 import path from 'node:path';
 
 const GET_OK = [
@@ -41,7 +41,7 @@ export function checkControl(r) {
     if (b.type !== undefined && !INSTALL_TYPES.has(b.type)) return deny('unknown install type', 400, 'bad_request');
     return null;
   }
-  if (!list || !list.some((re) => re.test(r.pathname))) return deny(`${r.method} ${r.pathname} is not available through the JGO service`);
+  if (!list || !list.some((re) => re.test(r.pathname))) return deny(`${r.method} ${r.pathname} is not available through the MGO service`);
   return null;
 }
 
@@ -53,5 +53,5 @@ export function safeName(name) {
   return n;
 }
 
-/** Save keys are the 32 hex characters JGO derives; anything else never becomes a path. */
+/** Save keys are the 32 hex characters MGO derives; anything else never becomes a path. */
 export const SAVE_KEY = /^[0-9a-f]{32}$/;

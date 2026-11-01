@@ -1,6 +1,6 @@
 // Symbian / N-Gage in the real UI: Settings → Symbian (firmware upload + install), a .sis dropped into the library with its platform
 // badge, the game played in the player (picture of the game's own size, a key reaches the emulator). Real API + real agent + Chromium.
-// The emulator behind the agent is the FAKE EKA2L1 of tests/fixtures/fake-eka2l1: this proves JGO's UI and plumbing, not the real emulator.
+// The emulator behind the agent is the FAKE EKA2L1 of tests/fixtures/fake-eka2l1: this proves MGO's UI and plumbing, not the real emulator.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
@@ -8,7 +8,6 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright';
-import { factoryManifest } from '../fixtures/factory-kit.mjs';
 
 const dir = mkdtempSync(path.join(tmpdir(), 'jgo-sym-e2e-'));
 const free = () => new Promise((res) => { const s = createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => res(p)); }); });
@@ -50,17 +49,29 @@ try {
   await panel.getByText('Service connected').waitFor();
   await panel.getByText('No firmware yet').waitFor();
   assert.equal(await panel.getByTestId('fw-install').isDisabled(), true, 'nothing to install before a file is chosen');
-  await panel.getByTestId('fw-rom').setInputFiles({ name: 'RM-84.rom', mimeType: 'application/octet-stream', buffer: Buffer.from('fake rom') });
-  await panel.getByTestId('fw-rpkg').setInputFiles({ name: 'RM-84.rpkg', mimeType: 'application/octet-stream', buffer: Buffer.from('fake rpkg') });
+  // one way to add firmware: an archive. The ROM / RPKG / factory-kit forms are gone.
+  assert.equal(await panel.getByTestId('fw-rom').count() + await panel.getByTestId('fw-rpkg').count() + await panel.getByTestId('factory-mode').count() + await panel.getByTestId('fw-factory').count(), 0, 'only the firmware archive is offered');
+  await panel.getByTestId('fw-archive').setInputFiles({ name: 'RM-84.zip', mimeType: 'application/zip', buffer: Buffer.from('fake firmware archive') });
   // Cancel an upload before it reaches the service; retrying must not install twice.
-  await p.route('**/api/symbian/firmware?slot=rom', async route => { await sleep(1500); await route.abort().catch(() => undefined); });
+  await p.route('**/api/symbian/firmware?slot=archive', async route => { await sleep(1500); await route.abort().catch(() => undefined); });
   await panel.getByTestId('fw-install').click();
   await panel.getByRole('button', { name: 'Cancel upload', exact: true }).click();
-  await p.unroute('**/api/symbian/firmware?slot=rom');
+  await p.unroute('**/api/symbian/firmware?slot=archive');
   await wait(async () => !(await panel.getByTestId('fw-install').isDisabled()), 'upload cancelled');
   assert.equal((await (await fetch(base + '/api/symbian/status')).json()).firmware.devices.length, 0);
   await panel.getByTestId('fw-install').click();
-  await panel.getByText('RM-84', { exact: true }).waitFor({ timeout: 30000 });
+  await panel.getByTestId('device-RM-84').waitFor({ timeout: 30000 });
+  // the installed device reads as a phone, not as a code: its name, OS, what it runs and the default marks
+  const card = panel.getByTestId('device-RM-84');
+  await card.getByRole('heading', { name: 'Nokia N70' }).waitFor();
+  assert.match(await card.innerText(), /Symbian 8\.1a/);
+  assert.ok(await card.locator('img').count() === 1, 'a picture of the phone');
+  // one installed device: every platform it can run is offered it automatically, those it cannot run say so
+  const defaults = panel.getByTestId('defaults');
+  assert.equal(await defaults.locator('select').count(), 3);
+  assert.match(await panel.getByTestId('default-ngage').innerText(), /No installed firmware can run these games|Automatic|not set/);
+  await panel.getByText('No installed firmware can run these games.').first().waitFor();
+  assert.ok(await defaults.locator('.hint-mark').count() >= 3, 'every platform has a hint');
   console.log('✔ firmware uploaded and installed from Settings → Symbian');
   assert.ok(await panel.getByTestId('symbian-diagnostics').isVisible());
   const diag = await (await fetch(base + '/api/symbian/diagnostics')).text();
@@ -91,29 +102,21 @@ try {
   assert.equal(game.platform, 'symbian');
   await p.goto(base + '/play/' + game.id);
   await p.locator('.skin-box').waitFor();
-  await p.getByTestId('symbian-note').waitFor();
-  assert.equal(await p.getByTestId('symbian-device').inputValue(), '', 'automatic device by default');
-  assert.ok(await p.getByTestId('symbian-session-diagnostics').isVisible(), 'a diagnostics link next to the game');
+  // the player says what a player needs: whether it can start and on which phone's firmware; no service internals
+  await wait(async () => await p.getByTestId('native-readiness').getAttribute('data-ready') === '1', 'native ready');
+  assert.match(await p.getByTestId('native-readiness').innerText(), /Runs on\s+Nokia N70/);
+  const panelText = await p.locator('.ctrl-col').innerText();
+  for (const noise of ['Installed devices', 'Test readiness', 'Service connected', 'First frame', 'Refresh status', 'Use matching skin', 'EKA2L1 master', 'The skin changes appearance', 'Emulated device']) assert.ok(!panelText.includes(noise), `no "${noise}" in the player`);
+  assert.equal(await p.getByTestId('symbian-device').count(), 0, 'one installed firmware: nothing to choose');
   assert.equal(await p.getByText('Game speed').count(), 0, 'no J2ME speed control for a Symbian game');
   assert.equal(await p.getByTestId('phone-profile-match').count(), 0, 'no J2ME profile panel');
-  await wait(async () => await p.getByTestId('native-readiness').getAttribute('data-ready') === '1', 'native ready');
   await p.locator('.skin-box[data-skin="nokia-n70"]').waitFor();
-  await p.getByLabel('Emulated device', { exact: true }).selectOption('eka2l1-n8');
-  await wait(async () => (await p.getByTestId('native-readiness').innerText()).includes('not installed'), 'missing N8 profile');
-  assert.ok(await p.locator('.ctrl-col').getByRole('button', { name: 'Start', exact: true }).isDisabled());
-  assert.equal((await (await fetch(base + '/api/games/' + game.id)).json()).settings.symbianDevice, 'RM-596');
-  await p.getByLabel('Emulated device', { exact: true }).selectOption('eka2l1-n70');
-  await wait(async () => await p.getByTestId('native-readiness').getAttribute('data-ready') === '1', 'N70 profile');
-  await p.reload();
-  await wait(async () => await p.getByTestId('native-readiness').getAttribute('data-ready') === '1', 'ready after reload');
-  assert.equal(await p.getByLabel('Emulated device', { exact: true }).inputValue(), 'eka2l1-n70');
-  // Picking another Symbian skin changes no actual firmware.
+  // A phone of another firmware is not run: choosing the N8 on /phones brings the game back to the phone of its firmware
   await p.getByTestId('change-phone').click();
   await p.getByRole('button', { name: 'Nokia N8', exact: true }).click();
-  await p.locator('.skin-box[data-skin="nokia-n8"]').waitFor();
-  assert.equal((await (await fetch(base + '/api/games/' + game.id)).json()).settings.symbianDevice, 'RM-84');
-  await p.getByRole('button', { name: 'Use matching skin', exact: true }).click();
-  await p.locator('.skin-box[data-skin="nokia-n70"]').waitFor();
+  await p.locator('.skin-box[data-skin="nokia-n70"]').waitFor({ timeout: 15000 });
+  await wait(async () => (await (await fetch(base + '/api/games/' + game.id)).json()).settings.skinId === 'nokia-n70', 'the game goes back to the N70');
+  assert.equal((await (await fetch(base + '/api/games/' + game.id)).json()).settings.symbianDevice ?? 'RM-84', 'RM-84');
   await p.getByRole('button', { name: 'Start', exact: true }).first().click();
   await wait(async () => (await p.getByTestId('frame-size').innerText()) === '176×208', 'the game picture at its own size', 600);
   const st = await wait(async () => (await (await fetch(base + '/api/sessions')).json()).find(s => s.state === 'running'), 'running session');
@@ -162,35 +165,25 @@ try {
   // ---- stop ----
   await p.getByRole('button', { name: 'Stop', exact: true }).first().click();
   await wait(async () => !(await (await fetch(base + '/api/symbian/status')).json()).busy, 'the service to become idle');
-  // Original VPL/FPSX files through the real form/API/agent, against the explicitly fake emulator.
+  // A second firmware archive; the job survives a reload and a temporary monitoring failure.
   await p.goto(base + '/settings#symbian');
-  const factory = p.getByTestId('symbian-panel');
-  await factory.getByTestId('factory-mode').click();
-  const manifest = factoryManifest([{ label: 'First language', product: '0000001', files: ['first.core.fpsx'] }, { label: 'Second language', product: '0000002', files: ['second.core.fpsx'] }]);
-  const kit = [
-    { name: 'RM-596_factory.vpl', mimeType: 'application/xml', buffer: Buffer.from(manifest) },
-    { name: 'first.core.fpsx', mimeType: 'application/octet-stream', buffer: Buffer.from('fake-only factory image') },
-  ];
-  // getRandomValues works on a LAN HTTP origin where randomUUID is unavailable.
-  await p.evaluate(() => Object.defineProperty(crypto, 'randomUUID', { configurable: true, value: undefined }));
-  await factory.getByTestId('fw-factory').setInputFiles(kit);
-  await factory.getByTestId('fw-variant').waitFor();
-  assert.ok(await factory.getByTestId('fw-install').isDisabled(), 'multi-variant kits need an explicit choice');
-  await factory.getByTestId('fw-variant').selectOption('1');
-  await factory.getByText('Missing FPSX images', { exact: false }).waitFor();
-  assert.ok(await factory.getByTestId('fw-install').isDisabled(), 'missing image cannot start an installation');
-  await factory.getByTestId('fw-variant').selectOption('0');
+  const second = p.getByTestId('symbian-panel');
+  await second.getByTestId('fw-archive').setInputFiles({ name: 'RM-596.zip', mimeType: 'application/zip', buffer: Buffer.from('fake firmware archive 2') });
   const request = p.waitForRequest(r => r.url().endsWith('/api/symbian/firmware/install') && r.method() === 'POST');
-  await factory.getByTestId('fw-install').click();
+  await second.getByTestId('fw-install').click();
   const payload = (await request).postDataJSON();
-  assert.equal(payload.vpl, 'RM-596_factory.vpl'); assert.equal(payload.variant, 0); assert.match(payload.bundle, /^[a-f0-9]{32}$/);
-  assert.equal(payload.rom, undefined); assert.equal(payload.archive, undefined);
+  assert.match(payload.archive, /RM-596\.zip$/); assert.equal(payload.rom, undefined); assert.equal(payload.vpl, undefined);
   await wait(async () => await p.evaluate(() => !!localStorage.getItem('jgo.symbian.job.v1')), 'firmware job retained');
   await p.route('**/api/symbian/jobs/*', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'unavailable', message: 'Temporary monitoring interruption' }) }), { times: 1 });
   await p.reload();
   await p.getByRole('button', { name: 'Resume monitoring', exact: true }).click();
-  await p.getByTestId('symbian-panel').getByText('RM-596', { exact: true }).waitFor({ timeout: 30000 });
-  console.log('✔ VPL factory kit: variant selection, missing-image check, original names, no ROM dump, job survives reload (fake emulator)');
+  await p.getByTestId('symbian-panel').getByTestId('device-RM-596').waitFor({ timeout: 30000 });
+  await p.getByTestId('symbian-panel').getByRole('heading', { name: 'Nokia N8' }).waitFor();
+  // two devices: the platform defaults only offer the devices that can run that platform
+  const opts = async (pl) => (await p.getByTestId(`default-${pl}`).locator('option').allInnerTexts()).join('|');
+  assert.match(await opts('symbian'), /Nokia N70/); assert.match(await opts('symbian'), /Nokia N8/);
+  assert.doesNotMatch(await opts('ngage'), /Nokia N70|Nokia N8/, 'neither phone runs N-Gage 1.0 cards');
+  console.log('✔ Settings → Symbian: one archive format, devices shown as phones, defaults offer only fitting devices, job survives reload');
   await p.goto(base + '/play/' + game.id);
   await p.getByTestId('native-readiness').waitFor();
   await p.setViewportSize({ width: 390, height: 844 });

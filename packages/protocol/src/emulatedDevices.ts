@@ -1,7 +1,8 @@
 import type { DevicePreset, GameSettings, LayoutId, SymbianStatus } from './index.js';
 import { PHONE_SKIN_IDS, type PhoneSkinId } from './phoneSkins.js';
 import { OWN_LAYOUT, PHONE_PROFILES } from './phones.js';
-import type { GamePlatform } from './platforms.js';
+import { GAME_PLATFORM_LABELS, type GamePlatform } from './platforms.js';
+import { PACKAGE_FORMAT_LABEL, generationOfOs, generationOfPackage, type PackageFormat } from './packageFormat.js';
 
 interface DeviceBase {
   id: string;
@@ -57,6 +58,17 @@ export function profilesForSkin(id: PhoneSkinId, platform: GamePlatform): Emulat
   return EMULATED_DEVICES.filter(d => d.platforms.includes(platform) && PHONE_COMPATIBILITY[id].includes(d.id));
 }
 
+/** A skin can host a native (Symbian / N-Gage) game only when some EKA2L1 profile for that platform is compatible with it. */
+export function skinSupportsPlatform(skin: PhoneSkinId, platform: GamePlatform, packageFormat?: PackageFormat): boolean {
+  const need = generationOfPackage(packageFormat);
+  return EMULATED_DEVICES.some(d => d.engine === 'eka2l1' && d.platforms.includes(platform) && PHONE_COMPATIBILITY[skin].includes(d.id) && (!need || generationOfOs(d.os) === need));
+}
+/** Skins that may host the platform's games, in catalog order. */
+export function skinsForPlatform(platform: GamePlatform): PhoneSkinId[] {
+  return PHONE_SKIN_IDS.filter(id => skinSupportsPlatform(id, platform));
+}
+const skinLabel = (id: string): string => id.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+
 export interface PhoneSelectionRequest {
   platform: GamePlatform;
   skinId?: PhoneSkinId;
@@ -87,12 +99,12 @@ export interface NativePhonePlan {
   firmwareCode: string | null;
   deviceId: string | null;
   skinId: PhoneSkinId | null;
-  source: 'game' | 'platform' | 'only' | null;
+  source: 'game' | 'platform' | 'only' | 'compatible' | null;
   warnings: string[];
 }
 
 /** Product codes identify firmware; screen size and the artwork never do. */
-export function nativePhonePlan(platform: Exclude<GamePlatform, 'j2me'>, settings: GameSettings, status: SymbianStatus): NativePhonePlan {
+export function nativePhonePlan(platform: Exclude<GamePlatform, 'j2me'>, settings: GameSettings, status: SymbianStatus, packageFormat?: PackageFormat): NativePhonePlan {
   const sameCode = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
   const plan: NativePhonePlan = { ready: false, code: null, message: '', firmwareCode: null, deviceId: null, skinId: null, source: null, warnings: [] };
   const fail = (code: string, message: string) => ({ ...plan, code, message });
@@ -102,11 +114,26 @@ export function nativePhonePlan(platform: Exclude<GamePlatform, 'j2me'>, setting
   const explicit = settings.emulatedDeviceId ? emulatedDevice(settings.emulatedDeviceId) : undefined;
   if (settings.emulatedDeviceId && (!explicit || explicit.engine !== 'eka2l1' || !explicit.platforms.includes(platform))) return fail('incompatible_profile', 'The selected emulation profile does not support this game platform.');
   const profileCode = explicit?.engine === 'eka2l1' ? explicit.firmware.product : null;
-  const requested = settings.symbianDevice || profileCode || status.defaults[platform];
+  const catalogFor = (code: string) => EMULATED_DEVICES.find(d => d.engine === 'eka2l1' && sameCode(d.firmware.product, code));
+  const need = generationOfPackage(packageFormat);
+  const genOf = (code: string) => { const d = catalogFor(code); return d ? generationOfOs(d.os) : null; };
+  /** An installed firmware whose generation is known and different from the package's cannot install it; an unknown one is not judged. */
+  const fits = (code: string) => !need || genOf(code) === null || genOf(code) === need;
+  let requested = settings.symbianDevice || profileCode || status.defaults[platform];
   plan.source = settings.symbianDevice || profileCode ? 'game' : status.defaults[platform] ? 'platform' : 'only';
-  if (!requested && status.firmware.devices.length !== 1) return fail('device_required', 'Several firmware devices are installed. Choose one for this game; JGO will not guess.');
+  if (!requested && need) {
+    // the package says which Symbian generation it needs: when exactly one installed firmware is of that generation, that is the one
+    const fitting = status.firmware.devices.filter(d => fits(d.code));
+    if (fitting.length === 0 && status.firmware.devices.length > 1) return fail('no_compatible_firmware', `${PACKAGE_FORMAT_LABEL[packageFormat!]}: none of the installed firmware (${status.firmware.devices.map(d => d.code).join(', ')}) can install this package. Add firmware of that generation in Settings → Symbian, or use the other build of the game.`);
+    if (fitting.length === 1) { requested = fitting[0]!.code; plan.source = 'compatible'; }
+  }
+  if (!requested && status.firmware.devices.length !== 1) return fail('device_required', 'Several firmware devices are installed. Choose one for this game; MGO will not guess.');
   const installed = requested ? status.firmware.devices.find(d => sameCode(d.code, requested)) : status.firmware.devices[0];
   if (!installed) return fail('device_missing', 'The selected firmware is not installed. Choose an installed device or add its firmware in Settings → Symbian.');
+  if (!fits(installed.code)) {
+    const d = catalogFor(installed.code)!;
+    return { ...plan, firmwareCode: installed.code, deviceId: d.id, code: 'incompatible_package', message: `This game is a ${PACKAGE_FORMAT_LABEL[packageFormat!]} package. ${d.name} (${d.os}) cannot install it: ${need === 'v9' ? 'a Symbian 9 package is not installable on Symbian 8.x or older' : 'an older package is not what a Symbian 9 system installs'}. Choose firmware of the right generation${need === 'v9' ? ' (for example a Nokia N95, 5320 or E71)' : ' (for example a Nokia N70 or an N-Gage)'}, or another build of the game.` };
+  }
   plan.firmwareCode = installed.code;
   if (profileCode && !sameCode(installed.code, profileCode)) return fail('firmware_mismatch', 'The selected firmware does not match the emulated device profile. Changing the skin cannot change the firmware.');
   const device = explicit ?? EMULATED_DEVICES.find(d => d.engine === 'eka2l1' && sameCode(d.firmware.product, installed.code));
@@ -114,9 +141,10 @@ export function nativePhonePlan(platform: Exclude<GamePlatform, 'j2me'>, setting
     plan.deviceId = device.id;
     if (!device.platforms.includes(platform)) return fail('incompatible_profile', 'The installed firmware profile does not support this game platform.');
     plan.skinId = PHONE_SKIN_IDS.find(id => PHONE_COMPATIBILITY[id].includes(device.id)) ?? null;
-    if (settings.skinId && !PHONE_COMPATIBILITY[settings.skinId].includes(device.id)) plan.warnings.push('The selected skin is presentation only. The game will run on the firmware shown here.');
+    if (settings.skinId && !PHONE_COMPATIBILITY[settings.skinId].includes(device.id)) return { ...plan, code: 'incompatible_skin', message: `${skinLabel(settings.skinId)} cannot run ${GAME_PLATFORM_LABELS[platform]} games on ${device.name}. Pick a compatible phone${plan.skinId ? ` (for example ${skinLabel(plan.skinId)})` : ''}; a Java ME phone is not a Symbian or N-Gage device.` };
   } else {
-    plan.warnings.push('The firmware model and OS are not in the JGO profile catalog. Verify compatibility yourself; JGO does not infer it from the skin.');
+    if (settings.skinId && !skinSupportsPlatform(settings.skinId, platform)) return { ...plan, code: 'incompatible_skin', message: `${skinLabel(settings.skinId)} is a Java ME phone and cannot run ${GAME_PLATFORM_LABELS[platform]} games. Pick a Nokia that has a Symbian / N-Gage profile.` };
+    plan.warnings.push('The firmware model and OS are not in the MGO profile catalog. Verify compatibility yourself; MGO does not infer it from the skin.');
   }
   if (status.busy) return fail('symbian_busy', 'The Symbian service is busy. Stop its running game or wait for the firmware job to finish.');
   return { ...plan, ready: true, message: 'Ready for an experimental EKA2L1 test.' };
@@ -125,4 +153,14 @@ export function nativePhonePlan(platform: Exclude<GamePlatform, 'j2me'>, setting
 /** A Java profile must exist in the actual installed presets.xml, not merely in this catalog. */
 export function javaPreset(device: EmulatedDevice, presets: readonly DevicePreset[]): DevicePreset | undefined {
   return device.engine === 'kemulator' ? presets.find(p => p.id === device.presetId) : undefined;
+}
+
+/**
+ * What a newly imported Symbian / N-Gage game starts with. The phone picture and the firmware are left unset on purpose: the player
+ * picks the phone that matches the installed firmware, so a default J2ME phone (for example a Sony Ericsson) is never pinned to a game
+ * that cannot run on it.
+ */
+export function nativeGameDefaults(platform: Exclude<GamePlatform, 'j2me'>): Pick<GameSettings, 'width' | 'height' | 'layout' | 'heapMb'> {
+  const typical = EMULATED_DEVICES.find(d => d.engine === 'eka2l1' && d.platforms.includes(platform));
+  return { width: typical?.screen.width ?? 176, height: typical?.screen.height ?? 208, layout: 'nokia', heapMb: 256 };
 }

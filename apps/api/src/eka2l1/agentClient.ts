@@ -1,7 +1,8 @@
+import { readFileSync } from 'node:fs';
 import type { Readable } from 'node:stream';
 import type { FirmwareInstallRequest } from '@j2me-web/protocol';
 
-/** Errors of the jgo-symbian service or of EKA2L1 behind it, with the HTTP status and EKA2L1's error code when it sent one. */
+/** Errors of the mgo-symbian service or of EKA2L1 behind it, with the HTTP status and EKA2L1's error code when it sent one. */
 export class AgentError extends Error {
   constructor(message: string, readonly status: number, readonly code?: string) {
     super(message);
@@ -10,7 +11,8 @@ export class AgentError extends Error {
 
 export interface AgentOptions {
   baseUrl: string;
-  token: string | null;
+  /** The secret, or a function that finds it each time (the service may create it after MGO started). */
+  token: string | null | (() => string | null);
   fetchImpl?: typeof fetch;
   /** Ordinary requests; long ones (uploads, firmware) pass their own. */
   timeoutMs?: number;
@@ -40,7 +42,7 @@ export interface AgentJob {
 }
 
 /**
- * The jgo-symbian container offers its own small API under `/agent/` (instances, uploads, audio, saves) and passes an allow-list of
+ * The mgo-symbian container offers its own small API under `/agent/` (instances, uploads, audio, saves) and passes an allow-list of
  * EKA2L1's `/v1` control API through `/v1/` (EKA2L1 itself only listens on 127.0.0.1 inside that container and has no authentication).
  * Every request carries the shared token.
  */
@@ -53,7 +55,8 @@ export class AgentClient {
   }
 
   private headers(extra: Record<string, string> = {}): Record<string, string> {
-    return { ...(this.o.token ? { authorization: `Bearer ${this.o.token}` } : {}), ...extra };
+    const token = typeof this.o.token === 'function' ? this.o.token() : this.o.token;
+    return { ...(token ? { authorization: `Bearer ${token}` } : {}), ...extra };
   }
 
   private async raw(method: string, path: string, init: { body?: BodyInit; headers?: Record<string, string>; timeoutMs?: number; signal?: AbortSignal; duplex?: boolean } = {}): Promise<Response> {
@@ -167,10 +170,32 @@ export class AgentClient {
 
   /** The guest screen as PNG. `null` when there is no picture yet (409 no_screen). */
   async screenshot(signal?: AbortSignal): Promise<{ png: Buffer; frame: number } | null> {
-    const res = await this.raw('GET', '/v1/screenshot?region=guest', { ...(signal ? { signal } : {}), timeoutMs: 5000 });
-    if (res.status === 409 || res.status === 503) { await res.arrayBuffer().catch(() => undefined); return null; }
-    if (!res.ok) await this.fail(res);
-    return { png: Buffer.from(await res.arrayBuffer()), frame: Number(res.headers.get('x-frame-count') ?? -1) };
+    const p = await this.screenshotProbe(signal);
+    if (p.kind === 'ok') return { png: p.png, frame: p.frame };
+    if (p.kind === 'none') return null;
+    throw new AgentError(p.message, p.httpStatus ?? 0, p.code ?? undefined);
+  }
+
+  /** Like screenshot(), but says exactly what EKA2L1 answered: a picture, "no picture yet" (409/503), or an error. */
+  async screenshotProbe(signal?: AbortSignal): Promise<{ kind: 'ok'; png: Buffer; frame: number } | { kind: 'none'; httpStatus: number; code: string | null } | { kind: 'error'; httpStatus: number | null; code: string | null; message: string }> {
+    let res: Response;
+    try {
+      res = await this.raw('GET', '/v1/screenshot?region=guest', { ...(signal ? { signal } : {}), timeoutMs: 5000 });
+    } catch (e) {
+      const a = e instanceof AgentError ? e : new AgentError(String(e), 0, 'unreachable');
+      return { kind: 'error', httpStatus: a.status || null, code: a.code ?? null, message: a.message };
+    }
+    if (res.status === 409 || res.status === 503) {
+      let code: string | null = null;
+      try { code = ((await res.json()) as { error?: { code?: string } }).error?.code ?? null; } catch { /* not JSON */ }
+      return { kind: 'none', httpStatus: res.status, code };
+    }
+    if (!res.ok) {
+      let code: string | null = null, message = `HTTP ${res.status}`;
+      try { const j = (await res.json()) as { error?: { code?: string; message?: string } | string }; if (typeof j.error === 'object') { code = j.error?.code ?? null; message = j.error?.message ?? message; } } catch { /* not JSON */ }
+      return { kind: 'error', httpStatus: res.status, code, message };
+    }
+    return { kind: 'ok', png: Buffer.from(await res.arrayBuffer()), frame: Number(res.headers.get('x-frame-count') ?? -1) };
   }
 
   /** Raw s16le / 44.1 kHz / stereo from the service's virtual sound card, until `signal` aborts. */
@@ -190,6 +215,15 @@ export class AgentClient {
   }
 }
 
-export function agentFromConfig(cfg: { symbianAgentUrl: string | null; symbianAgentToken: string | null }): AgentClient | null {
-  return cfg.symbianAgentUrl ? new AgentClient({ baseUrl: cfg.symbianAgentUrl, token: cfg.symbianAgentToken }) : null;
+export interface AgentConfig { symbianAgentUrl: string | null; symbianAgentToken: string | null; symbianAgentTokenFile?: string | null }
+
+/** The token from SYMBIAN_AGENT_TOKEN, else from SYMBIAN_AGENT_TOKEN_FILE (read every time: the service writes it on its first start). */
+export function resolveAgentToken(cfg: AgentConfig): string | null {
+  if (cfg.symbianAgentToken) return cfg.symbianAgentToken;
+  if (!cfg.symbianAgentTokenFile) return null;
+  try { const t = readFileSync(cfg.symbianAgentTokenFile, 'utf8').trim(); return t.length >= 16 ? t : null; } catch { return null; }
+}
+
+export function agentFromConfig(cfg: AgentConfig): AgentClient | null {
+  return cfg.symbianAgentUrl ? new AgentClient({ baseUrl: cfg.symbianAgentUrl, token: () => resolveAgentToken(cfg) }) : null;
 }

@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1.7
-# jgo-symbian: EKA2L1 (Symbian / N-Gage emulator) behind a small agent, for JGO. OPTIONAL: JGO runs without it.
-#   docker build -f symbian/Dockerfile -t jgo-symbian .        (build context: the repository root)
+# mgo-symbian: EKA2L1 (Symbian / N-Gage emulator) behind a small agent, for MGO. OPTIONAL: MGO runs without it.
+#   docker build -f symbian/Dockerfile -t mgo-symbian .        (build context: the repository root)
 #
 # NOTHING proprietary is in here: no ROM, no firmware, no game. EKA2L1 is compiled from upstream source at a pinned commit; the
-# user adds their own firmware through JGO (Settings -> Symbian) into the /data volume.
+# user adds their own firmware through MGO (Settings -> Symbian) into the /data volume.
 #
 # EKA2L1's HTTP control API (the thing this integration drives) is on upstream `master` only, it is not in a release yet.
 # The commit below is the one this integration was developed and built against; moving it needs a new check (docs/SYMBIAN.md).
@@ -51,11 +51,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libxcb-cursor0 libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-xinerama0 libxcb-xkb1 libxcb-shape0 libxcb-xfixes0 \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --uid 10001 --create-home --home-dir /home/jgo --shell /usr/sbin/nologin jgo \
-    && mkdir -p /data /opt/eka2l1 /opt/jgo-symbian && chown jgo:jgo /data
+    && mkdir -p /data /symbian-auth /opt/eka2l1 /opt/mgo-symbian && chown jgo:jgo /data /symbian-auth
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY --from=eka-build /out/ /opt/eka2l1/
-COPY symbian/agent/agent.mjs symbian/agent/policy.mjs symbian/agent/factory.mjs /opt/jgo-symbian/
-COPY symbian/entrypoint.sh /opt/jgo-symbian/entrypoint.sh
+COPY symbian/agent/agent.mjs symbian/agent/policy.mjs symbian/agent/factory.mjs /opt/mgo-symbian/
+COPY symbian/entrypoint.sh /opt/mgo-symbian/entrypoint.sh
 
 ENV EKA2L1_BIN=/opt/eka2l1/eka2l1_qt \
     EKA2L1_VERSION_FILE=/opt/eka2l1/VERSION \
@@ -70,4 +70,4 @@ VOLUME ["/data"]
 EXPOSE 8766
 HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.AGENT_PORT||8766)+'/agent/ping').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
-ENTRYPOINT ["/usr/bin/tini", "--", "/opt/jgo-symbian/entrypoint.sh"]
+ENTRYPOINT ["/usr/bin/tini", "--", "/opt/mgo-symbian/entrypoint.sh"]

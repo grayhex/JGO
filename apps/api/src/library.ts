@@ -1,9 +1,9 @@
 import { isPhoneId, isEmulatedDeviceId } from '@j2me-web/protocol';
 import { createHash, randomBytes } from 'node:crypto';
-import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { closeSync, mkdirSync, openSync, readSync, readFileSync, rmSync, writeFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { isPlatform, type Platform, DEFAULT_SETTINGS, EMULATION_LIMITS, type EmulationTweaks, type GameInfoSummary, type GameMeta, type GameSettings, KEY_LAYOUTS, SCREEN_PRESETS, type LayoutId, type MetaStatus } from '@j2me-web/protocol';
+import { isPlatform, nativeGameDefaults, sisFormatOf, skinSupportsPlatform, type PackageFormat, type Platform, DEFAULT_SETTINGS, EMULATION_LIMITS, type EmulationTweaks, type GameInfoSummary, type GameMeta, type GameSettings, KEY_LAYOUTS, SCREEN_PRESETS, type LayoutId, type MetaStatus } from '@j2me-web/protocol';
 import { parseJad, parseJar, sanitizeText, UploadError } from './jar.js';
 import { Classifications } from './classification.js';
 import { cleanTitle, cleanVendor } from './title.js';
@@ -29,6 +29,7 @@ interface Row {
   origin?: string;
   platform?: string;
   package_ext?: string | null;
+  package_format?: string | null;
 }
 
 export interface SourceRow {
@@ -175,7 +176,10 @@ export class Library {
     if (!cols.includes('origin')) this.db.exec(`ALTER TABLE games ADD COLUMN origin TEXT NOT NULL DEFAULT 'upload'`);
     if (!cols.includes('platform')) this.db.exec(`ALTER TABLE games ADD COLUMN platform TEXT NOT NULL DEFAULT 'j2me'`);
     if (!cols.includes('package_ext')) this.db.exec('ALTER TABLE games ADD COLUMN package_ext TEXT');
+    if (!cols.includes('package_format')) this.db.exec('ALTER TABLE games ADD COLUMN package_format TEXT');
     if (!cols.includes('play_seconds')) this.db.exec('ALTER TABLE games ADD COLUMN play_seconds INTEGER NOT NULL DEFAULT 0');
+    this.dropStaleNativeSkins();
+    this.fillPackageFormats();
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS sources (
         rel_path TEXT PRIMARY KEY, jad_rel_path TEXT, game_id TEXT NOT NULL, size INTEGER NOT NULL, mtime_ms INTEGER NOT NULL,
@@ -194,6 +198,37 @@ export class Library {
         candidates_json TEXT NOT NULL DEFAULT '[]', fetched_at TEXT, locked INTEGER NOT NULL DEFAULT 0, error TEXT
       );
     `);
+  }
+
+  /**
+   * Symbian / N-Gage games imported before this fix carry the J2ME default phone (for example a Sony Ericsson skin). Such a skin is
+   * removed so the player chooses the phone that matches the firmware; a skin that fits the platform is left alone.
+   */
+  private dropStaleNativeSkins(): void {
+    const rows = this.db.prepare(`SELECT id, platform, settings_json FROM games WHERE platform != 'j2me'`).all() as unknown as { id: string; platform: string; settings_json: string }[];
+    for (const r of rows) {
+      if (!isPlatform(r.platform) || r.platform === 'j2me') continue;
+      try {
+        const st = JSON.parse(r.settings_json) as GameSettings;
+        if (st.skinId && !skinSupportsPlatform(st.skinId, r.platform)) {
+          delete st.skinId;
+          this.db.prepare('UPDATE games SET settings_json = ? WHERE id = ?').run(JSON.stringify(st), r.id);
+        }
+      } catch { /* unreadable settings are left as they are */ }
+    }
+  }
+
+  /** Games imported before the package format was recorded get it from the first bytes of their stored file. */
+  private fillPackageFormats(): void {
+    const rows = this.db.prepare(`SELECT id, package_ext FROM games WHERE platform != 'j2me' AND package_format IS NULL AND package_ext IN ('sis','sisx')`).all() as unknown as { id: string; package_ext: string }[];
+    for (const r of rows) {
+      try {
+        const fd = openSync(path.join(this.gamesDir, r.id, `game.${r.package_ext}`), 'r');
+        const buf = Buffer.alloc(8);
+        try { readSync(fd, buf, 0, 8, 0); } finally { closeSync(fd); }
+        this.db.prepare('UPDATE games SET package_format = ? WHERE id = ?').run(sisFormatOf(buf), r.id);
+      } catch { /* the file is gone: nothing to read */ }
+    }
   }
 
   count(): number {
@@ -278,6 +313,7 @@ export class Library {
       warnings: JSON.parse(r.warnings_json),
       origin: r.origin === 'import' ? 'import' : 'upload',
       platform: isPlatform(r.platform) ? r.platform : 'j2me',
+      ...(r.package_format ? { packageFormat: r.package_format as PackageFormat } : {}),
     };
   }
 
@@ -375,7 +411,7 @@ export class Library {
 
   /**
    * Adds a game for EKA2L1. The file is only stored: nothing in it is run or unpacked here (the emulator service does that,
-   * inside its own container). The title comes from the file name, because a SIS has no metadata JGO reads.
+   * inside its own container). The title comes from the file name, because a SIS has no metadata MGO reads.
    */
   addPackage(bytes: Uint8Array, fileName: string, platform: Exclude<Platform, 'j2me'>, quotaBytes: number, opts: AddOptions = {}): { game: GameMeta; duplicate: boolean } {
     const ext = (/\.(sisx?|n-gage|zip)$/i.exec(fileName)?.[1] ?? '').toLowerCase();
@@ -395,14 +431,15 @@ export class Library {
     const dir = path.join(this.gamesDir, id);
     mkdirSync(dir, { recursive: true });
     writeFileSync(path.join(dir, `game.${ext}`), bytes, { mode: 0o600 });
-    const settings: GameSettings = { ...DEFAULT_SETTINGS, ...(opts.defaults ?? {}) };
+    // the J2ME default phone (a width, a key layout, a skin such as a Sony Ericsson) means nothing to a Symbian / N-Gage game and must not be pinned to it
+    const settings: GameSettings = { ...DEFAULT_SETTINGS, ...nativeGameDefaults(platform) };
     const groupKey = createHash('sha1').update(`${vendor.toLowerCase()}\0${name.toLowerCase()}\0${platform}`).digest('hex').slice(0, 12);
     this.db
       .prepare(
         `INSERT INTO games (id, sha256, name, vendor, version, group_key, midlets_json, class_version, size_bytes, has_icon, has_jad,
-          favorite, created_at, last_played_at, settings_json, warnings_json, origin, platform, package_ext) VALUES (?,?,?,?,?,?,?,?,?,?,?,0,?,NULL,?,?,?,?,?)`,
+          favorite, created_at, last_played_at, settings_json, warnings_json, origin, platform, package_ext, package_format) VALUES (?,?,?,?,?,?,?,?,?,?,?,0,?,NULL,?,?,?,?,?,?)`,
       )
-      .run(id, sha, name, vendor, '', groupKey, '[]', 0, bytes.length, 0, 0, new Date().toISOString(), JSON.stringify(settings), '[]', opts.origin ?? 'upload', platform, ext);
+      .run(id, sha, name, vendor, '', groupKey, '[]', 0, bytes.length, 0, 0, new Date().toISOString(), JSON.stringify(settings), '[]', opts.origin ?? 'upload', platform, ext, ext === 'sis' || ext === 'sisx' ? sisFormatOf(bytes.subarray(0, 8)) : null);
     return { game: this.get(id)!, duplicate: false };
   }
 

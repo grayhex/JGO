@@ -7,6 +7,8 @@ export class ApiError extends Error {
     public status: number,
     public code: string,
     message: string,
+    /** Machine-readable facts the server attached to the error (for example why a Symbian start failed). */
+    public details?: { failure?: import('@j2me-web/protocol').StartFailure; sessionId?: string } & Record<string, unknown>,
   ) {
     super(message);
   }
@@ -21,7 +23,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (r.status === 204) return undefined as T;
   const body = await r.json().catch(() => ({}));
-  if (!r.ok) throw new ApiError(r.status, body.error ?? 'error', body.message ?? `HTTP ${r.status}`);
+  if (!r.ok) throw new ApiError(r.status, body.error ?? 'error', body.message ?? `HTTP ${r.status}`, body.details);
   return body as T;
 }
 

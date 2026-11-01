@@ -109,7 +109,7 @@ describe('control policy (what a client may ask EKA2L1)', () => {
 });
 
 // ---------------------------------------------------------------------------------------------------------------------------------
-// The jgo-symbian agent end to end, with the FAKE EKA2L1 behind it. This checks JGO's side only: the agent's auth, upload, firmware,
+// The mgo-symbian agent end to end, with the FAKE EKA2L1 behind it. This checks MGO's side only: the agent's auth, upload, firmware,
 // per-game saves, allow-list and the adapter (frames, sound, keys, touch). It says nothing about the real emulator.
 
 async function freePort(): Promise<number> {
@@ -120,7 +120,7 @@ async function freePort(): Promise<number> {
   });
 }
 
-describe('jgo-symbian agent with a fake EKA2L1', () => {
+describe('mgo-symbian agent with a fake EKA2L1', () => {
   let proc: ChildProcess;
   let data: string;
   let inputLog: string;
@@ -133,7 +133,7 @@ describe('jgo-symbian agent with a fake EKA2L1', () => {
   const keyD = 'd'.repeat(32);
 
   before(async () => {
-    data = mkdtempSync(path.join(tmpdir(), 'jgo-symbian-'));
+    data = mkdtempSync(path.join(tmpdir(), 'mgo-symbian-'));
     inputLog = path.join(data, 'input.log');
     const port = await freePort();
     const control = await freePort();
@@ -375,7 +375,7 @@ describe('agent with the real EKA2L1 (no firmware)', { skip: realBin ? false : '
   let xvfb: ChildProcess, proc: ChildProcess, data: string, base: string, agent: AgentClient;
   const token = 'real-token-0123456789abcdef';
   before(async () => {
-    data = mkdtempSync(path.join(tmpdir(), 'jgo-symbian-real-'));
+    data = mkdtempSync(path.join(tmpdir(), 'mgo-symbian-real-'));
     const rt = path.join(data, 'rt'); mkdirSync(rt, { mode: 0o700 });
     xvfb = spawn('Xvfb', [':96', '-screen', '0', '1024x768x24', '+extension', 'GLX', '-nolisten', 'tcp'], { stdio: 'ignore' });
     await new Promise((r) => setTimeout(r, 1500));

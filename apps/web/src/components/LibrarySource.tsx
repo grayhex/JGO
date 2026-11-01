@@ -127,7 +127,7 @@ export function ScanPanel({ toast, onDone, canScan }: { toast: Toaster; onDone?:
         {state?.running && <button className="btn" type="button" onClick={() => void api.scanCancel().then(poll)}>{translateUI("Stop")}</button>}
       </div>
       {!canScan && <p className="muted small">{translateUI("Choose a library folder first.")}</p>}
-      <p className="muted small">{translateUI("Scanning copies new games into JGO’s own library and never changes, moves or deletes anything in your folder. Your games, favourites, settings and saved data are never removed by a scan.")}</p>
+      <p className="muted small">{translateUI("Scanning copies new games into MGO’s own library and never changes, moves or deletes anything in your folder. Your games, favourites, settings and saved data are never removed by a scan.")}</p>
       {r && (
         <div className="scan" data-testid="scan-report">
           {r.state === 'running' && (

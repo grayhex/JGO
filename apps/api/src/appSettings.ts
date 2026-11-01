@@ -58,7 +58,7 @@ export function writeMidletsIni(userPath: string, i: AppSettingsInput): string {
 }
 
 /**
- * KEmulator's global settings live in `property.txt` (java.util.Properties) inside the user path. JGO sets exactly
+ * KEmulator's global settings live in `property.txt` (java.util.Properties) inside the user path. MGO sets exactly
  * one key there, `SoundfontPath`: the MIDI SoundFont to use instead of the built-in bank. Other lines are kept;
  * without a SoundFont the key is removed, so removing the bank in the UI really returns to the default.
  */

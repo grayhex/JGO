@@ -248,9 +248,10 @@ jobs:
           java-version: 21
       - name: Published Compose must work without a source tree or local build
         run: |
-          docker compose config --format json | python3 -c 'import json,sys; c=json.load(sys.stdin); assert all("build" not in s for s in c["services"].values()); assert all(s.get("image", "").startswith("ghcr.io/grayhex/jgo") for s in c["services"].values())'
+          docker compose config --format json | python3 -c 'import json,sys; c=json.load(sys.stdin); assert set(c["services"]) == {"app", "gateway", "mgo-symbian"}; assert all("build" not in s for s in c["services"].values()); assert all(s.get("image", "").startswith("ghcr.io/grayhex/mgo") for s in c["services"].values())'
       - name: Build and start the stack
-        run: docker compose -f compose.yaml -f compose.build.yaml up -d --build
+        # mgo-symbian compiles EKA2L1 (30-60 min): it is built by symbian.yml, not here
+        run: docker compose -f compose.yaml -f compose.build.yaml up -d --build app gateway
       - name: Wait for health
         run: |
           for i in $(seq 1 60); do curl -fsS localhost:8080/api/health | grep -q '"ok":true' && exit 0; sleep 2; done
@@ -280,13 +281,13 @@ jobs:
         run: node --test tests/scripts/docker-auth.test.cjs
       - name: NAS Compose keeps auth in a Docker-managed volume
         run: |
-          docker compose config --format json | python3 -c 'import json,sys; c=json.load(sys.stdin); s=c["services"]["app"]; assert s["environment"]["JGO_AUTH_DIR"] == "/jgo-auth"; assert any(m["target"] == "/jgo-auth" and m["type"] == "volume" for m in s["volumes"])'
+          docker compose config --format json | python3 -c 'import json,sys; c=json.load(sys.stdin); s=c["services"]["app"]; assert s["environment"]["JGO_AUTH_DIR"] == "/jgo-auth"; assert any(m["target"] == "/jgo-auth" and m["type"] == "volume" for m in s["volumes"]); assert s["environment"]["SYMBIAN_AGENT_TOKEN_FILE"] == "/symbian-auth/agent-token"; y=c["services"]["mgo-symbian"]; assert y["environment"]["AGENT_TOKEN_FILE"] == "/symbian-auth/agent-token"; assert set(y["networks"]) == {"symbian"}; assert c["networks"]["symbian"]["internal"] is True'
       - name: NAS style - a folder owned by another user (PUID/PGID), restart keeps the data
         run: |
           docker compose down -v
           sudo mkdir -p /srv/jgo-nas/data && sudo chown 1026:100 /srv/jgo-nas/data
           export JGO_DATA=/srv/jgo-nas/data PUID=1026 PGID=100
-          docker compose up -d
+          docker compose up -d --no-build app gateway
           for i in $(seq 1 60); do curl -fsS localhost:8080/api/health | grep -q '"ok":true' && break; sleep 2; done
           curl -fsS localhost:8080/api/health | grep -q '"ok":true'
           curl -fsS -H 'Authorization: Bearer ci-token-0123456789abcdef' -F "jar=@tests/fixtures/testmidlet/build/kemtest.jar" localhost:8080/api/games | grep -q '"game"'
@@ -298,7 +299,7 @@ jobs:
       - name: Boot without JGO_TOKEN, verify auth and persist after restart
         run: |
           docker compose down -v
-          env -u JGO_TOKEN docker compose up -d
+          env -u JGO_TOKEN docker compose up -d --no-build app gateway
           for i in $(seq 1 60); do curl -fsS localhost:8080/api/health | grep -q '"ok":true' && break; sleep 2; done
           secret="$(docker compose exec -T app cat /jgo-auth/.jgo-auth-token)"
           test "${#secret}" -eq 64

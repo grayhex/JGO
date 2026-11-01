@@ -3,7 +3,7 @@ import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
-import { DEFAULT_SETTINGS, EMULATED_DEVICES, PHONE_SKIN_IDS, PHONE_COMPATIBILITY, emulatedDevice, profilesForSkin, selectPhone, nativePhonePlan, type SymbianStatus, type PhoneSkinId } from '@j2me-web/protocol';
+import { DEFAULT_SETTINGS, EMULATED_DEVICES, PHONE_SKIN_IDS, PHONE_COMPATIBILITY, emulatedDevice, profilesForSkin, selectPhone, nativePhonePlan, skinsForPlatform, sisFormatOf, generationOfOs, type SymbianStatus, type PhoneSkinId } from '@j2me-web/protocol';
 import { phoneCatalog } from './phones.js';
 import { validateSettings, Library } from './library.js';
 import { buildApp } from './server.js';
@@ -35,9 +35,10 @@ describe('readiness for the EKA2L1 core in PR #35', () => {
     const status = installed('RM-84');
     assert.equal(nativePhonePlan('symbian', { ...DEFAULT_SETTINGS, emulatedDeviceId: 'eka2l1-n8' }, status).code, 'device_missing');
     assert.equal(nativePhonePlan('symbian', { ...DEFAULT_SETTINGS, emulatedDeviceId: 'eka2l1-n8', symbianDevice: 'RM-84' }, status).code, 'firmware_mismatch');
+    // a skin of another phone is refused (the suggestion is the phone that matches the installed firmware), never silently run
     const plan = nativePhonePlan('symbian', { ...DEFAULT_SETTINGS, skinId: 'nokia-n8' }, status);
-    assert.equal(plan.ready, true); assert.equal(plan.firmwareCode, 'RM-84'); assert.equal(plan.skinId, 'nokia-n70');
-    assert.ok(plan.warnings.length);
+    assert.equal(plan.ready, false); assert.equal(plan.code, 'incompatible_skin'); assert.equal(plan.firmwareCode, 'RM-84'); assert.equal(plan.skinId, 'nokia-n70');
+    assert.match(plan.message, /Nokia N8 cannot run .* on Nokia N70/);
     assert.equal(nativePhonePlan('ngage2', DEFAULT_SETTINGS, status).code, 'incompatible_profile');
   });
   it('identifies a known N-Gage firmware and labels an uncatalogued firmware as unverified', () => {
@@ -93,6 +94,53 @@ describe('independent skins, emulated devices and game platforms', () => {
     assert.equal(selectPhone({ platform: 'ngage', emulatedDeviceId: 'eka2l1-n70' }).ok, false);
     assert.equal(selectPhone({ platform: 'symbian', skinId: 'nokia-n95', emulatedDeviceId: 'eka2l1-5320' }).ok, false);
     assert.equal(selectPhone({ platform: 'symbian', skinId: 'samsung-s5230' }).ok, false);
+  });
+  it('S60 and N-Gage games run only on phones that have a Symbian / N-Gage profile: never on a Sony Ericsson, Motorola or Samsung', () => {
+    const NOT_NATIVE = ['sony-ericsson-k790i', 'sony-ericsson-k750i', 'sony-ericsson-w995', 'motorola-razr-v3', 'samsung-s5230', 'nokia-6100', 'nokia-6230i'] as const;
+    for (const skinId of NOT_NATIVE) {
+      for (const platform of ['symbian', 'ngage', 'ngage2'] as const) {
+        const plan = nativePhonePlan(platform, { ...DEFAULT_SETTINGS, skinId }, installed('RM-84', 'NEM-4', 'RM-409'));
+        assert.equal(plan.ready, false, `${skinId} must not host ${platform}`);
+        assert.ok(['incompatible_skin', 'device_required', 'incompatible_profile'].includes(plan.code!), `${skinId}/${platform}: ${plan.code}`);
+      }
+      // with a firmware the catalog does not know, the skin is still judged by what it can host
+      const unknown = nativePhonePlan('symbian', { ...DEFAULT_SETTINGS, skinId, symbianDevice: 'CUSTOM-1' }, installed('CUSTOM-1'));
+      assert.equal(unknown.code, 'incompatible_skin');
+    }
+    assert.equal(nativePhonePlan('symbian', { ...DEFAULT_SETTINGS, skinId: 'nokia-n70' }, installed('RM-84')).ready, true);
+    assert.equal(nativePhonePlan('ngage', { ...DEFAULT_SETTINGS, skinId: 'nokia-n-gage-classic' }, installed('NEM-4')).ready, true);
+    assert.equal(nativePhonePlan('symbian', { ...DEFAULT_SETTINGS, skinId: 'nokia-n95', symbianDevice: 'CUSTOM-1' }, installed('CUSTOM-1')).ready, true);
+    assert.deepEqual(skinsForPlatform('ngage'), ['nokia-n-gage-classic', 'nokia-n-gage-qd']);
+    assert.ok(skinsForPlatform('symbian').every((id) => id.startsWith('nokia-')));
+    assert.ok(!skinsForPlatform('symbian').includes('sony-ericsson-k790i'));
+  });
+  it('reads the Symbian generation of a package from its header (as EKA2L1 does) and of a phone from its OS name', () => {
+    const head = (uid1: number, uid2: number) => { const b = Buffer.alloc(16); b.writeUInt32LE(uid1, 0); b.writeUInt32LE(uid2, 4); return b; };
+    assert.equal(sisFormatOf(head(0x10201a7a, 0)), 'sis9');
+    assert.equal(sisFormatOf(head(0x10003a12, 0x1000006d)), 'sis-legacy');
+    assert.equal(sisFormatOf(head(0x10003a12, 0x10003a12)), 'sis-legacy');
+    assert.equal(sisFormatOf(head(0x0d, 0)), 'sis9-stub');
+    assert.equal(sisFormatOf(head(0x12345678, 0x9abcdef0)), 'unknown');
+    assert.equal(sisFormatOf(Buffer.alloc(3)), 'unknown');
+    for (const [os, gen] of [['Symbian 6.1 / S60 1st Edition', 'legacy'], ['Symbian 8.1a / S60 2nd Edition FP3', 'legacy'], ['Symbian 9.2 / S60 3rd Edition FP1', 'v9'], ['Symbian 9.4 / S60 5th Edition', 'v9'], ['Symbian³', 'v9'], ['Windows', null]] as const) assert.equal(generationOfOs(os), gen, os);
+  });
+  it('a Symbian 9 package (.sisx) is never run on Symbian 8.x firmware, and the matching firmware is chosen when it is the only one that fits', () => {
+    // the real report: Worms World .sisx on a Nokia N70 (RM-84, Symbian 8.1a)
+    const n70 = nativePhonePlan('symbian', DEFAULT_SETTINGS, installed('RM-84'), 'sis9');
+    assert.equal(n70.ready, false); assert.equal(n70.code, 'incompatible_package'); assert.equal(n70.firmwareCode, 'RM-84');
+    assert.match(n70.message, /Symbian 9/); assert.match(n70.message, /Nokia N70/); assert.match(n70.message, /Symbian 8\.1a/);
+    // the same firmware accepts an old package
+    assert.equal(nativePhonePlan('symbian', DEFAULT_SETTINGS, installed('RM-84'), 'sis-legacy').ready, true);
+    // an explicit device that cannot install the package is refused, not silently replaced
+    assert.equal(nativePhonePlan('symbian', { ...DEFAULT_SETTINGS, symbianDevice: 'RM-84' }, installed('RM-84', 'RM-159'), 'sis9').code, 'incompatible_package');
+    // with several firmware installed, the generation the package needs decides when exactly one fits
+    const both = nativePhonePlan('symbian', DEFAULT_SETTINGS, installed('RM-84', 'RM-159'), 'sis9');
+    assert.equal(both.ready, true); assert.equal(both.firmwareCode, 'RM-159'); assert.equal(both.source, 'compatible'); assert.equal(both.deviceId, 'eka2l1-n95');
+    assert.equal(nativePhonePlan('symbian', DEFAULT_SETTINGS, installed('RM-84', 'NEM-4'), 'sis-legacy').code, 'device_required', 'two old firmware fit: MGO does not guess');
+    assert.equal(nativePhonePlan('symbian', DEFAULT_SETTINGS, installed('RM-84', 'RH-29'), 'sis9').code, 'no_compatible_firmware');
+    // an unknown package format or an uncatalogued firmware is not judged
+    assert.equal(nativePhonePlan('symbian', DEFAULT_SETTINGS, installed('RM-84'), 'unknown').ready, true);
+    assert.equal(nativePhonePlan('symbian', { ...DEFAULT_SETTINGS, symbianDevice: 'CUSTOM-1' }, installed('CUSTOM-1'), 'sis9').ready, true);
   });
   it('reports missing runtime profiles even when the requested skin exists', () => {
     for (const device of EMULATED_DEVICES.filter(d => d.engine === 'eka2l1')) {

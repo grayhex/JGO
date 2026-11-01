@@ -49,14 +49,14 @@ export function SetupWizard({ toast, onClose, onFinished }: { toast: Toaster; on
   };
 
   return (
-    <Modal title={translateUI("Set up JGO")} onClose={() => void skip()} wide>
+    <Modal title={translateUI("Set up MGO")} onClose={() => void skip()} wide>
       <ol className="steps" aria-label={translateUI("Setup steps")}>
         {STEPS.map((s, n) => <li key={s.id} className={n === i ? 'on' : n < i ? 'past' : ''} aria-current={n === i ? 'step' : undefined}><span>{n + 1}</span> {s.title}</li>)}
       </ol>
       <div className="wizard-body" data-step={step.id}>
         {step.id === 'welcome' && (
           <div className="stack">
-            <h3>{translateUI("Welcome to JGO")}</h3>
+            <h3>{translateUI("Welcome to MGO")}</h3>
             <p>{translateUI("A few quick choices and you are ready to play. Every step is optional — skip what you do not need; everything can be changed later in")} <strong>{translateUI("Settings")}</strong>{translateUI(", and your games and saves are never touched.")}</p>
             <SystemChecks status={status} onReload={loadStatus} />
           </div>
@@ -64,7 +64,7 @@ export function SetupWizard({ toast, onClose, onFinished }: { toast: Toaster; on
         {step.id === 'library' && (
           <div className="stack">
             <h3>{translateUI("Where are your games?")}</h3>
-            <p>{translateUI("Point JGO at a folder with")} <code>{translateUI(".jar")}</code>/<code>{translateUI(".jad")}</code> {translateUI("files (searched recursively), shared read-only with the container. Or skip this and upload games from the browser.")}</p>
+            <p>{translateUI("Point MGO at a folder with")} <code>{translateUI(".jar")}</code>/<code>{translateUI(".jad")}</code> {translateUI("files (searched recursively), shared read-only with the container. Or skip this and upload games from the browser.")}</p>
             <LibrarySource toast={toast} saveLabel="Use this folder" />
           </div>
         )}

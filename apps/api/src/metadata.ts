@@ -41,7 +41,7 @@ export type Scope = 'missing' | 'retry' | 'all';
 
 /**
  * Keeps what MobyGames told us about each game (grouped by vendor + name, so every version of a game shares it),
- * together with the cover and screenshots, on the server's disk. The browser only ever talks to JGO: images are
+ * together with the cover and screenshots, on the server's disk. The browser only ever talks to MGO: images are
  * served from here, so the API key never leaves the server and no third-party request is made by a page view.
  *
  * Terms-wise this module does three things: it always carries the attribution text and the MobyGames link, it

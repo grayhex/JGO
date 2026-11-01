@@ -1,4 +1,4 @@
-Поддерживай коллекцию из десяти скинов J2ME Web. Ассеты: `apps/web/public/phones/<id>/`; контракт: `apps/web/public/phones/README.md`, параметры: `config.json`. Используй существующие React `PhoneSkin`, переключатель моделей и таблицу `packages/protocol/src/phones.ts`. В Advanced корпус выбирается отдельно от профиля/разрешения эмуляции.
+Поддерживай коллекцию из десяти скинов MGO. Ассеты: `apps/web/public/phones/<id>/`; контракт: `apps/web/public/phones/README.md`, параметры: `config.json`. Используй существующие React `PhoneSkin`, переключатель моделей и таблицу `packages/protocol/src/phones.ts`. В Advanced корпус выбирается отдельно от профиля/разрешения эмуляции.
 
 Обязательно два режима для каждого телефона: `views.full` — весь корпус, `views.screen` — увеличенная верхняя часть телефона с экраном (`zoom.webp`). Используй размеры и `screenRect` выбранного вида; Canvas с настоящим framebuffer KEmulator размещай под body, optional glass сверху. Сохраняй пропорции, при несовпадении framebuffer добавляй поля. E71 — вертикальный корпус с горизонтальным дисплеем 320×240. Zoom не меняет разрешение игры и не перезапускает MIDlet.
 

@@ -197,7 +197,7 @@ export function SystemChecks({ status, onReload }: { status: SystemStatus | null
       {status.storage.totalBytes > 0 && (
         <div>
           <div className="meter" role="meter" aria-label={translateUI("Disk used")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round((1 - status.storage.freeBytes / status.storage.totalBytes) * 100)}><span style={{ width: `${(1 - status.storage.freeBytes / status.storage.totalBytes) * 100}%` }} /></div>
-          <p className="muted small">{translateUI("Disk:")} {gb(status.storage.totalBytes - status.storage.freeBytes)} {translateUI("used of")} {gb(status.storage.totalBytes)} {translateUI("· games library")} {gb(status.storage.libraryBytes)} {translateUI("of")} {gb(status.storage.quotaBytes)} {translateUI("limit · JGO")} {status.version}</p>
+          <p className="muted small">{translateUI("Disk:")} {gb(status.storage.totalBytes - status.storage.freeBytes)} {translateUI("used of")} {gb(status.storage.totalBytes)} {translateUI("· games library")} {gb(status.storage.libraryBytes)} {translateUI("of")} {gb(status.storage.quotaBytes)} {translateUI("limit · MGO")} {status.version}</p>
         </div>
       )}
       {onReload && <button className="btn sm" type="button" onClick={onReload}><Icon name="restart" /> {translateUI("Check again")}</button>}

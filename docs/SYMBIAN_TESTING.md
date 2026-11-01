@@ -9,67 +9,66 @@
 | | |
 |---|---|
 | Хост | Linux x86-64 с Docker и Compose v2. Свободно ≥ 4 ГБ ОЗУ и 2 ядра (по умолчанию служба ограничена `SYMBIAN_CPUS=2`, `SYMBIAN_MEMORY=3g`); графика — программная, видеокарта не нужна. |
-| «BIOS» | У EKA2L1 нет отдельного BIOS. Устройству нужна **прошивка**: образ ROM (+ файл RPKG) или архив прошивки. Это ваш собственный дамп/файлы; JGO их не содержит и не скачивает. |
+| «BIOS» | У EKA2L1 нет отдельного BIOS. Устройству нужна **прошивка**: образ ROM (+ файл RPKG) или архив прошивки. Это ваш собственный дамп/файлы; MGO их не содержит и не скачивает. |
 | Игра | S60: `.sis` / `.sisx`. N-Gage 2.0: `.n-gage`. N-Gage 1.0: **zip дампа карточки** (внутри `system/apps`). |
 | Образы | Пока PR не слит, готовых образов нет — собирайте из ветки (см. ниже). Сборка EKA2L1 и FFmpeg занимает 30–60 минут и несколько ГБ диска. |
 
 ## 1. Запуск
 
 ```bash
-git clone -b feat/eka2l1-symbian https://github.com/grayhex/JGO.git && cd JGO
-export SYMBIAN_TOKEN=$(openssl rand -hex 24)
+git clone -b feat/eka2l1-symbian https://github.com/grayhex/JGO.git && cd MGO
 ```
 
 ```bash
-docker compose -f compose.yaml -f compose.build.yaml -f compose.symbian.yaml -f compose.symbian.build.yaml up -d --build
+docker compose -f compose.yaml -f compose.build.yaml up -d --build
 ```
 
-Токен общий для JGO и службы; не публикуйте порт службы (`compose.symbian.yaml` его и не публикует). Токен входа в JGO — из логов `app` (`docker compose logs app`),
+Секрет между MGO и службой создаётся сам (том `symbian-auth`); не публикуйте порт службы (`compose.yaml` его и не публикует). Токен входа в MGO — из логов `app` (`docker compose logs app`),
 как в [DOCKER.md](DOCKER.md).
 
-Если сборка падает, пришлите последние 50 строк вывода `docker compose … build jgo-symbian`: самая вероятная причина — смена зависимостей апстрима EKA2L1; образ
+Если сборка падает, пришлите последние 50 строк вывода `docker compose … build mgo-symbian`: самая вероятная причина — смена зависимостей апстрима EKA2L1; образ
 собран из закреплённого коммита `e04eb03` (в CI он собирается и проходит smoke-тест с настоящим эмулятором).
 
 ## 2. Проверить службу
 
-Откройте JGO → **Settings → Symbian (experimental)**. Должно быть «Service connected» и `EKA2L1 master-e04eb03`.
+Откройте MGO → **Settings → Symbian (experimental)**. Должно быть «Service connected» и `EKA2L1 master-e04eb03`.
 
 | Видите | Значит |
 |---|---|
-| «The Symbian service is not set up» | в окружении `app` нет `SYMBIAN_AGENT_URL`: забыли `-f compose.symbian.yaml` |
-| «does not answer» | служба не поднялась: `docker compose logs jgo-symbian` (`AGENT_TOKEN` короче 16 символов, нет Xvfb и т. п.) |
+| «The Symbian service is not set up» | в окружении `app` нет `SYMBIAN_AGENT_URL`: используете старый compose без блока `mgo-symbian` и `SYMBIAN_AGENT_URL`: возьмите актуальный `compose.yaml` |
+| «does not answer» | служба не поднялась: `docker compose logs mgo-symbian` (нет доступа на запись в том `symbian-auth`, нет Xvfb и т. п.) |
 
-Если JGO открывается через внешний прокси/туннель, до загрузки прошивки проверьте путь (ничего не сохраняется):
+Если MGO открывается через внешний прокси/туннель, до загрузки прошивки проверьте путь (ничего не сохраняется):
 
 ```bash
-node tools/symbian/check-upload.mjs https://ваш-адрес --mb 600 --token <токен входа JGO>
+node tools/symbian/check-upload.mjs https://ваш-адрес --mb 600 --token <токен входа MGO>
 ```
 
 `OK` — можно грузить через браузер. Любой отказ — положите файлы в `symbian-inbox/` (шаг 3, вариант Б).
 
 ## 3. Прошивка
 
-**Вариант А — через браузер.** *Add firmware* → «ROM + RPKG» (ROM обязателен, RPKG по ситуации) или «Firmware archive» → *Upload and install*. Для заводского комплекта выберите «Factory kit (.vpl + .fpsx)»: один VPL, его образы с исходными именами и вариант. Предварительный ROM-дамп не нужен; требуется пересборка службы с `+jgo-vpl1`. Подробнее — [FACTORY_FIRMWARE.md](FACTORY_FIRMWARE.md).
+**Вариант А — через браузер.** *Settings → Symbian → Add firmware*: выберите **один архив прошивки** (`.zip`, `.7z`, `.rar` или `.rpkg`) → *Upload and install*. Отдельных режимов «ROM + RPKG» и «Factory kit» в интерфейсе больше нет: если у вас ROM + RPKG либо заводской комплект (.vpl + .fpsx), упакуйте файлы в один архив. Установка заводского комплекта из архива **не проверена** на настоящих файлах; прежний путь с исходными именами остался в API, см. [FACTORY_FIRMWARE.md](FACTORY_FIRMWARE.md).
 
 **Вариант Б — из папки** (без HTTP, надёжнее для больших файлов):
 
 ```bash
-mkdir -p symbian-inbox && cp ваш.rom ваш.rpkg symbian-inbox/
-docker compose -f compose.yaml -f compose.build.yaml -f compose.symbian.yaml -f compose.symbian.build.yaml up -d
+mkdir -p symbian-inbox && cp ваш-архив-прошивки.zip symbian-inbox/
+docker compose -f compose.yaml -f compose.build.yaml up -d
 ```
 
-В панели появится «Firmware from a folder»: выберите файлы → *Install from the folder*.
+В панели появится «Firmware from a folder»: выберите архив → *Install from the folder*.
 
 Установка идёт заданием на несколько минут (EKA2L1 распаковывает ROM и создаёт диски). Ожидаемый результат: в «Installed devices» появилась строка с
 производителем, моделью и кодом (например `Nokia … (RH-…)`). Если задание завершилось ошибкой — текст ошибки в панели; приложите **диагностику** (ссылка
 «Download Symbian diagnostics» в той же панели).
 
 **Место на диске.** Прошивке при установке нужно примерно вдвое больше её размера (оценка, не измерено на настоящей прошивке; настраивается `INSTALL_SPACE_FACTOR`).
-Службе нужны том `jgo-symbian-data` с запасом: панель показывает свободное место и предупреждает, когда его меньше 5 ГБ. Если места не хватает, загрузка и установка
+Службе нужны том `mgo-symbian-data` с запасом: панель показывает свободное место и предупреждает, когда его меньше 5 ГБ. Если места не хватает, загрузка и установка
 отклоняются сразу (`507 insufficient_storage`), а не оставляют полуустановленное устройство. Сборка образа сама занимает десятки ГБ на хосте.
 
 Несколько прошивок (N-Gage Classic, S60v3, Belle…): для каждой платформы выберите устройство по умолчанию в «Default device per platform» либо задайте
-устройство конкретной игре. JGO не угадывает.
+устройство конкретной игре. MGO не угадывает.
 
 ## 4. Игра и запуск
 
@@ -101,8 +100,8 @@ docker compose -f compose.yaml -f compose.build.yaml -f compose.symbian.yaml -f 
 `/data/saves/<ключ>/`). Если после перезапуска прогресс пропал, посмотрите раскладку и пришлите вывод:
 
 ```bash
-docker compose exec jgo-symbian ls -R /data/base/EKA2L1 | head -80
-docker compose exec jgo-symbian ls -R /data/saves | head -40
+docker compose exec mgo-symbian ls -R /data/base/EKA2L1 | head -80
+docker compose exec mgo-symbian ls -R /data/saves | head -40
 ```
 
 Раскладка настраивается переменными `INSTANCE_SHARED_DIRS` / `INSTANCE_PERSIST_DIRS` (см. SYMBIAN.md).
@@ -116,20 +115,20 @@ docker compose exec jgo-symbian ls -R /data/saves | head -40
 | `412 device_missing` | задано устройство, которого нет (удалили?) | выбрать другое в настройках игры |
 | `503 symbian_unavailable` | служба выключена или не отвечает | шаг 2 |
 | `507 insufficient_storage` | в томе службы не хватает места | освободить место / расширить том (`docker system df`, панель «Free space») |
-| `413` при загрузке | лимит в прокси/туннеле (HTML) или JGO (JSON `too_large`) | `check-upload.mjs`; inbox |
+| `413` при загрузке | лимит в прокси/туннеле (HTML) или MGO (JSON `too_large`) | `check-upload.mjs`; inbox |
 | «The game did not show a picture within 60 s» | игра стартовала, но кадра нет | диагностика: смотрите `EKA2L1.log` (паника, нехватка файлов, ошибка графики) |
 | «The package installed, but no application appeared» | пакет не поставился (не та прошивка/версия Symbian, нет зависимостей) | диагностика; попробуйте другую прошивку |
-| «lists N applications and JGO cannot tell which one is the game» | в установленной системе уже есть несистемные приложения | пришлите диагностику (список приложений в `EKA2L1.log`); JGO не станет угадывать |
+| «lists N applications and MGO cannot tell which one is the game» | в установленной системе уже есть несистемные приложения | пришлите диагностику (список приложений в `EKA2L1.log`); MGO не станет угадывать |
 | Чёрный экран / артефакты | программный OpenGL | в диагностике ищите строки `Driver.Graphics`; пришлите |
-| Нет звука | цепочка EKA2L1 → PulseAudio → parec **не проверена** | `docker compose exec jgo-symbian pactl list short sinks` (должен быть `jgo_sink`), `… pactl list short sink-inputs` во время игры |
+| Нет звука | цепочка EKA2L1 → PulseAudio → parec **не проверена** | `docker compose exec mgo-symbian pactl list short sinks` (должен быть `jgo_sink`), `… pactl list short sink-inputs` во время игры |
 | Установка заводского комплекта: `bad_request`/`variant_required`/`fpsx_corrupt`/`firmware_file_missing` | см. [FACTORY_FIRMWARE.md](FACTORY_FIRMWARE.md): не тот вариант, повреждён или не хватает образа | диагностика + имена файлов комплекта |
 | Очень медленно | программный OpenGL | пришлите FPS и `docker stats` |
 
 Команды внутри контейнера:
 
 ```bash
-docker compose logs --tail 100 jgo-symbian
-docker compose exec jgo-symbian cat /data/last-run.json | head -c 4000
+docker compose logs --tail 100 mgo-symbian
+docker compose exec mgo-symbian cat /data/last-run.json | head -c 4000
 ```
 
 ## 7. Что прислать, если нужна помощь
@@ -139,6 +138,6 @@ docker compose exec jgo-symbian cat /data/last-run.json | head -c 4000
 3. Какая игра (платформа, имя файла), какая прошивка (код устройства), хост (CPU, ОЗУ), результат `check-upload.mjs`, если ходили через прокси.
 4. Что именно вы ждали и что получили.
 
-Не присылайте и не выкладывайте сами файлы прошивки и игры: они принадлежат их правообладателям, а JGO их не собирает.
+Не присылайте и не выкладывайте сами файлы прошивки и игры: они принадлежат их правообладателям, а MGO их не собирает.
 
 Шаблон отчёта: [NATIVE_TEST_MATRIX.md](NATIVE_TEST_MATRIX.md). Проверки интерфейса с fake-эмулятором не заменяют этот ручной прогон.

@@ -224,3 +224,32 @@ describe('free space guard', () => {
     assert.equal((await agent.health()).instance.running, false);
   });
 });
+
+// ---- the default compose file has no token to type in: the service creates the shared secret on a volume, MGO reads it from there ----
+import { readFileSync as readFileSyncForToken } from 'node:fs';
+import { resolveAgentToken } from './agentClient.js';
+describe('shared secret in a file', () => {
+  let proc: ChildProcess, data: string, base: string;
+  before(async () => {
+    data = mkdtempSync(path.join(tmpdir(), 'jgo-tok-'));
+    const port = await free();
+    base = `http://127.0.0.1:${port}`;
+    proc = spawn(process.execPath, [path.join(root, 'symbian/agent/agent.mjs')], { env: { PATH: process.env.PATH ?? '', AGENT_TOKEN_FILE: path.join(data, 'secrets', 'symbian.token'), AGENT_PORT: String(port), AGENT_HOST: '127.0.0.1', CONTROL_PORT: String(await free()), DATA_DIR: path.join(data, 'd'), EKA2L1_BIN: path.join(root, 'tests/fixtures/fake-eka2l1/fake-eka2l1.mjs') }, stdio: 'ignore' });
+    for (let i = 0; i < 100; i++) { try { if ((await fetch(`${base}/agent/ping`)).ok) break; } catch { /* wait */ } await new Promise((r) => setTimeout(r, 100)); }
+  });
+  after(async () => { proc?.kill('SIGTERM'); await new Promise((r) => setTimeout(r, 300)); rmSync(data, { recursive: true, force: true }); });
+
+  it('the service creates a strong token on its first start, and MGO reads it lazily (also when the file appears later)', async () => {
+    const file = path.join(data, 'secrets', 'symbian.token');
+    const token = readFileSyncForToken(file, 'utf8').trim();
+    assert.match(token, /^[0-9a-f]{48}$/);
+    assert.equal((await fetch(`${base}/agent/health`)).status, 401);
+    assert.equal((await fetch(`${base}/agent/health`, { headers: { authorization: `Bearer ${token}` } })).status, 200);
+    const cfg = { symbianAgentUrl: base, symbianAgentToken: null, symbianAgentTokenFile: file };
+    assert.equal(resolveAgentToken(cfg), token);
+    assert.equal(resolveAgentToken({ ...cfg, symbianAgentTokenFile: path.join(data, 'nope') }), null, 'a missing file is "no token yet", not an error');
+    assert.equal(resolveAgentToken({ ...cfg, symbianAgentToken: 'explicit-token-0123456789' }), 'explicit-token-0123456789', 'an explicit token wins');
+    const h = await new AgentClient({ baseUrl: base, token: () => resolveAgentToken(cfg) }).health();
+    assert.equal(h.ok, true);
+  });
+});

@@ -59,7 +59,7 @@ export function listRoots(cfg: Pick<Config, 'libraryRoots' | 'dataDir'>): Librar
     try { isDir = statSync(real).isDirectory(); } catch { /* gone */ }
     const readable = isDir && can(real, constants.R_OK | constants.X_OK);
     const writable = isDir && can(real, constants.W_OK);
-    return { path: r, exists: isDir, readable, writable, note: !isDir ? 'not a directory' : !readable ? 'not readable by the jgo user' : writable ? 'writable (a read-only mount is safer; JGO never writes here)' : null };
+    return { path: r, exists: isDir, readable, writable, note: !isDir ? 'not a directory' : !readable ? 'not readable by the jgo user' : writable ? 'writable (a read-only mount is safer; MGO never writes here)' : null };
   });
 }
 
@@ -150,7 +150,7 @@ export async function checkLibraryDir(cfg: Pick<Config, 'libraryRoots' | 'dataDi
     out.problems.push('The jgo user cannot read this directory. In an unprivileged container the host files must be readable by "others" (or mapped to the container uid), see docs/PROXMOX.md.');
     return out;
   }
-  if (out.writable) out.warnings.push('The directory is writable. JGO never writes there; a read-only bind mount (ro=1) is recommended.');
+  if (out.writable) out.warnings.push('The directory is writable. MGO never writes there; a read-only bind mount (ro=1) is recommended.');
   const stats: WalkStats = { entries: 0, symlinksSkipped: 0, truncated: false, unreadableDirs: [] };
   const t0 = Date.now();
   for await (const e of walkLibrary(real, stats)) {
@@ -159,7 +159,7 @@ export async function checkLibraryDir(cfg: Pick<Config, 'libraryRoots' | 'dataDi
   }
   out.truncated = stats.truncated;
   if (stats.truncated) out.warnings.push('The directory is large: the numbers above are a partial count.');
-  if (stats.symlinksSkipped) out.warnings.push(`${stats.symlinksSkipped} symbolic link(s) are ignored: JGO never follows links out of the library directory.`);
+  if (stats.symlinksSkipped) out.warnings.push(`${stats.symlinksSkipped} symbolic link(s) are ignored: MGO never follows links out of the library directory.`);
   if (stats.unreadableDirs.length) out.warnings.push(`${stats.unreadableDirs.length} sub-director${stats.unreadableDirs.length === 1 ? 'y is' : 'ies are'} not readable and will be skipped.`);
   if (out.jarCount === 0) out.warnings.push('No .jar files found (searched recursively).');
   out.ok = true;
