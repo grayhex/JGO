@@ -12,6 +12,7 @@ Formatted after [Keep a Changelog](https://keepachangelog.com/); versions follow
 - Original N-Gage catalog metadata and cached covers from All About Symbian, with attribution and protected manual classifications.
 
 ### Fixed
+- Viewers attached during startup receive the running state and retain their audio subscription; a delayed launch response no longer reconnects the same session and releases held input.
 - Symbian audio uses an explicit shared PulseAudio socket/sink despite isolated per-game HOME directories, reports capture errors, and reassembles fragmented HTTP PCM into complete stereo frames.
 - N95 8GB RM-320 is recognized; package generation takes priority over an incompatible platform default. Choosing a native phone binds its real firmware.
 - A game's own running instance no longer causes a busy warning.

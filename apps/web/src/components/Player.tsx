@@ -204,6 +204,9 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   }, [input, toast]);
 
   const attach = useCallback((s: SessionStatus) => {
+    // Native launch monitoring can attach before the POST response arrives.
+    // Keep that viewer: reconnecting the same session releases held inputs.
+    if (sessionRef.current?.id === s.id && streamRef.current) return;
     streamRef.current?.close();
     sessionRef.current = s;
     setSession(s); if (s.failure) setFailure({ failure: s.failure, sessionId: s.id }); setSpeed(s.speed ?? 1); setState(s.state); setFrameSize({ w: s.width, h: s.height }); setLog(s.logTail);

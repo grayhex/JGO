@@ -3,13 +3,14 @@
 // The emulator behind the agent is the FAKE EKA2L1 of tests/fixtures/fake-eka2l1: this proves MGO's UI and plumbing, not the real emulator.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright';
 
 const dir = mkdtempSync(path.join(tmpdir(), 'mgo-sym-e2e-'));
+const launchGate = path.join(dir, 'launch-ready');
 const free = () => new Promise((res) => { const s = createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => res(p)); }); });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const wait = async (fn, what, n = 300) => { for (let i = 0; i < n; i++) { try { const v = await fn(); if (v) return v; } catch {} await sleep(100); } throw Error(`timeout: ${what}`); };
@@ -17,7 +18,7 @@ const token = 'e2e-token-0123456789abcdef';
 const agentPort = await free(), port = await free(), control = await free();
 const base = `http://127.0.0.1:${port}`;
 const fx = path.join(process.cwd(), 'tests/fixtures/fake-eka2l1');
-const agent = spawn(process.execPath, ['symbian/agent/agent.mjs'], { env: { PATH: process.env.PATH, AGENT_TOKEN: token, AGENT_PORT: String(agentPort), AGENT_HOST: '127.0.0.1', CONTROL_PORT: String(control), DATA_DIR: path.join(dir, 'agent'), EKA2L1_BIN: path.join(fx, 'fake-eka2l1.mjs'), AUDIO_CMD: `${process.execPath} ${path.join(fx, 'pcm.mjs')}` }, stdio: 'ignore' });
+const agent = spawn(process.execPath, ['symbian/agent/agent.mjs'], { env: { PATH: process.env.PATH, EKA2L1_ENV_PASSTHROUGH: 'FAKE_LAUNCH_GATE', FAKE_LAUNCH_GATE: launchGate, AGENT_TOKEN: token, AGENT_PORT: String(agentPort), AGENT_HOST: '127.0.0.1', CONTROL_PORT: String(control), DATA_DIR: path.join(dir, 'agent'), EKA2L1_BIN: path.join(fx, 'fake-eka2l1.mjs'), AUDIO_CMD: `${process.execPath} ${path.join(fx, 'pcm.mjs')}` }, stdio: 'ignore' });
 mkdirSync(path.join(dir, 'app'));
 const server = spawn('node', ['apps/api/dist/server.js'], { env: { ...process.env, PORT: String(port), DATA_DIR: path.join(dir, 'app'), HOST: '127.0.0.1', LOG_LEVEL: 'warn', SYMBIAN_AGENT_URL: `http://127.0.0.1:${agentPort}`, SYMBIAN_AGENT_TOKEN: token, KEM_DIR: path.join(dir, 'no-java-runtime') }, stdio: ['ignore', 'inherit', 'inherit'] });
 let browser;
@@ -119,7 +120,40 @@ try {
   await p.getByTestId('change-phone').click();
   await p.getByRole('button', { name: 'Nokia N70', exact: true }).click();
   await wait(async () => await p.getByTestId('native-readiness').getAttribute('data-ready') === '1', 'installed N70');
+  // Installation monitoring may attach before POST /sessions returns. Keep that
+  // response pending, then complete it while Enter is held: it must not replace
+  // the existing viewer and release the game's inputs.
+  let completeStart;
+  const startGate = new Promise(resolve => { completeStart = resolve; });
+  let responseReady = false;
+  const streams = [];
+  let receivedFrames = 0;
+  let receivedAudioBytes = 0;
+  let startingViewer = false;
+  p.on('websocket', socket => {
+    if (!socket.url().endsWith('/stream')) return;
+    streams.push(socket.url());
+    socket.on('framereceived', ({ payload }) => {
+      if (typeof payload === 'string') {
+        const event = JSON.parse(payload);
+        if (event.t === 'hello' && event.state === 'starting') startingViewer = true;
+        return;
+      }
+      if (payload[0] === 1) receivedFrames++;
+      if (payload[0] === 2) receivedAudioBytes += payload.length - 1;
+    });
+  });
+  await p.route('**/api/sessions', async route => {
+    if (route.request().method() !== 'POST') return route.continue();
+    const response = await route.fetch();
+    responseReady = true;
+    await startGate;
+    await route.fulfill({ response });
+  });
   await p.getByRole('button', { name: 'Start', exact: true }).first().click();
+  await wait(() => startingViewer, 'viewer attached before native launch completes');
+  writeFileSync(launchGate, 'ready');
+  await wait(() => responseReady, 'launch response held for the attachment race');
   await wait(async () => (await p.getByTestId('frame-size').innerText()) === '176×208', 'the game picture at its own size', 600);
   const st = await wait(async () => (await (await fetch(base + '/api/sessions')).json()).find(s => s.state === 'running'), 'running session');
   assert.equal(st.backend, 'eka2l1');
@@ -136,10 +170,21 @@ try {
     for (let i = 0; i < d.length; i += 4) if (d[i] > 250 && d[i + 1] > 250 && d[i + 2] < 5) n++;
     return n;
   });
+  await wait(async () => (await p.getByTestId('state-badge').textContent()) === 'running', 'running state reaches the viewer before the HTTP response', 100);
+  await wait(() => receivedAudioBytes > 4000, 'early viewer receives sound without reconnecting', 100);
   await p.keyboard.down('Enter');
   await wait(async () => (await yellow()) > 100, 'the picture to react to Enter', 100);
+  const attachedStreams = streams.length;
+  completeStart();
+  await wait(async () => await p.getByRole('button', { name: 'Restart', exact: true }).isEnabled(), 'launch response applied');
+  const framesBefore = receivedFrames;
+  await wait(() => receivedFrames > framesBefore + 2, 'fresh frames after the launch response');
+  assert.equal(streams.length, attachedStreams, 'the same session must keep its existing stream');
+  assert.ok(await yellow() > 100, 'the key stays pressed when the launch response completes');
+  await p.unroute('**/api/sessions');
   await p.keyboard.up('Enter');
   await wait(async () => (await yellow()) === 0, 'the picture to settle after the key is up', 100);
+  console.log('✔ early viewer receives running/audio; the launch response preserves its stream and held key');
   await p.evaluate(() => {
     window.testPadPressed = true;
     Object.defineProperty(navigator, 'getGamepads', { configurable: true, value: () => [{ id: 'UI test pad', index: 0, connected: true, mapping: 'standard', axes: [0,0,0,0], buttons: Array.from({length:17}, (_, i) => ({ pressed: i === 0 && window.testPadPressed, touched: false, value: i === 0 && window.testPadPressed ? 1 : 0 })) }] });

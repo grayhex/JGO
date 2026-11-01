@@ -316,6 +316,12 @@ export class Session {
     for (const { c } of this.clients.values()) c.sendText(s);
   }
 
+  markRunning(): void {
+    this.state = 'running';
+    this.broadcastText({ t: 'state', state: 'running' });
+    this.syncPause();
+  }
+
   addClient(c: StreamClient): void {
     this.clients.set(c.id, { c, held: new Set(), audio: false, visible: true });
     this.clearIdle();
@@ -367,7 +373,10 @@ export class Session {
 
   handleClientEvent(clientId: string, ev: ClientEvent): void {
     const e = this.clients.get(clientId);
-    if (!e || this.state !== 'running') return;
+    // An early viewer subscribes to sound and reports visibility before the
+    // emulator is ready. Keep those settings, without queuing game input.
+    const viewerEvent = ev.t === 'audio' || ev.t === 'visibility' || ev.t === 'ping';
+    if (!e || (this.state !== 'running' && !(this.state === 'starting' && viewerEvent))) return;
     // a suspended game must not get input queued up that fires on resume
     if (this.pauseReason && (ev.t === 'key' || ev.t === 'pointer' || ev.t === 'cmd' || ev.t === 'text')) return;
     switch (ev.t) {
@@ -543,7 +552,7 @@ export class SessionManager {
     this.lib.touchPlayed(game.id);
     try {
       await adapter.start();
-      session.state = 'running';
+      session.markRunning();
       this.countPlayTime(session, game.id);
       return session;
     } catch (e) {
@@ -598,7 +607,7 @@ export class SessionManager {
     this.lib.touchPlayed(game.id);
     try {
       await adapter.start();
-      session.state = 'running';
+      session.markRunning();
       this.countPlayTime(session, game.id);
       return session;
     } catch (e) {
