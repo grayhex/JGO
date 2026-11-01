@@ -23,6 +23,8 @@ export interface AgentHealth {
   firmware: { installed: boolean; devices: { code: string; manufacturer: string; model: string }[] };
   /** Per-platform default device (firmware code). */
   defaults?: Partial<Record<'symbian' | 'ngage' | 'ngage2', string>>;
+  /** Free / total space of the service's data volume. */
+  disk?: { free: number; total: number } | null;
   /** Files in the service's inbox folder. */
   inbox?: { name: string; size: number }[];
   instance: { running: boolean; saveKey: string | null; since: number | null };

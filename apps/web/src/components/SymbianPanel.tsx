@@ -162,6 +162,11 @@ export function SymbianPanel({ toast }: { toast: Toaster }) {
             {st.emulator && <span className="muted small">EKA2L1 {st.emulator}</span>}
             {st.busy && <span className="badge plain">{translateUI("busy")}</span>}
           </p>
+          {st.disk && (
+            <p className={st.disk.free < 5 * 1024 ** 3 ? 'note warn' : 'muted small'} data-testid="symbian-disk">
+              {translateUI("Free space in the service volume")}: {(st.disk.free / 1024 ** 3).toFixed(1)} GB / {(st.disk.total / 1024 ** 3).toFixed(1)} GB
+              {st.disk.free < 5 * 1024 ** 3 ? ` — ${translateUI("a firmware needs about twice its size while it is installed; free some space first")}` : ''}
+            </p>)}
           <h3>{translateUI("Installed devices")}</h3>
           {st.firmware.devices.length === 0
             ? <p className="muted">{translateUI("No firmware yet: Symbian and N-Gage games cannot start.")}</p>

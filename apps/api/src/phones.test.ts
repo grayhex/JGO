@@ -10,7 +10,7 @@ import { buildApp } from './server.js';
 import { SessionManager } from './sessions.js';
 import { makeJar, testConfig } from './dev/testing.js';
 
-const offline: SymbianStatus = { experimental: true, configured: false, reachable: false, emulator: null, firmware: { installed: false, devices: [] }, defaults: {}, inbox: [], busy: false, message: null, maxFirmwareBytes: 100000, maxPackageBytes: 100000 };
+const offline: SymbianStatus = { experimental: true, configured: false, reachable: false, emulator: null, firmware: { installed: false, devices: [] }, defaults: {}, inbox: [], disk: null, busy: false, message: null, maxFirmwareBytes: 100000, maxPackageBytes: 100000 };
 const installed = (...codes: string[]): SymbianStatus => ({ ...offline, configured: true, reachable: true, firmware: { installed: !!codes.length, devices: codes.map(code => ({ code, manufacturer: 'Nokia', model: code })) } });
 
 describe('readiness for the EKA2L1 core in PR #35', () => {

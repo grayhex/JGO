@@ -589,6 +589,8 @@ export interface SymbianStatus {
   defaults: Partial<Record<'symbian' | 'ngage' | 'ngage2', string>>;
   /** Files lying in the service's inbox folder (firmware that does not have to travel through HTTP). */
   inbox: { name: string; size: number }[];
+  /** Free and total space of the service's data volume (null when the service cannot tell). */
+  disk: { free: number; total: number } | null;
   /** A game (or a firmware job) occupies the single emulator instance. */
   busy: boolean;
   message: string | null;

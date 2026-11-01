@@ -4,7 +4,7 @@
 // No dependencies: Node 22 only. Configuration is by environment (see symbian/README.md).
 import { spawn, execFile } from 'node:child_process';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { createReadStream, createWriteStream, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, renameSync, statSync, symlinkSync } from 'node:fs';
+import { statfsSync, createReadStream, createWriteStream, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, renameSync, statSync, symlinkSync } from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
@@ -60,6 +60,26 @@ function writeDevices(list) {
   if (Object.keys(kept).length !== Object.keys(d).length) writeDefaults(kept);
 }
 const PLATFORMS = new Set(['symbian', 'ngage', 'ngage2']);
+// Disk: installing a firmware unpacks it next to the original (ROM, drive Z:), and a full volume leaves a half-written device behind.
+// The factor is an ESTIMATE of how much space an installation needs relative to its input (not measured with a real firmware); change with INSTALL_SPACE_FACTOR.
+const INSTALL_SPACE_FACTOR = Number(env.INSTALL_SPACE_FACTOR ?? 2);
+const SPACE_MARGIN = 512 * 1024 ** 2;
+function diskInfo() { try { const s = statfsSync(DATA); return { free: Number(s.bavail) * Number(s.bsize), total: Number(s.blocks) * Number(s.bsize) }; } catch { return null; } }
+const gb = (n) => `${(n / 1024 ** 3).toFixed(1)} GB`;
+/** @returns null when there is room, otherwise a message */
+function needSpace(bytes) {
+  const d = diskInfo();
+  if (!d) return null;
+  return d.free < bytes + SPACE_MARGIN ? `not enough free space in the service volume: ${gb(bytes + SPACE_MARGIN)} needed, ${gb(d.free)} free of ${gb(d.total)}` : null;
+}
+function treeSize(p) {
+  try {
+    const st = lstatSync(p);
+    if (st.isFile()) return st.size;
+    if (!st.isDirectory()) return 0;
+    return readdirSync(p).reduce((n, name) => n + treeSize(path.join(p, name)), 0);
+  } catch { return 0; }
+}
 function readDefaults() { try { const j = JSON.parse(readFileSync(DEFAULTS_FILE, 'utf8')); return j && typeof j === 'object' ? j : {}; } catch { return {}; } }
 function writeDefaults(d) { writeFileSync(DEFAULTS_FILE + '.tmp', JSON.stringify(d)); renameSync(DEFAULTS_FILE + '.tmp', DEFAULTS_FILE); }
 /** Plain files directly in the inbox (no links, no sub-folders), names that are safe to show and to pass on. */
@@ -258,7 +278,7 @@ async function installFirmware(job, files, { keep = false, bundleDir = null, var
     writeDevices((list.body?.devices ?? []).map((d) => ({ code: d.code, manufacturer: d.manufacturer, model: d.model })));
     job.progress = 1;
   } catch (e) {
-    completed = 'failed'; job.error = String(e.message ?? e).slice(0, 400); job.errorCode = e.code ?? null;
+    completed = 'failed'; job.error = String(e.message ?? e).slice(0, 400); job.errorCode = e.code ?? null; log('firmware job failed:', job.kind, job.errorCode ?? '', job.error); // kept in the service log for the diagnostics report
   } finally {
     try {
       await stopInstance();
@@ -287,10 +307,20 @@ async function readJson(req, max = 64 * 1024) {
 async function saveUpload(req, dest, max) {
   const declared = Number(req.headers['content-length'] ?? 0);
   if (declared > max) throw Object.assign(new Error('file too large'), { status: 413, code: 'too_large' });
+  const noRoom = needSpace(declared);
+  if (noRoom) throw Object.assign(new Error(noRoom), { status: 507, code: 'insufficient_storage' });
   mkdirSync(path.dirname(dest), { recursive: true, mode: 0o700 });
   const tmp = dest + '.part';
   let n = 0;
-  const limiter = async function* (src) { for await (const c of src) { n += c.length; if (n > max) throw Object.assign(new Error('file too large'), { status: 413, code: 'too_large' }); yield c; } };
+  let checked = 0;
+  const limiter = async function* (src) {
+    for await (const c of src) {
+      n += c.length;
+      if (n > max) throw Object.assign(new Error('file too large'), { status: 413, code: 'too_large' });
+      if (n - checked >= 128 * 1024 ** 2) { checked = n; const noRoom2 = needSpace(0); if (noRoom2) throw Object.assign(new Error(noRoom2), { status: 507, code: 'insufficient_storage' }); } // a body of unknown length
+      yield c;
+    }
+  };
   try { await pipeline(req, limiter, createWriteStream(tmp, { mode: 0o600 })); } catch (e) { rmSync(tmp, { force: true }); throw e; }
   renameSync(tmp, dest);
   return n;
@@ -357,7 +387,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && p === '/agent/health') {
       const devices = readDevices();
       let emulator = null; try { emulator = readFileSync(VERSION_FILE, 'utf8').trim(); } catch { /* not built from source */ }
-      return json(res, 200, { ok: true, emulator, firmware: { installed: devices.length > 0, devices }, defaults: readDefaults(), inbox: listInbox(), instance: { running: !!instance, saveKey: instance?.saveKey ?? null, since: instance?.since ?? null }, audio: true });
+      return json(res, 200, { ok: true, emulator, firmware: { installed: devices.length > 0, devices }, defaults: readDefaults(), inbox: listInbox(), disk: diskInfo(), instance: { running: !!instance, saveKey: instance?.saveKey ?? null, since: instance?.since ?? null }, audio: true });
     }
     if (req.method === 'GET' && p === '/agent/log') {
       if (instance) return json(res, 200, { live: true, agent: ring.slice(-120), output: instance.log.slice(-120), eka2l1Log: tailFile(emulatorLogFile(instance), 300) });
@@ -413,6 +443,8 @@ const server = http.createServer(async (req, res) => {
         if ([...jobs.values()].some(j => j.state === 'running')) return err(res, 409, 'busy', 'a firmware installation is already running');
         const factory = factoryInstallFiles(FIRMWARE_IN, INBOX, b);
         if (factory.bundleDir && [...factoryUploads].some(f => path.dirname(f) === factory.bundleDir)) return err(res, 409, 'busy', 'finish uploading all factory images first');
+        const roomVpl = needSpace(Math.round((factory.bundleDir ? treeSize(factory.bundleDir) : listInbox().reduce((n, f) => n + f.size, 0)) * INSTALL_SPACE_FACTOR));
+        if (roomVpl) return err(res, 507, 'insufficient_storage', roomVpl);
         if (factory.bundleDir) installingBundles.add(factory.bundleDir);
         const job = newJob('install_device');
         void installFirmware(job, factory.files, factory);
@@ -433,6 +465,8 @@ const server = http.createServer(async (req, res) => {
       if (Object.values(files).some((f) => !f || !existsSync(f))) return err(res, 400, 'bad_request', fromInbox ? 'those files are not in the inbox folder' : 'upload the firmware files first (rom, and rpkg or an archive)');
       if (!files.archive && !files.rom) return err(res, 400, 'bad_request', 'a ROM or an archive is required');
       if ([...jobs.values()].some((j) => j.state === 'running')) return err(res, 409, 'busy', 'a firmware installation is already running');
+      const roomPlain = needSpace(Math.round(Object.values(files).reduce((n, f) => n + treeSize(f), 0) * INSTALL_SPACE_FACTOR));
+      if (roomPlain) return err(res, 507, 'insufficient_storage', roomPlain);
       const job = newJob('install_device');
       void installFirmware(job, files, { keep: fromInbox });
       return json(res, 202, job);
@@ -485,7 +519,7 @@ const server = http.createServer(async (req, res) => {
           const list = await control('GET', '/v1/devices', undefined, 10000);
           writeDevices((list.body?.devices ?? []).map((d) => ({ code: d.code, manufacturer: d.manufacturer, model: d.model })));
           job.state = 'succeeded';
-        } catch (e) { job.state = 'failed'; job.error = String(e.message ?? e).slice(0, 400); } finally { await stopInstance(); }
+        } catch (e) { job.state = 'failed'; job.error = String(e.message ?? e).slice(0, 400); log('device removal failed:', job.error); } finally { await stopInstance(); }
       })();
       return json(res, 202, job);
     }

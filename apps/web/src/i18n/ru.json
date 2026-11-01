@@ -680,5 +680,7 @@
   "EKA2L1 unreachable": "EKA2L1 недоступен",
   "EKA2L1 ready": "EKA2L1 готов",
   "EKA2L1 needs firmware": "EKA2L1 нужна прошивка",
-  "Factory installation requires the VPL-enabled Symbian service. Rebuild an older service before uploading a large kit.": "Установка заводского комплекта требует службы Symbian с поддержкой VPL. Пересоберите старую службу до отправки большого комплекта."
+  "Factory installation requires the VPL-enabled Symbian service. Rebuild an older service before uploading a large kit.": "Установка заводского комплекта требует службы Symbian с поддержкой VPL. Пересоберите старую службу до отправки большого комплекта.",
+  "Free space in the service volume": "Свободное место в томе службы",
+  "a firmware needs about twice its size while it is installed; free some space first": "при установке прошивке нужно примерно вдвое больше её размера; освободите место"
 }
