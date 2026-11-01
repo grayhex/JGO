@@ -1,0 +1,10 @@
+{
+  "tool": "image_gen",
+  "date": "2026-11-01",
+  "sourceGeneration": "exec-31f85c8c-d4d8-42f6-87ce-aaff5ae48e40.png",
+  "phoneInstruction": "Nokia N8 2010 Dark Grey anodized aluminium, upright monoblock 113.5 mm tall by 59.1 mm wide. Strictly frontal orthographic view adapted from the angled photograph. 3.5 inch touch display portrait 360:640 = 9:16, ~43.6 x 77.5 mm within thick black rounded glass surround. Aluminum body has gently tapered angular flat top/bottom caps and curved side edges. NOKIA above screen with small N8 at left and front camera/sensors upper right, fine earpiece on top. SINGLE small horizontal rectangular menu/home hardware key on lower left below glass, NOT three buttons. No numeric keypad, no D-pad, no call/end keys. Side volume/camera controls subtle. Realistic metal texture and glass bezel without reflections across active display.",
+  "method": "Original frontal illustration conditioned on the linked photographic reference.",
+  "technicalEdits": "Measured silhouette alpha and LCD aperture; crop, resize and lossless exports. See layout.json and tools/phones/export_measured.py.",
+  "referenceDossier": "apps/web/public/phones/nokia-n8/references.md",
+  "historicalAcceptance": "review-draft"
+}

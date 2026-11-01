@@ -8,6 +8,7 @@ import { CatalogPanel } from '../components/CatalogPanel';
 import { CleanupPanel } from '../components/CleanupPanel';
 import { LibrarySource, ScanPanel } from '../components/LibrarySource';
 import { MobyPanel } from '../components/Moby';
+import { SymbianPanel } from '../components/SymbianPanel';
 import { PhoneDefaultsForm, ServerForm, SoundControlsForm, SystemChecks } from '../components/SettingsForms';
 import { useServerSettings } from '../serverSettings';
 
@@ -31,6 +32,7 @@ export const SECTIONS: { id: string; label: string; icon: IconName }[] = [
   { id: 'mobygames', label: 'MobyGames', icon: 'info' },
   { id: 'phone', label: 'Default phone', icon: 'phone' },
   { id: 'sound', label: 'Sound & controls', icon: 'gamepad' },
+  { id: 'symbian', label: 'Symbian (experimental)', icon: 'cpu' },
   { id: 'server', label: 'Server', icon: 'sliders' },
 ];
 
@@ -76,6 +78,7 @@ export function SettingsPage({ toast, onRunWizard, onLibraryChanged }: { toast: 
       <Section id="mobygames" icon="info" title={translateUI("MobyGames")} hint={translateUI("Covers, descriptions, genres, publishers, years, ratings and screenshots (optional).")}><MobyPanel toast={toast} /></Section>
       <Section id="phone" icon="phone" title={translateUI("Default phone")}><PhoneDefaultsForm toast={toast} /></Section>
       <Section id="sound" icon="gamepad" title={translateUI("Sound & controls")}><SoundControlsForm toast={toast} /></Section>
+      <Section id="symbian" icon="cpu" title={translateUI("Symbian (experimental)")} hint={translateUI("Optional second emulator (EKA2L1) for Symbian S60 and N-Gage games. You bring your own firmware.")}><SymbianPanel toast={toast} /></Section>
       <Section id="server" icon="sliders" title={translateUI("Server")} hint={translateUI("Limits that apply to all games.")}><ServerForm toast={toast} /></Section>
     </div>
   );

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { appendFile } from 'node:fs/promises';
 import { mkdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
@@ -17,7 +18,12 @@ import {
 import { ResourceMeter } from './procstats.js';
 import { writeMidletsIni, writeSoundfontProperty } from './appSettings.js';
 import { findPreset, loadDevicePresets } from './devices.js';
+import { nativePhonePlan } from '@j2me-web/protocol';
+import { readSymbianStatus } from './eka2l1/status.js';
 import { KEmulatorAdapter, type ExitInfo, type FrameMsg } from './kemulator/adapter.js';
+import type { EmulatorAdapter } from './emulator.js';
+import { AgentClient, AgentError } from './eka2l1/agentClient.js';
+import { Eka2l1Adapter } from './eka2l1/adapter.js';
 import { newId, type Library } from './library.js';
 import type { Config } from './config.js';
 
@@ -66,6 +72,8 @@ export class Session {
   diagnostics: string[] = [];
   exit: ExitInfo | null = null;
   framesDropped = 0;
+  /** The size of the last picture, when the emulator says it (EKA2L1); J2ME sessions use the settings. */
+  private picture: { width: number; height: number } | null = null;
   latencyMs: number | null = null;
   endedAt: number | null = null;
   readonly clients = new Map<string, { c: StreamClient; held: Set<number>; audio: boolean; visible: boolean }>();
@@ -90,7 +98,7 @@ export class Session {
     readonly game: GameMeta,
     readonly settings: GameSettings,
     readonly owner: string,
-    readonly adapter: KEmulatorAdapter,
+    readonly adapter: EmulatorAdapter,
     readonly bridgeDir: string,
     logFile: string,
     private cfg: Config,
@@ -121,8 +129,9 @@ export class Session {
       id: this.id,
       gameId: this.game.id,
       state: this.state,
-      width: this.settings.width,
-      height: this.settings.height,
+      backend: this.adapter.kind,
+      width: this.picture?.width ?? this.settings.width,
+      height: this.picture?.height ?? this.settings.height,
       startedAt: new Date(this.createdAt).toISOString(),
       uptimeMs: (this.endedAt ?? Date.now()) - this.createdAt,
       framesReceived: st.frames,
@@ -168,7 +177,8 @@ export class Session {
 
   private onFrame(f: FrameMsg): void {
     this.latencyMs = Math.max(0, Date.now() - f.tsUs / 1000);
-    const hdr = encodeFrameHeader(f.seq, f.enc, this.settings.width, this.settings.height, Date.now() & 0xffffffff);
+    if (f.width && f.height) this.picture = { width: f.width, height: f.height };
+    const hdr = encodeFrameHeader(f.seq, f.enc, f.width ?? this.settings.width, f.height ?? this.settings.height, Date.now() & 0xffffffff);
     const packed = Buffer.concat([hdr, f.data]);
     this.lastPacked = packed;
     for (const { c } of this.clients.values()) if (!c.sendFrame(packed)) this.framesDropped++;
@@ -463,7 +473,18 @@ export class SessionManager {
   }
 
   async create(game: GameMeta, overrides: GameSettings, owner: string): Promise<Session> {
-    if (game.classVersion >= 49) {
+    const external = (game.platform ?? 'j2me') !== 'j2me';
+    if (external) {
+      let currentSaveKey: string | null = null;
+      const status = await readSymbianStatus(this.cfg, health => { currentSaveKey = health.instance.saveKey; });
+      // A local session can be replaced normally. A firmware job or an instance
+      // owned by another service client must not cost the running Java session.
+      if (status.busy && currentSaveKey && this.active().some(s => s.game.platform && s.game.platform !== 'j2me' && symbianSaveKey(s.owner, s.game.id) === currentSaveKey)) status.busy = false;
+      const plan = nativePhonePlan(game.platform as 'symbian' | 'ngage' | 'ngage2', overrides, status);
+      if (!plan.ready) throw new SessionError(plan.code!, plan.message, plan.code === 'symbian_unavailable' ? 503 : plan.code === 'device_required' || plan.code === 'symbian_busy' ? 409 : 412);
+      overrides = { ...overrides, symbianDevice: plan.firmwareCode!, layout: 'nokia' };
+    }
+    if (!external && game.classVersion >= 49) {
       throw new SessionError('unsupported_jar', `This JAR contains Java ${game.classVersion - 44}+ class files; KEmulator only runs J2ME-era classes (version <= 48).`, 422);
     }
     // Starting a game while the limit is reached ends the oldest running game first (its MIDlet gets destroyApp, RMS is
@@ -473,6 +494,7 @@ export class SessionManager {
       if (!oldest) break;
       await oldest.stop('replaced by the game that was started next');
     }
+    if (external) return this.createExternal(game, overrides, owner);
     const paths = this.lib.paths(game.id);
     let preset;
     if (overrides.device) {
@@ -540,6 +562,53 @@ export class SessionManager {
     this.playClocks.set(session.id, () => { clearInterval(iv); flush(); });
   }
 
+  /**
+   * A Symbian / N-Gage game: run by EKA2L1 in the optional jgo-symbian container. Nothing of KEmulator is involved. The container's
+   * own saves live under a key made of the owner and the game, so two games never share a drive.
+   */
+  private async createExternal(game: GameMeta, overrides: GameSettings, owner: string): Promise<Session> {
+    const platform = game.platform as 'symbian' | 'ngage' | 'ngage2';
+    if (!this.cfg.symbianAgentUrl) {
+      throw new SessionError('symbian_unavailable', 'Symbian and N-Gage games need the optional jgo-symbian service (EKA2L1), which is not configured on this server. See docs/SYMBIAN.md.', 503);
+    }
+    const file = this.lib.packagePath(game.id);
+    if (!file) throw new SessionError('missing_package', 'The game file is missing from the library', 410);
+    const sid = newId(12);
+    const bridgeDir = path.join(this.cfg.runDir, sid);
+    mkdirSync(bridgeDir, { recursive: true, mode: 0o700 });
+    this.lib.pruneLogs();
+    const adapter = new Eka2l1Adapter({
+      agent: new AgentClient({ baseUrl: this.cfg.symbianAgentUrl, token: this.cfg.symbianAgentToken }),
+      saveKey: symbianSaveKey(owner, game.id),
+      deviceCode: overrides.symbianDevice ?? game.settings.symbianDevice ?? null,
+      platform,
+      packagePath: file,
+      fileName: `${game.name.replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 60) || 'game'}.${path.extname(file).slice(1)}`,
+      frameEncoding: this.cfg.frameEncoding,
+    });
+    const session = new Session(sid, game, overrides, owner, adapter, bridgeDir, this.lib.sessionLogPath(sid), this.cfg, (s) => this.onEnded(s));
+    this.sessions.set(session.id, session);
+    this.lib.touchPlayed(game.id);
+    try {
+      await adapter.start();
+      session.state = 'running';
+      this.countPlayTime(session, game.id);
+      return session;
+    } catch (e) {
+      session.state = 'failed';
+      const code = e instanceof AgentError ? (e.code === 'no_firmware' || e.code === 'device_missing' || e.code === 'device_required' ? e.code : e.status === 0 ? 'symbian_unavailable' : 'start_failed') : 'start_failed';
+      throw new SessionError(code, `${(e as Error).message}`, code === 'no_firmware' || code === 'device_missing' ? 412 : code === 'device_required' ? 409 : code === 'symbian_unavailable' ? 503 : 500);
+    }
+  }
+
+  /** Removes a Symbian game's drives from the jgo-symbian service (best effort: the service may be switched off). */
+  async deleteExternalSaves(owner: string, gameId: string): Promise<void> {
+    if (!this.cfg.symbianAgentUrl) return;
+    try {
+      await new AgentClient({ baseUrl: this.cfg.symbianAgentUrl, token: this.cfg.symbianAgentToken }).deleteSaves(symbianSaveKey(owner, gameId));
+    } catch { /* the saves stay in the service until it is reachable again; the next delete or a volume wipe removes them */ }
+  }
+
   private onEnded(s: Session): void {
     this.playClocks.get(s.id)?.();
     this.playClocks.delete(s.id);
@@ -558,4 +627,9 @@ export class SessionManager {
   async stopAll(): Promise<void> {
     await Promise.all(this.active().map((s) => s.stop('server shutdown').catch(() => undefined)));
   }
+}
+
+/** The name of a game's saves in the Symbian service: stable, safe as a directory name, no owner/game ids are guessable from it. */
+export function symbianSaveKey(owner: string, gameId: string): string {
+  return createHash('sha256').update(`${owner}\0${gameId}`).digest('hex').slice(0, 32);
 }

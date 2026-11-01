@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { isPhoneId, resolvePhone, type DevicePreset, type GameMeta } from '@j2me-web/protocol';
+import { isPhoneId, resolvePhone, selectPhone, profilesForSkin, GAME_PLATFORMS, GAME_PLATFORM_LABELS, type DevicePreset, type GameMeta } from '@j2me-web/protocol';
 import type { Toast } from '../App';
 import { api } from '../api';
 import { t as translateUI } from '../i18n';
@@ -55,6 +55,7 @@ function PhoneCard({ skin, frame, current, disabled, onPick }: { skin: NonNullab
       </div>
       <h2>{c.manufacturer} {c.model}</h2>
       <p>{c.screen.width} × {c.screen.height}</p>
+      {isPhoneId(c.id) && <p className="hint">{GAME_PLATFORMS.filter(p => profilesForSkin(c.id as import('@j2me-web/protocol').PhoneSkinId, p).length).map(p => GAME_PLATFORM_LABELS[p]).join(' · ')}</p>}
     </button>
   );
 }
@@ -85,9 +86,15 @@ export function PhonesPage({ toast }: { toast: (k: Toast['kind'], t: string) => 
     setBusy(true);
     try {
       if (game) {
+        if ((game.platform ?? 'j2me') !== 'j2me') {
+          const selection = selectPhone({ platform: game.platform!, skinId: id });
+          if (!selection.ok) throw new Error(selection.message);
+          const g = await api.patchGame(game.id, { settings: { skinId: id } });
+          setGame(g); navigate(`/play/${game.id}`); return;
+        }
         // advanced mode keeps the profile the user chose; automatic mode follows the phone (screen size, keys, platform)
         const { preset, layout } = resolvePhone(id, devices);
-        const g = await api.patchGame(game.id, { settings: game.settings.profileMode === 'advanced' ? { skinId: id } : { skinId: id, profileMode: 'auto', device: preset.id, width: preset.width, height: preset.height, layout } });
+        const g = await api.patchGame(game.id, { settings: game.settings.profileMode === 'advanced' ? { skinId: id } : { skinId: id, emulatedDeviceId: null, profileMode: 'auto', device: preset.id, width: preset.width, height: preset.height, layout } });
         setGame(g);
         toast('info', translateUI('{phone} is now the phone of “{game}”', { phone: id, game: game.name }));
         navigate(`/play/${game.id}`);
@@ -102,11 +109,11 @@ export function PhonesPage({ toast }: { toast: (k: Toast['kind'], t: string) => 
   return (
     <section>
       <h1>{translateUI('Phones')}</h1>
-      <p>{game ? translateUI('Click a phone to use it for “{game}”: the picture, screen size and keys follow it.', { game: game.name }) : translateUI('Click a phone to make it the default for new games. Open a game first to change its own phone.')}</p>
+      <p>{game ? translateUI('Click a phone to use it for “{game}”: Java ME follows the phone; native games keep their selected firmware.', { game: game.name }) : translateUI('Click a phone to make it the default for new games. Open a game first to change its own phone.')}</p>
       {error && <p role="alert">{error}</p>}
       <div className="phones-models">
         {skins?.map((s) => (
-          <PhoneCard key={s.config.id} skin={s} frame={frame} current={current === s.config.id} disabled={busy || !gamesLoaded || devices.length === 0} onPick={() => void choose(s.config.id)} />
+          <PhoneCard key={s.config.id} skin={s} frame={frame} current={current === s.config.id} disabled={busy || !gamesLoaded || (game?.platform && game.platform !== 'j2me' ? !isPhoneId(s.config.id) || !profilesForSkin(s.config.id, game.platform).length : devices.length === 0)} onPick={() => void choose(s.config.id)} />
         ))}
       </div>
     </section>

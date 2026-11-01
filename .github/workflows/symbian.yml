@@ -1,0 +1,89 @@
+name: Symbian service (EKA2L1)
+
+# Builds the OPTIONAL jgo-symbian image (EKA2L1 compiled from a pinned upstream commit + the agent) and smoke-tests the REAL emulator
+# binary: it must start, open its control API and answer on /v1/status through the agent, with no firmware. There is no ROM or game
+# in CI: what happens with real firmware and games is NOT tested here (see docs/SYMBIAN.md).
+# Slow (EKA2L1 and FFmpeg are compiled), so it only runs when the service changes. On main the image is published as :edge.
+on:
+  pull_request:
+    paths: ['symbian/**', 'compose.symbian*.yaml', '.github/workflows/symbian.yml', 'tests/scripts/vpl-real-smoke.mjs', 'tests/fixtures/factory-kit.mjs']
+  push:
+    branches: [main]
+    paths: ['symbian/**', 'compose.symbian*.yaml', '.github/workflows/symbian.yml', 'tests/scripts/vpl-real-smoke.mjs', 'tests/fixtures/factory-kit.mjs']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: symbian-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: symbian/Dockerfile
+          load: true
+          tags: jgo-symbian:ci
+          cache-from: type=gha,scope=symbian
+          cache-to: type=gha,mode=max,scope=symbian
+      - name: Smoke test with the real EKA2L1 (no firmware)
+        run: |
+          set -eu
+          docker run -d --name sym --read-only --tmpfs /tmp:size=512m --shm-size=256m --cap-drop ALL --security-opt no-new-privileges:true \
+            -e AGENT_TOKEN=ci-token-0123456789abcdef -p 127.0.0.1:8766:8766 jgo-symbian:ci
+          for i in $(seq 1 60); do curl -fsS http://127.0.0.1:8766/agent/ping >/dev/null 2>&1 && break; sleep 1; done
+          curl -fsS http://127.0.0.1:8766/agent/ping
+          auth='authorization: Bearer ci-token-0123456789abcdef'
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8766/agent/health)" = 401
+          curl -fsS -H "$auth" http://127.0.0.1:8766/agent/health | tee /tmp/health.json
+          grep -q '"installed":false' /tmp/health.json
+          # a game cannot start before the user added firmware
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "$auth" -H 'content-type: application/json' -d '{"saveKey":"0123456789abcdef0123456789abcdef"}' http://127.0.0.1:8766/agent/instance)" = 412
+          # the real emulator in maintenance mode: it starts and its control API answers through the allow-list
+          curl -fsS -X POST -H "$auth" -H 'content-type: application/json' -d '{"maintenance":true}' http://127.0.0.1:8766/agent/instance
+          ok=0
+          for i in $(seq 1 60); do
+            if curl -fsS -H "$auth" http://127.0.0.1:8766/v1/status > /tmp/status.json 2>/dev/null; then ok=1; break; fi
+            sleep 1
+          done
+          cat /tmp/status.json || true
+          test "$ok" = 1
+          grep -q '"started":true' /tmp/status.json
+          # what must not pass through
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H "$auth" 'http://127.0.0.1:8766/v1/files?path=/etc/passwd')" = 403
+          curl -fsS -X DELETE -H "$auth" http://127.0.0.1:8766/agent/instance
+          # REAL desktop VPL installer via the patched Control API. Synthetic
+          # manifests/invalid FPSX only: verifies format dispatch and failures,
+          # variant choice and missing/unsafe paths without proprietary firmware.
+          AGENT_URL=http://127.0.0.1:8766 AGENT_TOKEN=ci-token-0123456789abcdef node tests/scripts/vpl-real-smoke.mjs
+          docker logs sym | tail -20
+          docker rm -f sym
+      - name: Version file
+        run: docker run --rm --entrypoint cat jgo-symbian:ci /opt/eka2l1/VERSION
+      - uses: docker/login-action@v3
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish :edge (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          short="${GITHUB_SHA:0:7}"
+          for t in edge "sha-$short"; do
+            docker tag jgo-symbian:ci "ghcr.io/$owner/jgo-symbian:$t"
+            docker push "ghcr.io/$owner/jgo-symbian:$t"
+          done

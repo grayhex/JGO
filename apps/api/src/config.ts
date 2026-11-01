@@ -21,6 +21,13 @@ export interface Config {
   sessionIdleMs: number;
   maxUploadBytes: number;
   libraryQuotaBytes: number;
+  /** Optional Symbian/N-Gage service (EKA2L1, container jgo-symbian). `null` = not configured: those games cannot be started. */
+  symbianAgentUrl: string | null;
+  symbianAgentToken: string | null;
+  /** Largest Symbian/N-Gage game package accepted (a game card can be big). */
+  maxPackageBytes: number;
+  /** Largest firmware file (ROM / RPKG) accepted when the user installs a device. */
+  maxFirmwareBytes: number;
   authToken: string | null;
   frameEncoding: 'raw' | 'deflate';
   /** Extra Origins allowed to call the API/WS besides same-origin. */
@@ -73,6 +80,10 @@ export function loadConfig(env = process.env): Config {
     sessionIdleMs: int(env, 'SESSION_IDLE_MINUTES', 5) * 60_000,
     maxUploadBytes: int(env, 'MAX_UPLOAD_MB', 32) * 1024 * 1024,
     libraryQuotaBytes: int(env, 'LIBRARY_QUOTA_MB', 2048) * 1024 * 1024,
+    symbianAgentUrl: env.SYMBIAN_AGENT_URL ? env.SYMBIAN_AGENT_URL.replace(/\/+$/, '') : null,
+    symbianAgentToken: env.SYMBIAN_AGENT_TOKEN ? env.SYMBIAN_AGENT_TOKEN : null,
+    maxPackageBytes: int(env, 'MAX_SYMBIAN_PACKAGE_MB', 512) * 1024 * 1024,
+    maxFirmwareBytes: int(env, 'MAX_FIRMWARE_MB', 2048) * 1024 * 1024,
     authToken: env.AUTH_TOKEN ? env.AUTH_TOKEN : null,
     frameEncoding: env.FRAME_ENCODING === 'deflate' ? 'deflate' : 'raw',
     allowedOrigins: list(env, 'ALLOWED_ORIGINS'),

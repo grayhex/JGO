@@ -1,9 +1,9 @@
-import { isPhoneId } from '@j2me-web/protocol';
+import { isPhoneId, isEmulatedDeviceId } from '@j2me-web/protocol';
 import { createHash, randomBytes } from 'node:crypto';
 import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { DEFAULT_SETTINGS, EMULATION_LIMITS, type EmulationTweaks, type GameInfoSummary, type GameMeta, type GameSettings, KEY_LAYOUTS, SCREEN_PRESETS, type LayoutId, type MetaStatus } from '@j2me-web/protocol';
+import { isPlatform, type Platform, DEFAULT_SETTINGS, EMULATION_LIMITS, type EmulationTweaks, type GameInfoSummary, type GameMeta, type GameSettings, KEY_LAYOUTS, SCREEN_PRESETS, type LayoutId, type MetaStatus } from '@j2me-web/protocol';
 import { parseJad, parseJar, sanitizeText, UploadError } from './jar.js';
 import { Classifications } from './classification.js';
 import { cleanTitle, cleanVendor } from './title.js';
@@ -27,6 +27,8 @@ interface Row {
   settings_json: string;
   warnings_json: string;
   origin?: string;
+  platform?: string;
+  package_ext?: string | null;
 }
 
 export interface SourceRow {
@@ -88,6 +90,11 @@ export function validateEmulation(input: unknown): EmulationTweaks {
 export function validateSettings(input: unknown, base: GameSettings = DEFAULT_SETTINGS): GameSettings {
   const o = (input ?? {}) as Record<string, unknown>;
   const out: GameSettings = { ...base };
+  if (o.emulatedDeviceId !== undefined) {
+    if (o.emulatedDeviceId === null || o.emulatedDeviceId === '') delete out.emulatedDeviceId;
+    else if (!isEmulatedDeviceId(o.emulatedDeviceId)) throw new UploadError('bad_settings', 'unknown emulated device profile');
+    else out.emulatedDeviceId = o.emulatedDeviceId;
+  }
   const num = (v: unknown, lo: number, hi: number, name: string): number => {
     if (typeof v !== 'number' || !Number.isInteger(v) || v < lo || v > hi) throw new UploadError('bad_settings', `${name} must be an integer in ${lo}..${hi}`);
     return v;
@@ -107,6 +114,11 @@ export function validateSettings(input: unknown, base: GameSettings = DEFAULT_SE
     if (o.device === null || o.device === '') delete out.device;
     else if (typeof o.device !== 'string' || !/^[a-z0-9][a-z0-9-]{0,120}$/.test(o.device)) throw new UploadError('bad_settings', 'invalid device id');
     else out.device = o.device;
+  }
+  if (o.symbianDevice !== undefined) {
+    if (o.symbianDevice === null || o.symbianDevice === '') delete out.symbianDevice;
+    else if (typeof o.symbianDevice !== 'string' || !/^[A-Za-z0-9._-]{1,32}$/.test(o.symbianDevice)) throw new UploadError('bad_settings', 'invalid Symbian device code');
+    else out.symbianDevice = o.symbianDevice;
   }
   if (o.skinId !== undefined) {
     if (!isPhoneId(o.skinId)) throw new UploadError('bad_settings', 'unknown phone skin');
@@ -161,6 +173,8 @@ export class Library {
   private migrate(): void {
     const cols = (this.db.prepare('PRAGMA table_info(games)').all() as unknown as { name: string }[]).map((c) => c.name);
     if (!cols.includes('origin')) this.db.exec(`ALTER TABLE games ADD COLUMN origin TEXT NOT NULL DEFAULT 'upload'`);
+    if (!cols.includes('platform')) this.db.exec(`ALTER TABLE games ADD COLUMN platform TEXT NOT NULL DEFAULT 'j2me'`);
+    if (!cols.includes('package_ext')) this.db.exec('ALTER TABLE games ADD COLUMN package_ext TEXT');
     if (!cols.includes('play_seconds')) this.db.exec('ALTER TABLE games ADD COLUMN play_seconds INTEGER NOT NULL DEFAULT 0');
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS sources (
@@ -263,6 +277,7 @@ export class Library {
       settings: JSON.parse(r.settings_json),
       warnings: JSON.parse(r.warnings_json),
       origin: r.origin === 'import' ? 'import' : 'upload',
+      platform: isPlatform(r.platform) ? r.platform : 'j2me',
     };
   }
 
@@ -350,6 +365,45 @@ export class Library {
     const jad = path.join(dir, 'game.jad');
     const icon = path.join(dir, 'icon.png');
     return { dir, jar: path.join(dir, 'game.jar'), jad: existsSync(jad) ? jad : null, icon: existsSync(icon) ? icon : null };
+  }
+
+  /** Package of a Symbian / N-Gage game: `.sis`/`.sisx`, `.n-gage`, or a `.zip` with an N-Gage 1.0 game card. */
+  packagePath(id: string): string | null {
+    const r = this.db.prepare('SELECT package_ext FROM games WHERE id = ?').get(id) as unknown as { package_ext: string | null } | undefined;
+    return r?.package_ext ? path.join(this.gamesDir, id, `game.${r.package_ext}`) : null;
+  }
+
+  /**
+   * Adds a game for EKA2L1. The file is only stored: nothing in it is run or unpacked here (the emulator service does that,
+   * inside its own container). The title comes from the file name, because a SIS has no metadata JGO reads.
+   */
+  addPackage(bytes: Uint8Array, fileName: string, platform: Exclude<Platform, 'j2me'>, quotaBytes: number, opts: AddOptions = {}): { game: GameMeta; duplicate: boolean } {
+    const ext = (/\.(sisx?|n-gage|zip)$/i.exec(fileName)?.[1] ?? '').toLowerCase();
+    if (!ext) throw new UploadError('bad_file', 'A Symbian or N-Gage game is a .sis, .sisx, .n-gage or (a game card) .zip file');
+    if (platform === 'symbian' && ext !== 'sis' && ext !== 'sisx') throw new UploadError('bad_file', 'An S60 application is a .sis or .sisx file');
+    if (platform === 'ngage2' && ext !== 'n-gage') throw new UploadError('bad_file', 'An N-Gage 2.0 game is a .n-gage file');
+    if (platform === 'ngage' && ext !== 'zip') throw new UploadError('bad_file', 'An N-Gage 1.0 game card is uploaded as a .zip of the card contents (system/apps/...)');
+    if (ext === 'zip' && !(bytes.length > 4 && bytes[0] === 0x50 && bytes[1] === 0x4b)) throw new UploadError('bad_file', 'That .zip is not a zip archive');
+    if (bytes.length === 0) throw new UploadError('bad_file', 'The file is empty');
+    const sha = createHash('sha256').update(bytes).digest('hex');
+    const dup = this.db.prepare('SELECT * FROM games WHERE sha256 = ?').get(sha) as unknown as Row | undefined;
+    if (dup) return { game: this.toMeta(dup), duplicate: true };
+    if (this.totalBytes() + bytes.length > quotaBytes) throw new UploadError('quota_exceeded', 'Library quota exceeded; delete some games first', 507);
+    const id = sha.slice(0, 16);
+    const name = cleanTitle(sanitizeText(fileName.replace(/\.[^.]+$/, '').replace(/[_]+/g, ' '))) || 'Unnamed';
+    const vendor = 'Unknown';
+    const dir = path.join(this.gamesDir, id);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, `game.${ext}`), bytes, { mode: 0o600 });
+    const settings: GameSettings = { ...DEFAULT_SETTINGS, ...(opts.defaults ?? {}) };
+    const groupKey = createHash('sha1').update(`${vendor.toLowerCase()}\0${name.toLowerCase()}\0${platform}`).digest('hex').slice(0, 12);
+    this.db
+      .prepare(
+        `INSERT INTO games (id, sha256, name, vendor, version, group_key, midlets_json, class_version, size_bytes, has_icon, has_jad,
+          favorite, created_at, last_played_at, settings_json, warnings_json, origin, platform, package_ext) VALUES (?,?,?,?,?,?,?,?,?,?,?,0,?,NULL,?,?,?,?,?)`,
+      )
+      .run(id, sha, name, vendor, '', groupKey, '[]', 0, bytes.length, 0, 0, new Date().toISOString(), JSON.stringify(settings), '[]', opts.origin ?? 'upload', platform, ext);
+    return { game: this.get(id)!, duplicate: false };
   }
 
   add(jar: Uint8Array, jadBytes: Uint8Array | null, quotaBytes: number, opts: AddOptions = {}): { game: GameMeta; duplicate: boolean } {

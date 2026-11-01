@@ -4,8 +4,8 @@ import { it } from 'node:test';
 import { PHONE_PROFILES } from '@j2me-web/protocol';
 import { SKIN_IDS } from './registry';
 
-it('the ten selectable skins have server profiles and actual runtime assets', () => {
-  assert.equal(SKIN_IDS.length, 10);
+it('the fifteen selectable skins have server profiles and actual runtime assets', () => {
+  assert.equal(SKIN_IDS.length, 15);
   assert.deepEqual([...SKIN_IDS].sort(), Object.keys(PHONE_PROFILES).sort());
   for (const id of SKIN_IDS) {
     const base = new URL(`../../public/phones/${id}/`, import.meta.url);
@@ -18,7 +18,7 @@ it('the ten selectable skins have server profiles and actual runtime assets', ()
 });
 
 it('touchscreen phones preserve their physical controls and use an external game keypad', () => {
-  for (const id of ['nokia-5800', 'samsung-s5230']) {
+  for (const id of ['nokia-5800', 'samsung-s5230', 'nokia-n8']) {
     const c = JSON.parse(readFileSync(new URL(`../../public/phones/${id}/config.json`, import.meta.url), 'utf8'));
     assert.deepEqual(c.input, { kind: 'touchscreen', pointer: true, externalKeypad: true });
     assert.ok(!c.buttons.some((b: { id: string }) => /^(d\d|up|down|left|right|fire)$/.test(b.id)));

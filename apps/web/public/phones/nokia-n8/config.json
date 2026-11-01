@@ -1,0 +1,115 @@
+{
+  "id": "nokia-n8",
+  "manufacturer": "Nokia",
+  "model": "N8",
+  "year": 2010,
+  "variant": "Dark Grey",
+  "status": "review-draft",
+  "coordinateSystem": "normalized-0-1",
+  "screen": {
+    "width": 360,
+    "height": 640,
+    "rect": {
+      "x": 0.1423076923076923,
+      "y": 0.1611328125,
+      "width": 0.7269230769230769,
+      "height": 0.65625
+    }
+  },
+  "body": {
+    "width": 1040,
+    "height": 2048,
+    "aspectRatio": 0.5078125,
+    "sourceWidth": 1024,
+    "sourceHeight": 1536,
+    "sourceCrop": [
+      140,
+      40,
+      880,
+      1497
+    ]
+  },
+  "input": {
+    "kind": "touchscreen",
+    "pointer": true,
+    "externalKeypad": true
+  },
+  "buttons": [
+    {
+      "id": "menu",
+      "label": "Menu / Home",
+      "polygon": [
+        [
+          0.17972973,
+          0.93342485
+        ],
+        [
+          0.32972973,
+          0.93342485
+        ],
+        [
+          0.32972973,
+          0.9540151
+        ],
+        [
+          0.17972973,
+          0.9540151
+        ]
+      ]
+    }
+  ],
+  "keyMappings": {
+    "menu": null
+  },
+  "assets": {
+    "body": "body.webp",
+    "png": "body.png",
+    "glass": "glass.png",
+    "hitboxes": "hitboxes.svg",
+    "preview": "preview.webp"
+  },
+  "views": {
+    "full": {
+      "body": "body.webp",
+      "glass": "glass.png",
+      "width": 1040,
+      "height": 2048,
+      "screenRect": {
+        "x": 0.1423076923076923,
+        "y": 0.1611328125,
+        "width": 0.7269230769230769,
+        "height": 0.65625
+      },
+      "controls": "buttons"
+    },
+    "screen": {
+      "body": "zoom.webp",
+      "png": "zoom.png",
+      "glass": "zoom-glass.png",
+      "width": 1040,
+      "height": 1877,
+      "aspectRatio": 0.554075652637187,
+      "cropInFull": {
+        "x": 0.0,
+        "y": 0.0,
+        "width": 1.0,
+        "height": 0.91650390625
+      },
+      "screenRect": {
+        "x": 0.1423076923076923,
+        "y": 0.17581246670218434,
+        "width": 0.7269230769230769,
+        "height": 0.7160362280234417
+      },
+      "buttons": [],
+      "controls": "external"
+    }
+  },
+  "notes": [
+    "Original generated illustration; historical/typography acceptance pending.",
+    "2048px export; native resolution and measured masks are retained in design/phones.",
+    "Zoom is the same upper shell cropped above the hardware controls; it never changes emulation.",
+    "Photographic references and measurement notes are in references.md.",
+    "Native Symbian / N-Gage requires the separately selected EKA2L1 profile and verified firmware. Artwork never supplies firmware."
+  ]
+}

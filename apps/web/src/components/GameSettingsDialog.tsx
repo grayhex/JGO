@@ -1,6 +1,6 @@
 import { getLastGame, setLastGame } from '../lastGame';
 import { t as translateUI } from '../i18n';
-import { SCREEN_PRESETS, KEY_LAYOUTS, type GameMeta, type GameSettings, type LayoutId } from '@j2me-web/protocol';
+import { GAME_PLATFORM_LABELS, SCREEN_PRESETS, KEY_LAYOUTS, type GameMeta, type GameSettings, type LayoutId } from '@j2me-web/protocol';
 import { useState } from 'react';
 import { api } from '../api';
 import type { Toast } from '../App';
@@ -8,6 +8,7 @@ import { Modal } from './Modal';
 import { Switch } from './ui';
 
 export function GameSettingsDialog({ game, toast, onClose, onChanged }: { game: GameMeta; toast: (k: Toast['kind'], t: string) => void; onClose: () => void; onChanged: () => void }) {
+  const j2me = (game.platform ?? 'j2me') === 'j2me';
   const [s, setS] = useState<GameSettings>(game.settings);
   const [delSaves, setDelSaves] = useState(false);
   const [title, setTitleText] = useState(game.name);
@@ -35,12 +36,14 @@ export function GameSettingsDialog({ game, toast, onClose, onChanged }: { game: 
         <span className="hint">{translateUI("The title applies to every version of the game.")}</span>
       </div>
       <dl className="facts">
+        <dt>{translateUI("Game platform")}</dt><dd>{GAME_PLATFORM_LABELS[game.platform ?? 'j2me']}</dd>
         <dt>{translateUI("Vendor")}</dt><dd>{game.vendor}</dd>
         <dt>{translateUI("Version")}</dt><dd>{game.version || '—'}</dd>
-        <dt>{translateUI("Size")}</dt><dd>{(game.sizeBytes / 1024).toFixed(0)} {translateUI("KB · class v")}{game.classVersion || '?'} · {translateUI(game.hasJad ? 'with JAD' : 'no JAD')}</dd>
+        <dt>{translateUI("Size")}</dt><dd>{(game.sizeBytes / 1024).toFixed(0)} {j2me ? <>{translateUI("KB · class v")}{game.classVersion || '?'} · {translateUI(game.hasJad ? 'with JAD' : 'no JAD')}</> : translateUI("KB")}</dd>
         <dt>{translateUI("SHA-256")}</dt><dd className="mono">{game.sha256.slice(0, 16)}…</dd>
       </dl>
       {game.warnings.map((w) => <p key={w} className="note warn">{w}</p>)}
+      {j2me ? <>
       <p className="hint">{translateUI("Editing resolution or key layout enables Advanced mode for this game.")}</p>
       <label className="field">
         <span className="label-caps">{translateUI("Screen resolution")}</span>
@@ -71,6 +74,7 @@ export function GameSettingsDialog({ game, toast, onClose, onChanged }: { game: 
           </select>
         </label>
       )}
+      </> : <p className="note">{translateUI('Native games use their own firmware and framebuffer. Choose the device and check readiness in the player.')}</p>}
       <div className="modal-actions">
         <Switch checked={delSaves} onChange={setDelSaves}>{translateUI("also delete saves")}</Switch>
         <button className="btn danger" onClick={del}>{translateUI("Delete")}</button>

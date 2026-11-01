@@ -1,3 +1,5 @@
+import { useNativePhone } from '../nativePhone';
+import { NativeTestingPanel } from './NativeTestingPanel';
 import { t as translateUI } from '../i18n';
 import { useDeveloperMode } from '../developer';
 import { isPhoneId, resolvePhone } from '@j2me-web/protocol';
@@ -38,6 +40,8 @@ const STATE_BADGE: Record<string, string> = { running: 'prod', starting: 'dev', 
 export function Player({ gameId, toast, onExit, health }: { gameId: string; toast: (k: Toast['kind'], t: string) => void; onExit: () => void; health: HealthStatus | null }) {
   const developer=useDeveloperMode();
   const [game, setGame] = useState<GameMeta | null>(null);
+  const j2me = (game?.platform ?? 'j2me') === 'j2me'; // Symbian and N-Gage games (EKA2L1) have no heap, J2ME profile or game speed
+  const native = useNativePhone(game);
   const [session, setSession] = useState<SessionStatus | null>(null);
   const [state, setState] = useState<SessionState | 'idle'>('idle');
   const [conn, setConn] = useState<Conn>('idle');
@@ -88,7 +92,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   const skin: LoadedSkin | null = useMemo(() => skins?.find((s) => s.config.id === prefs.skinId) ?? null, [skins, prefs.skinId]);
   // A touch-screen monoblock (Nokia 5800, Samsung S5230) is only a display: a "screen only" view means nothing there.
   const monoblock = skin?.config.input?.kind === 'touchscreen';
-  const view: 'full' | 'screen' = monoblock ? 'full' : prefs.view;
+  const view: 'full' | 'screen' = monoblock && skin?.config.id !== 'nokia-n8' ? 'full' : prefs.view;
   const lightsActive = lights && view === 'screen';
   const wake = () => { setAwake(true); clearTimeout(wakeTimer.current); wakeTimer.current = setTimeout(() => setAwake(false), 2500); };
   useEffect(() => { try { localStorage.setItem('j2me-web.lights.v1', String(lights)); } catch {} }, [lights]);
@@ -157,6 +161,17 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   const sendRaw = useCallback((ev: Parameters<SessionStream['send']>[0]) => streamRef.current?.send(ev), []);
   /** Everything the player does goes through here, so a recording sees it. */
   const send = useCallback((ev: Parameters<SessionStream['send']>[0]) => { recorder.push(ev); sendRaw(ev); }, [recorder, sendRaw]);
+  const contacts = useRef(new Map<number, { id: number; x: number; y: number }>());
+  const releasePointers = useCallback(() => {
+    for (const contact of contacts.current.values()) send({ t: 'pointer', ...contact, s: 'U' });
+    contacts.current.clear();
+  }, [send]);
+  useEffect(() => {
+    const hidden = () => { if (document.hidden) releasePointers(); };
+    window.addEventListener('blur', releasePointers); document.addEventListener('visibilitychange', hidden);
+    return () => { window.removeEventListener('blur', releasePointers); document.removeEventListener('visibilitychange', hidden); releasePointers(); };
+  }, [releasePointers]);
+  useEffect(() => { releasePointers(); }, [prefs.skinId, view, releasePointers]);
   useEffect(() => { input.layout = session && (state === 'running' || state === 'starting') ? session.layout : layout; }, [input, layout, session?.layout, state]);
 
   const onEvent = useCallback((ev: ServerEvent) => {
@@ -305,23 +320,45 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
     window.addEventListener('pagehide',release);window.addEventListener('beforeunload',warn);
     return()=>{window.removeEventListener('pagehide',release);window.removeEventListener('beforeunload',warn);};
   },[input,state]);
+  const launchVersion = useRef(0);
   const emuPatch = Object.keys(tweaks).length ? tweaks : null;
   const emuKey = JSON.stringify(tweaks);
   const start = async () => {
-    if (!game || busy || !loaded || (!advanced && !matched)) return;
+    if (!game || busy || !loaded || (j2me ? !advanced && !matched : !native.data?.plan.ready && !(live && session?.backend === 'eka2l1' && native.data?.plan.code === 'symbian_busy'))) return;
+    const version = ++launchVersion.current;
     setBusy(true); setLog([]); setMenu(null); setPerm(null); setCpuHist([]); setFpsHist([]);
     void audio.resume(); // inside the click handler: allowed by autoplay policy
     try {
-      attach(await api.startSession(game.id, { layout, heapMb, ...(res ?? {}), device: device || null, skinId: prefs.skinId, profileMode: advanced ? 'advanced' : 'auto', emulation: emuPatch }));
+      const started = await api.startSession(game.id, j2me ? { layout, heapMb, ...(res ?? {}), device: device || null, skinId: prefs.skinId, profileMode: advanced ? 'advanced' : 'auto', emulation: emuPatch } : { skinId: prefs.skinId });
+      if (version === launchVersion.current) attach(started);
     } catch (e) {
+      if (version !== launchVersion.current) return;
       const err = e as ApiError;
       toast('error', err.message);
       setLog(err.message.split('\n'));
-    } finally { setBusy(false); }
+      if (!j2me) { setState('failed'); native.refresh(); }
+    } finally { if (version === launchVersion.current) setBusy(false); }
   };
 
+  // Observe the server's starting session while installation/first frame is still pending.
+  useEffect(() => {
+    if (j2me || !busy || !game) return;
+    let dead = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = async () => {
+      try {
+        const pending = (await api.sessions()).find(s => s.gameId === game.id && (s.state === 'starting' || s.state === 'running'));
+        if (!dead && pending && sessionRef.current?.id !== pending.id) attach(pending);
+      } catch { /* the launch request reports failures */ }
+      if (!dead) timer = setTimeout(tick, 700);
+    };
+    void tick();
+    return () => { dead = true; clearTimeout(timer); };
+  }, [j2me, busy, game?.id, attach]);
+
   const stop = async () => {
-    const s = sessionRef.current; if (!s || busy) return false;
+    const s = sessionRef.current; if (!s || (busy && j2me)) return false;
+    launchVersion.current++;
     input.releaseAll();
     setBusy(true);
     try {
@@ -361,7 +398,18 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
     const x = Math.round(fx * frameSize.w);
     const y = Math.round(fy * frameSize.h);
     if (s === 'D') { try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* ignore */ } }
-    send({ t: 'pointer', id: 0, s, x, y });
+    if (j2me) { send({ t: 'pointer', id: 0, s, x, y }); return; }
+    let contact = contacts.current.get(e.pointerId);
+    if (s === 'D' && !contact) {
+      const used = new Set([...contacts.current.values()].map(c => c.id));
+      const id = Array.from({ length: 8 }, (_, i) => i).find(i => !used.has(i));
+      if (id === undefined) return;
+      contact = { id, x, y }; contacts.current.set(e.pointerId, contact);
+    }
+    if (!contact) return;
+    contact.x = Math.max(0, Math.min(frameSize.w - 1, x)); contact.y = Math.max(0, Math.min(frameSize.h - 1, y));
+    send({ t: 'pointer', ...contact, s });
+    if (s === 'U') contacts.current.delete(e.pointerId);
   };
 
   const applyDevice = (id: string) => {
@@ -372,6 +420,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   // A game made for the other way up is shown on the phone whose display is landscape; turning back restores the phone.
   const skinBeforeTurn = useRef<{ skinId: string; advanced: boolean } | null>(null);
   const turnTo = (r: Rotation) => {
+    if (!j2me) { setRotation(r); return; }
     const sideways = r === 90 || r === 270;
     const portraitSkin = !!skin && skin.config.screen.height > skin.config.screen.width;
     if (sideways && portraitSkin && !skinBeforeTurn.current) {
@@ -387,32 +436,43 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
     const h = analysis?.analysis.screenHints[0];
     return h && res && (h.width !== res.width || h.height !== res.height) ? h : null;
   })();
-  const matched = !advanced && isPhoneId(prefs.skinId) && devices.length ? resolvePhone(prefs.skinId, devices) : null;
+  const matched = useMemo(() => {
+    if (!j2me || advanced || !devices.length) return null;
+    try { return resolvePhone(prefs.skinId, devices); } catch { return null; }
+  }, [j2me, advanced, prefs.skinId, devices]);
   useEffect(() => {
-    if (!loaded || advanced || !isPhoneId(prefs.skinId) || !devices.length) return;
-    const { preset, layout: phoneLayout } = resolvePhone(prefs.skinId, devices);
+    if (!loaded || !j2me || advanced || !matched) return;
+    const { preset, layout: phoneLayout } = matched;
     setDevice(preset.id); setLayout(phoneLayout); setRes({width:preset.width,height:preset.height});
-  }, [loaded,advanced,prefs.skinId,devices]);
+  }, [loaded,j2me,advanced,matched]);
   useEffect(() => {
-    if (!loaded || !res) return;
+    if (!loaded || !j2me || !res) return;
     if (!advanced && matched && (device !== matched.preset.id || res.width !== matched.preset.width || res.height !== matched.preset.height || layout !== matched.layout)) return;
     api.patchGame(gameId,{settings:{skinId:prefs.skinId,profileMode:advanced?'advanced':'auto',device:device || null,...res,layout,heapMb,emulation:emuPatch}}).catch(e=>toast('error',(e as Error).message));
-  }, [loaded,prefs.skinId,advanced,device,res?.width,res?.height,layout,heapMb,gameId,emuKey]);
+  }, [loaded,j2me,prefs.skinId,advanced,device,res?.width,res?.height,layout,heapMb,gameId,emuKey]);
   const saveDefaults = async () => {
     if (!game || !res) return;
     try { await api.patchGame(game.id, { settings: { ...res, layout, heapMb, device: device || null, skinId:prefs.skinId,profileMode:advanced?'advanced':'auto', emulation: emuPatch } }); toast('info', 'Saved as this game’s defaults'); } catch (e) { toast('error', (e as Error).message); }
   };
 
+  const suggested = useRef<string | null>(null);
+  useEffect(() => {
+    const id = native.data?.plan.skinId;
+    if (!game || j2me || game.settings.skinId || !id || suggested.current === game.id) return;
+    suggested.current = game.id;
+    setPrefs({ skinId: id });
+    api.patchGame(game.id, { settings: { skinId: id } }).then(setGame, e => toast('error', (e as Error).message));
+  }, [game?.id, game?.settings.skinId, j2me, native.data?.plan.skinId]);
   const running = state === 'running' || state === 'starting' || state === 'stopping';
   // A game that names the screen it was made for (manifest or JAD) is set up for it once, without asking.
   const hintApplied = useRef<string | null>(null);
   useEffect(() => {
-    if (!loaded || running || advanced || !sizeHint || hintApplied.current === gameId) return;
+    if (!loaded || !j2me || running || advanced || !sizeHint || hintApplied.current === gameId) return;
     hintApplied.current = gameId;
     setAdvanced(true); setDevice(''); setRes({ width: sizeHint.width, height: sizeHint.height });
     if (sizeHint.width > sizeHint.height) setPrefs({ skinId: 'nokia-e71' });
-  }, [loaded, running, advanced, sizeHint?.width, sizeHint?.height, gameId]);
-  const canStart = !!game && !running && !busy && health?.ok !== false;
+  }, [loaded, j2me, running, advanced, sizeHint?.width, sizeHint?.height, gameId]);
+  const canStart = !!game && loaded && !running && !busy && (j2me ? health?.ok !== false && (advanced || !!matched) : native.data?.plan.ready === true);
   const resKey = res ? `${res.width}x${res.height}` : '';
   const needRestart = running && res && session && (res.width !== session.width || res.height !== session.height || device !== (session.device ?? '') || layout !== session.layout || heapMb !== session.heapMb);
   const dev = devices.find((d) => d.id === device);
@@ -430,7 +490,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
       {game && game.classVersion >= 49 ? <p className="error">{translateUI("Java 5+ class files are not supported.")}</p> : (
         <button className="btn primary" disabled={!canStart} onClick={start}><Icon name="play" /> {translateUI(busy ? 'Starting…' : state === 'idle' ? 'Start' : 'Start again')}</button>
       )}
-      {health?.ok === false && <p className="error">{translateUI("Emulator runtime is not ready.")}</p>}
+      {j2me && health?.ok === false && <p className="error">{translateUI("Emulator runtime is not ready.")}</p>}
     </>
   ) : undefined;
 
@@ -449,7 +509,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
           <div className="stage-actions">
             <span className={`badge ${STATE_BADGE[state] ?? ''} ${live ? 'live' : ''}`} data-testid="state-badge"><span className="dot" />{translateUI(state === 'idle' ? 'stopped' : state)}{translateUI(conn === 'reconnecting' ? ' · reconnecting…' : '')}{pauseInfo?.on && live ? translateUI(' · paused') : ''}</span>
             {live && <button className="btn ghost sm" onClick={() => send({ t: 'pause', on: !(pauseInfo?.on && pauseInfo.reason === 'manual') })} aria-pressed={!!pauseInfo?.on && pauseInfo.reason === 'manual'} title={translateUI('Suspend the game: pauseApp is called, the picture stops')}>{translateUI(pauseInfo?.on && pauseInfo.reason === 'manual' ? '▶ Resume' : '⏸ Pause')}</button>}
-            {!monoblock && <Seg label={translateUI("View")} value={prefs.view} onChange={(view) => setPrefs({ view })} options={[{ value: 'full', label: <><Icon name="phone" /> {translateUI("Phone")}</>, title: 'Whole phone, body keys active' }, { value: 'screen', label: <><Icon name="zoom" /> {translateUI("Screen")}</>, title: 'Enlarged display; controls below' }]} />}
+            {(!monoblock || skin?.config.id === 'nokia-n8') && <Seg label={translateUI("View")} value={prefs.view} onChange={(view) => setPrefs({ view })} options={[{ value: 'full', label: <><Icon name="phone" /> {translateUI("Phone")}</>, title: 'Whole phone, body keys active' }, { value: 'screen', label: <><Icon name="zoom" /> {translateUI("Screen")}</>, title: 'Enlarged display; controls below' }]} />}
             {view === 'screen' && <button className="btn ghost sm" onClick={()=>setLights(v=>!v)} aria-label={translateUI("Lights Out")} aria-pressed={lights} title={translateUI("Lights Out · Alt+L")}>{translateUI("☾ Lights Out")}</button>}
             <button className="btn ghost sm icon" onClick={() => turnTo(nextRotation(rotation))} aria-label={translateUI("Rotate the picture")} title={translateUI("Rotate the picture (for games made for landscape)")} data-testid="rotate"><Icon name="rotate" /></button>
             <button className="btn ghost sm icon" onClick={() => void shot('save')} disabled={!lastFrame.current} aria-label={translateUI("Save a screenshot")} title={translateUI("Save a screenshot (PNG, the game's own size)")} data-testid="screenshot"><Icon name="camera" /></button>
@@ -493,19 +553,21 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
           <div className="btn-row">
             {!running
               ? <button className="btn primary grow" disabled={!canStart} onClick={start}><Icon name="play" /> {translateUI("Start")}</button>
-              : <button className="btn danger grow" onClick={stop} disabled={busy || state === 'stopping'} title={translateUI("Stop requests a safe MIDlet shutdown. An unresponsive game may be forcibly closed after 8 seconds; unsaved in-game progress can be lost. Save inside the game first.")}><Icon name="stop" /> {translateUI("Stop")}</button>}
-            {running && <button className="btn" disabled={busy || state === 'stopping'} onClick={async () => { if (await stop()) setTimeout(start, 400); }}><Icon name="restart" /> {translateUI("Restart")}</button>}
+              : <button className="btn danger grow" onClick={stop} disabled={(busy && j2me) || state === 'stopping'} title={translateUI("Stop requests a safe MIDlet shutdown. An unresponsive game may be forcibly closed after 8 seconds; unsaved in-game progress can be lost. Save inside the game first.")}><Icon name="stop" /> {translateUI("Stop")}</button>}
+            {running && <button className="btn" disabled={busy || state === 'stopping' || (!j2me && !native.data?.plan.ready && native.data?.plan.code !== 'symbian_busy')} onClick={async () => { if (await stop()) setTimeout(start, 400); }}><Icon name="restart" /> {translateUI("Restart")}</button>}
           </div>
-          {running && <div className="field"><span className="label-caps">{translateUI("Game speed")}</span>
+          {running && j2me && <div className="field"><span className="label-caps">{translateUI("Game speed")}</span>
             <Seg<string> label={translateUI("Game speed")} value={String(speed)} onChange={(v) => send({ t: 'speed', modifier: Number(v) })}
               options={[{ value: '-75', label: '×0.25' }, { value: '-50', label: '×0.5' }, { value: '1', label: '×1' }, { value: '2', label: '×2' }, { value: '4', label: '×4' }]} />
             {![-75, -50, 1, 2, 4].includes(speed) && <span className="hint">{translateUI("Custom speed")}: {speed}</span>}
           </div>}
           {session && <button className="btn ghost sm" onClick={() => api.diagnostics(session.id).then((b) => downloadBlob(b, `jgo-diagnostics-${fileSafe(game?.name ?? 'game')}.txt`), (e) => toast('error', (e as Error).message))} title={translateUI("A text report with the settings, the emulator log and the JVM state: attach it to a bug report")} data-testid="diagnostics">{translateUI("Download diagnostics")}</button>}
           {state === 'failed' && <div className="note err">{translateUI("The emulator stopped unexpectedly. The log below has the details.")}</div>}
-          {health?.ok === false && <div className="note warn">{translateUI("The emulator runtime is not ready on this server.")}</div>}
+          {j2me && health?.ok === false && <div className="note warn">{translateUI("The emulator runtime is not ready on this server.")}</div>}
         </Panel>
 
+        {!j2me && game && <NativeTestingPanel game={game} data={native.data} error={native.error} running={running || busy} starting={busy || state === 'starting'} onChanged={setGame} onRefresh={native.refresh} onSkin={id => setPrefs({ skinId: id })} toast={toast} />}
+        {j2me && (
         <Panel icon="device" title={translateUI("Emulation profile")}>
           <div className="chips" data-testid="phone-profile-match">
             {res && <span className="chip" title={translateUI("Screen the game renders")}><Icon name="device" /> {res.width}×{res.height}</span>}
@@ -540,10 +602,13 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
           {needRestart && <div className="note warn" role="status">{translateUI("The running game keeps its current profile. Restart to apply the selected phone/profile.")} <button className="btn sm" disabled={busy || state === 'stopping'} onClick={async()=>{if(await stop())await start();}}>{translateUI("Restart with selected profile")}</button></div>}
           <button className="btn sm" onClick={saveDefaults} disabled={!game || !res}>{translateUI("Save as game defaults")}</button>
         </Panel>
+        )}
 
+        {j2me && (
         <Panel icon="sliders" title={translateUI("Game compatibility options")} open={false}>
           <EmulationTweaksForm value={tweaks} onChange={setTweaks} />
         </Panel>
+        )}
 
         <Panel icon="layers" title={translateUI("Display")}>
           <div className="chips">
@@ -571,9 +636,9 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
           <RecordingPanel gameId={gameId} gameName={game?.name ?? gameId} frame={frameSize} live={live} recorder={recorder} replayer={replayer} sendRaw={sendRaw} toast={toast} />
         </Panel>
 
-        <Panel icon="library" title={translateUI("Game files")} open={false}>
+        {j2me && <Panel icon="library" title={translateUI("Game files")} open={false}>
           <GameFilesPanel gameId={gameId} toast={toast} refreshKey={state} />
-        </Panel>
+        </Panel>}
 
         <Panel icon="volume" title={translateUI("Audio")} open={false}>
           <label className="field"><span className="label-caps">{translateUI("Volume")}</span><input type="range" min={0} max={100} value={vol} onChange={(e) => setVol(Number(e.target.value))} aria-label={translateUI("Volume")} /></label>

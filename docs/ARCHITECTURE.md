@@ -14,6 +14,9 @@
   в Docker (основной вариант), LXC Proxmox VE или за обратным прокси это один порт и тот же путь. Логики развёртывания в клиенте нет.
 * **KEmulatorAdapter** (`apps/api/src/kemulator/adapter.ts`): `start`, `stop`, `keyDown`, `keyUp`, `pointerEvent`, `getStatus`,
   события `frame`, `audio`, `state`, `log`, `exit`. Держит набор нажатых клавиш, `releaseAll()`.
+* **EmulatorAdapter** (`apps/api/src/emulator.ts`) — общий интерфейс ядер. Кроме KEmulator есть необязательное ядро EKA2L1
+  (`apps/api/src/eka2l1/`, отдельный контейнер `jgo-symbian`) для Symbian S60 и N-Gage: выбор по `GameMeta.platform`, тот же `Session` и тот же WebSocket,
+  кадры с собственным размером. Подробности и список непроверенного: [SYMBIAN.md](SYMBIAN.md).
 * **Session** — на клиентов: WebSocket-подписчики, у каждого свои нажатые клавиши (отпускаются при разрыве), кэш последнего кадра
   (переподключение сразу показывает картинку), диагностика по логу (ClassNotFound, OOM, версия классов, GL, …).
 * **Кадры**: `[0x01][seq u32][enc u8][w u16][h u16][ts u32][RGBA | raw-deflate(RGBA)]`. Исходное разрешение сохраняется,

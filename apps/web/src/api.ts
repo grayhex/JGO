@@ -1,6 +1,6 @@
-import type { CatalogReport, DevicePreset, GameClassification, Genre, GenreSummary, EmulationTweaks, GameFileEntry, GameInfo, GameMeta, GameSettings, HealthStatus, LibraryCheck, LibraryRoot, MetadataJob, MobyCandidate, PublicSettings, ScanReport, SessionStatus, SettingsResponse, SystemStatus } from '@j2me-web/protocol';
+import type { CatalogReport, DevicePreset, GameClassification, Genre, GenreSummary, EmulationTweaks, GameFileEntry, GameInfo, GameMeta, GameSettings, HealthStatus, LibraryCheck, LibraryRoot, MetadataJob, MobyCandidate, PublicSettings, Platform, ScanReport, SessionStatus, SettingsResponse, SymbianJob, SymbianStatus, SystemStatus } from '@j2me-web/protocol';
 
-export type GameSettingsPatch = Partial<Omit<GameSettings, 'device' | 'emulation'>> & { device?: string | null; emulation?: EmulationTweaks | null };
+export type GameSettingsPatch = Partial<Omit<GameSettings, 'device' | 'emulation' | 'symbianDevice' | 'emulatedDeviceId'>> & { device?: string | null; emulation?: EmulationTweaks | null; symbianDevice?: string | null; emulatedDeviceId?: string | null };
 
 export class ApiError extends Error {
   constructor(
@@ -53,11 +53,52 @@ export const api = {
     if (jad) fd.append('jad', jad, jad.name);
     return req<{ game: GameMeta; duplicate: boolean }>('/api/games', { method: 'POST', body: fd });
   },
+  /** A Symbian / N-Gage game (.sis, .sisx, .n-gage, or the .zip of an N-Gage 1.0 card). */
+  uploadPackage: async (file: File, platform?: Platform) => {
+    const fd = new FormData();
+    if (platform) fd.append('platform', platform);
+    fd.append('file', file, file.name);
+    return req<{ game: GameMeta; duplicate: boolean }>('/api/games', { method: 'POST', body: fd });
+  },
+  symbianStatus: () => req<SymbianStatus>('/api/symbian/status'),
+  /** One firmware file; the answer names it for symbianInstall. */
+  symbianUpload: (slot: 'rom' | 'rpkg' | 'archive' | 'vpl' | 'fpsx', file: File, options?: { progress: (percent: number) => void; signal: AbortSignal; bundle?: string }) => {
+    const fd = new FormData();
+    fd.append('file', file, file.name);
+    if (options) return new Promise<{ file: string }>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const abort = () => xhr.abort();
+      const cleanup = () => options.signal.removeEventListener('abort', abort);
+      xhr.open('POST', `/api/symbian/firmware?slot=${slot}${options.bundle ? `&bundle=${options.bundle}` : ''}`);
+      xhr.withCredentials = true;
+      xhr.upload.onprogress = e => { if (e.lengthComputable) options.progress(Math.round(e.loaded / e.total * 100)); };
+      xhr.onload = () => {
+        cleanup();
+        let body: { file?: string; error?: string; message?: string } = {};
+        try { body = JSON.parse(xhr.responseText); } catch { /* proxy HTML error */ }
+        if (xhr.status >= 200 && xhr.status < 300 && body.file) resolve({ file: body.file });
+        else reject(new ApiError(xhr.status, body.error ?? 'upload_failed', body.message ?? `HTTP ${xhr.status}`));
+      };
+      xhr.onerror = () => { cleanup(); reject(new ApiError(0, 'network', 'Cannot reach the server')); };
+      xhr.onabort = () => { cleanup(); reject(new ApiError(0, 'cancelled', 'Upload cancelled')); };
+      options.signal.addEventListener('abort', abort, { once: true });
+      if (options.signal.aborted) { cleanup(); reject(new ApiError(0, 'cancelled', 'Upload cancelled')); return; }
+      xhr.send(fd);
+    });
+    return req<{ file: string }>(`/api/symbian/firmware?slot=${slot}`, { method: 'POST', body: fd });
+  },
+  symbianInstall: (files: import('@j2me-web/protocol').FirmwareInstallRequest) => req<SymbianJob>('/api/symbian/firmware/install', jsonInit('POST', files)),
+  symbianDiscardBundle: (bundle: string) => req<void>(`/api/symbian/firmware/bundles/${bundle}`, { method: 'DELETE' }),
+  symbianDefault: (platform: 'symbian' | 'ngage' | 'ngage2', code: string | null) => req<{ defaults: Record<string, string> }>('/api/symbian/defaults', jsonInit('PUT', { platform, code })),
+  symbianJob: (id: string) => req<SymbianJob>(`/api/symbian/jobs/${id}`),
+  symbianRemove: (code: string) => req<SymbianJob>(`/api/symbian/firmware/${encodeURIComponent(code)}`, { method: 'DELETE' }),
   patchGame: (id: string, patch: { favorite?: boolean; settings?: GameSettingsPatch }) => req<GameMeta>(`/api/games/${id}`, jsonInit('PATCH', patch)),
   deleteGame: (id: string, saves: boolean) => req<void>(`/api/games/${id}${saves ? '?saves=1' : ''}`, { method: 'DELETE' }),
   iconUrl: (id: string) => `/api/games/${id}/icon`,
   startSession: (gameId: string, settings?: GameSettingsPatch) => req<SessionStatus>('/api/sessions', jsonInit('POST', { gameId, settings })),
   devices: () => req<{ presets: DevicePreset[]; defaultName: string | null }>('/api/devices'),
+  phones: () => req<import('@j2me-web/protocol').PhoneCatalog>('/api/phones'),
+  phonePlan: (id: string) => req<{ status: SymbianStatus; plan: import('@j2me-web/protocol').NativePhonePlan }>(`/api/games/${id}/phone`),
   analysis: (id: string) => req<{ analysis: JarAnalysisView; recommendedDevice: string | null }>(`/api/games/${id}/analysis`),
   sessions: () => req<SessionStatus[]>('/api/sessions'),
   session: (id: string) => req<SessionStatus>(`/api/sessions/${id}`),

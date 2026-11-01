@@ -1,0 +1,39 @@
+diff --git a/src/emu/loader/src/fpsx.cpp b/src/emu/loader/src/fpsx.cpp
+index caeadce..42274dc 100644
+--- a/src/emu/loader/src/fpsx.cpp
++++ b/src/emu/loader/src/fpsx.cpp
+@@ -617,7 +617,7 @@ namespace eka2l1::loader::firmware {
+             return std::nullopt;
+         }
+ 
+-        if ((header.magic_ < 176) && (header.magic_ > 178)) {
++        if ((header.magic_ < 176) || (header.magic_ > 178)) {
+             LOG_ERROR(LOADER, "Invalid header magic number {}", header.magic_);
+             return std::nullopt;
+         }
+@@ -630,6 +630,13 @@ namespace eka2l1::loader::firmware {
+             header.header_size_ = common::byte_swap(header.header_size_);
+         }
+ 
++        // The factory installer accepts user-supplied FPSX streams. Reject
++        // impossible header sizes before allocating metadata from their counts.
++        if (header.header_size_ < 4 || header.header_size_ > stream.size() - 5) {
++            LOG_ERROR(LOADER, "FPSX header size is outside the file");
++            return std::nullopt;
++        }
++
+         std::uint32_t tlv_entry_num = 0;
+         if (stream.read(&tlv_entry_num, 4) != 4) {
+             return std::nullopt;
+@@ -639,6 +646,11 @@ namespace eka2l1::loader::firmware {
+             tlv_entry_num = common::byte_swap(tlv_entry_num);
+         }
+ 
++        if (tlv_entry_num > 65536 || tlv_entry_num > header.header_size_ - 4) {
++            LOG_ERROR(LOADER, "FPSX TLV count is outside the header");
++            return std::nullopt;
++        }
++
+         header.tlv_entries_.resize(tlv_entry_num);
+         const std::size_t current_pos = stream.tell();
+ 

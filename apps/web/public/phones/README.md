@@ -1,10 +1,10 @@
 # Phone artwork for J2ME Web
 
-Ten independently shaped handset illustrations, **review drafts**. Files are original generated artwork informed by the linked photographic references; they are not manufacturer-authorized reproductions. Historical acceptance (especially tiny legends, materials and precise physical key boundaries) is still required. Reference independence gaps are recorded in each references.md; do not interpret export validation as historical certification.
+Fifteen independently shaped handset illustrations, **review drafts**. Files are original generated artwork informed by the linked photographic references; they are not manufacturer-authorized reproductions. Historical acceptance (especially tiny legends, materials and precise physical key boundaries) is still required. Reference independence gaps are recorded in each references.md; do not interpret export validation as historical certification.
 
 ## Files per phone
 
-- `body.png`, `body.webp`: full phone, RGBA / lossless alpha, 2048 px export height.
+- `body.png`, `body.webp`: full phone, RGBA / lossless alpha, up to 2048 px export height; the new landscape N-Gage exports use a 2048 px long edge.
 - `zoom.png`, `zoom.webp`: upper shell with active display, without the lower hardware controls. This is a crop of the full export, not a new drawing; alignment is identical.
 - `glass.png`, `zoom-glass.png`: intentionally empty transparent optional layers, no glare.
 - `hitboxes.svg`: full-view physical control regions, transparent by default.
@@ -20,7 +20,7 @@ python3 tools/phones/export_measured.py
 python3 tools/phones/validate_assets.py
 ```
 
-`export_assets.py` retains the original five exports. `export_measured.py` reads `design/phones/<id>/layout.json` for W995, K790i, RAZR V3, 5800 and S5230; it does not rewrite the original five. Each measured file records native pixel coordinates, the source crop, LCD bounds, individual physical key polygons and a silhouette mask. `source.png` is immutable. Technical alpha masks remove generator fringes without redrawing the handset. `generation.json` records provenance; `silhouette.svg` makes the mask reviewable.
+`export_assets.py` retains the original five exports. `export_measured.py` reads `design/phones/<id>/layout.json` for W995, K790i, RAZR V3, 5800, S5230 and the five new Nokia models; it does not rewrite the original five. Each measured file records native pixel coordinates, the source crop, LCD bounds, individual physical key polygons and a silhouette mask. `source.png` is immutable. Technical alpha masks remove generator fringes without redrawing the handset. `generation.json` records provenance; `silhouette.svg` makes the mask reviewable.
 
 ## Coordinates and two view modes
 
@@ -51,3 +51,7 @@ Validation checks exact zero alpha inside full and zoom active windows (PNG and 
 Body illustrations have not been visually signed off. Some button polygons approximate the physical curves; compare debug overlays with reference photos before final acceptance. K750i Back currently shares the clear gameplay binding; this does not assert that the two physical keys are equivalent on a real device. Empty glass layers are intentional. No game/menu image is embedded in any active display.
 
 Integration task: see `docs/PHONE_SKINS_AGENT_PROMPT.md`.
+
+## Unified emulation catalog
+
+N-Gage Classic, N-Gage QD, N70, 5320 XpressMusic and N8 use the same measured export/renderer as the existing sets. N-Gage zoom uses a central `zoomCrop` (both axes), preserving its portrait LCD inside a landscape body. See [docs/PHONES.md](../../../../docs/PHONES.md) for the independent PhoneSkin / EmulatedDevice / GamePlatform entities, native firmware readiness and testing UI. Native OS/firmware is never inferred from artwork.

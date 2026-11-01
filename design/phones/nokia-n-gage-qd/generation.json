@@ -1,0 +1,10 @@
+{
+  "tool": "image_gen",
+  "date": "2026-11-01",
+  "sourceGeneration": "exec-2c51f02f-f704-4d0f-b718-cbe77dd47af1.png",
+  "phoneInstruction": "Nokia N-Gage QD original 2004, orange/silver special color as photographed, dark grey rubber outer rim. Horizontal oval handheld 118 mm wide by 68 mm high, center PORTRAIT screen 176:208 = 11:13. Left four-way orange/silver cross-shaped pad with round silver rim, small circular joystick fire/select below right of pad. On RIGHT exactly 12 curved numeric keys four rows of 3: 1 2 3 / 4 5 6 / 7 8 9 / * 0 #. Orange and silver alternating keys faithfully as photo. Green call bottom left, red end bottom right. Thin selection/menu keys by lower screen corners, C/pencil upper right. N-GAGE logo below screen. Faithfully follow museum photo geometry and physical key boundaries.",
+  "method": "Original frontal illustration conditioned on the linked photographic reference.",
+  "technicalEdits": "Measured silhouette alpha and LCD aperture; crop, resize and lossless exports. See layout.json and tools/phones/export_measured.py.",
+  "referenceDossier": "apps/web/public/phones/nokia-n-gage-qd/references.md",
+  "historicalAcceptance": "review-draft"
+}

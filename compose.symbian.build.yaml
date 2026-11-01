@@ -1,0 +1,9 @@
+# Developer-only: build the jgo-symbian image from this checkout (compiles EKA2L1: long).
+#   docker compose -f compose.yaml -f compose.symbian.yaml -f compose.symbian.build.yaml build jgo-symbian
+services:
+  jgo-symbian:
+    build:
+      context: .
+      dockerfile: symbian/Dockerfile
+      args:
+        BASE_REGISTRY: ${BASE_REGISTRY:-docker.io/library}

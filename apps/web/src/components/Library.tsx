@@ -1,7 +1,9 @@
 import { t as translateUI } from '../i18n';
-import { GENRES, type GameMeta, type HealthStatus, type ScanReport } from '@j2me-web/protocol';
+import { GENRES, GAME_PLATFORMS, GAME_PLATFORM_LABELS, isGamePlatform, type GamePlatform, type GameMeta, type HealthStatus, type ScanReport } from '@j2me-web/protocol';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../api';
+
+const PLATFORM_LABEL: Record<string, string> = { j2me: 'Java', symbian: 'S60', ngage: 'N-Gage', ngage2: 'N-Gage 2.0' };
 import type { Toast } from '../App';
 import { navigate } from '../router';
 import { useServerSettings } from '../serverSettings';
@@ -49,6 +51,9 @@ function Cover({ g }: { g: GameMeta }) {
 export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: Toast['kind'], t: string) => void; onPlay: (id: string) => void; health: HealthStatus | null; query: string; onQuery: (v: string) => void }) {
   const [games, setGames] = useState<GameMeta[] | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
+  const [platform, setPlatform] = useState<GamePlatform | 'all'>(() => {
+    try { const value = localStorage.getItem('jgo.library.platform'); return isGamePlatform(value) ? value : 'all'; } catch { return 'all'; }
+  });
   const [view, setViewState] = useState<View>(loadView);
   const setView = (v: View) => { setViewState(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* storage unavailable */ } };
   const [dragging, setDragging] = useState(false);
@@ -109,15 +114,23 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
   const upload = useCallback(async (files: File[]) => {
     const jars = files.filter((f) => /\.jar$/i.test(f.name));
     const jads = files.filter((f) => /\.jad$/i.test(f.name));
-    if (!jars.length) { toast('error', jads.length ? 'A .jad alone cannot be played — drop the .jar too.' : 'Drop .jar (and optionally .jad) files.'); return; }
-    setUploading((n) => n + jars.length);
+    const packages = files.filter((f) => /\.(sisx?|n-gage|zip)$/i.test(f.name));
+    if (!jars.length && !packages.length) { toast('error', jads.length ? 'A .jad alone cannot be played — drop the .jar too.' : 'Drop .jar (and optionally .jad) files, or Symbian/N-Gage games (.sis, .sisx, .n-gage).'); return; }
+    setUploading((n) => n + jars.length + packages.length);
+    const done = (r: { game: GameMeta; duplicate: boolean }) => {
+      toast('info', translateUI(r.duplicate ? '“{name}” is already in the library' : 'Added “{name}”', {name:r.game.name}));
+      r.game.warnings.forEach((w) => toast('error', w));
+    };
+    for (const pkg of packages) {
+      try { done(await api.uploadPackage(pkg)); } // a .zip is taken for an N-Gage 1.0 game card dump
+      catch (e) { toast('error', `${pkg.name}: ${(e as ApiError).message}`); }
+      finally { setUploading((n) => n - 1); }
+    }
     for (const jar of jars) {
       const base = jar.name.replace(/\.jar$/i, '').toLowerCase();
       const jad = jads.find((j) => j.name.replace(/\.jad$/i, '').toLowerCase() === base) ?? (jars.length === 1 ? jads[0] : undefined);
       try {
-        const r = await api.upload(jar, jad);
-        toast('info', translateUI(r.duplicate ? '“{name}” is already in the library' : 'Added “{name}”', {name:r.game.name}));
-        r.game.warnings.forEach((w) => toast('error', w));
+        done(await api.upload(jar, jad));
       } catch (e) {
         toast('error', `${jar.name}: ${(e as ApiError).message}`);
       } finally {
@@ -145,7 +158,10 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
 
   const groups = useMemo(() => {
     const m = new Map<string, GameMeta[]>();
-    for (const g of games ?? []) (m.get(g.groupKey) ?? m.set(g.groupKey, []).get(g.groupKey)!).push(g);
+    for (const g of games ?? []) {
+      if (platform !== 'all' && (g.platform ?? 'j2me') !== platform) continue;
+      (m.get(g.groupKey) ?? m.set(g.groupKey, []).get(g.groupKey)!).push(g);
+    }
     const needle = query.trim().toLowerCase();
     return [...m.values()]
       .map((vs) => vs.sort((a, b) => b.createdAt.localeCompare(a.createdAt)))
@@ -154,7 +170,7 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
       .filter((vs) => (filter === 'favorites' ? vs.some((g) => g.favorite) : filter === 'recent' ? vs.some((g) => g.lastPlayedAt) : true))
       .filter((vs) => matchesStatus(vs, status))
       .sort((a, b) => compareGroups(a, b, filter === 'recent' && sort === 'name' ? 'played' : sort)); // "Recent" keeps its order unless another one is chosen
-  }, [games, query, filter, genre, status, sort]);
+  }, [games, query, filter, genre, status, sort, platform]);
 
   // games per genre (one per group, so the versions of a game count once), from what is already loaded
   const genreCounts = useMemo(() => {
@@ -181,11 +197,18 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
         <span className="spacer" />
         {libraryPath && <button className="btn sm" disabled={scanning} onClick={() => void api.scanStart('update').then((r) => setScan(r.report), (e) => toast('error', (e as Error).message))} title={translateUI("Look for new and changed files in the library folder")}><Icon name="restart" /> {translateUI(scanning ? 'Importing…' : 'Scan folder')}</button>}
         <button className="btn sm primary" onClick={() => fileInput.current?.click()}><Icon name="upload" /> {translateUI("Add games")}</button>
-        <input ref={fileInput} type="file" accept=".jar,.jad" multiple hidden onChange={(e) => { void upload([...(e.target.files ?? [])]); e.target.value = ''; }} />
+        <input ref={fileInput} type="file" accept=".jar,.jad,.sis,.sisx,.n-gage,.zip" multiple hidden onChange={(e) => { void upload([...(e.target.files ?? [])]); e.target.value = ''; }} />
       </div>
 
       <div className="lib-toolbar" role="search">
         <input className="input lib-search" type="search" placeholder={translateUI("Search games or vendors")} value={query} onChange={(e) => onQuery(e.target.value)} aria-label={translateUI("Search")} data-testid="search" />
+        <select className="select compact" aria-label={translateUI('Game platform')} data-testid="platform-filter" value={platform} onChange={e => {
+          const value = e.target.value as GamePlatform | 'all'; setPlatform(value);
+          try { localStorage.setItem('jgo.library.platform', value); } catch { /* storage unavailable */ }
+        }}>
+          <option value="all">{translateUI('All platforms')}</option>
+          {GAME_PLATFORMS.map(p => <option key={p} value={p}>{GAME_PLATFORM_LABELS[p]}</option>)}
+        </select>
         <select className="select compact" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} aria-label={translateUI("Sort by")} data-testid="sort">
           {SORT_KEYS.map((k) => <option key={k} value={k}>{translateUI(SORT_LABEL[k])}</option>)}
         </select>
@@ -232,7 +255,9 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
       <div className={`lib-grid${view === 'list' ? ' list' : ''}`} data-view={view}>
         {groups.map((vs) => {
           const sel = vs.find((v) => v.id === chosen[vs[0]!.groupKey]) ?? vs[0]!;
-          const bad = sel.classVersion >= 49;
+          const java = (sel.platform ?? 'j2me') === 'j2me';
+          const bad = java && sel.classVersion >= 49;
+          const blocked = bad || (java && health?.ok === false);
           const unconfirmed = !sel.classification || sel.classification.unconfirmed;
           const genreButton = (
             <button className={`badge plain genre-badge${unconfirmed ? ' unconfirmed' : ''}`} onClick={() => setGenreFor(sel)} data-testid="genre-badge"
@@ -249,6 +274,7 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
           );
           const flags = (
             <>
+              {sel.platform && sel.platform !== 'j2me' && <span className="badge mock" data-testid="platform-badge" title={translateUI("Runs in EKA2L1 (experimental), not in the Java emulator")}>{PLATFORM_LABEL[sel.platform]}</span>}
               {sel.warnings.length > 0 && <span className="badge mock" title={translateUI(sel.warnings.join('\n'))}>!</span>}
               {sel.sourceMissing && <span className="badge plain" title={translateUI("The file is no longer in the library folder; the game stays here with its saves")}>{translateUI("file gone")}</span>}
               {sel.info?.status === 'ambiguous' && <span className="badge mock" title={translateUI("Several MobyGames matches: open the info to choose")}>{translateUI("review")}</span>}
@@ -266,8 +292,8 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
           );
           if (view === 'list') return (
             <article className="card game-card game-row" key={sel.groupKey}>
-              <button className="row-cover" tabIndex={-1} aria-hidden onClick={() => onPlay(sel.id)} disabled={bad || health?.ok === false}><Cover g={sel} /></button>
-              <button className="card-main row-title" onClick={() => onPlay(sel.id)} disabled={bad || health?.ok === false} title={translateUI(bad ? 'Java 5+ class files are not supported by KEmulator' : `Play ${sel.name}`)}>
+              <button className="row-cover" tabIndex={-1} aria-hidden onClick={() => onPlay(sel.id)} disabled={blocked}><Cover g={sel} /></button>
+              <button className="card-main row-title" onClick={() => onPlay(sel.id)} disabled={blocked} title={translateUI(bad ? 'Java 5+ class files are not supported by KEmulator' : `Play ${sel.name}`)}>
                 <h3>{sel.name}</h3>
                 <span className="row-flags">{flags}</span>
               </button>
@@ -280,7 +306,7 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
           );
           return (
             <article className="card game-card" key={sel.groupKey}>
-              <button className="card-main" onClick={() => onPlay(sel.id)} disabled={bad || health?.ok === false} title={translateUI(bad ? 'Java 5+ class files are not supported by KEmulator' : `Play ${sel.name}`)}>
+              <button className="card-main" onClick={() => onPlay(sel.id)} disabled={blocked} title={translateUI(bad ? 'Java 5+ class files are not supported by KEmulator' : `Play ${sel.name}`)}>
                 <Cover g={sel} />
                 <div className="meta">
                   <h3>{sel.name}</h3>
@@ -301,7 +327,7 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
       </div>
       {games && games.length > 0 && groups.length === 0 && <p className="muted center">{translateUI("No games match.")}</p>}
       {uploading > 0 && <div className="uploading">{translateUI("Uploading")} {uploading}…</div>}
-      {dragging && <div className="dropzone"><div><strong>{translateUI("Drop to add")}</strong><br />{translateUI(".jar and .jad files")}</div></div>}
+      {dragging && <div className="dropzone"><div><strong>{translateUI("Drop to add")}</strong><br />{translateUI(".jar, .jad, .sis, .sisx, .n-gage files")}</div></div>}
       {genreFor && <GenreDialog game={genreFor} toast={toast} onClose={() => setGenreFor(null)} onChanged={() => { setGenreFor(null); void reload(); }} />}
       {infoFor && <GameInfoDialog game={infoFor} toast={toast} onClose={() => setInfoFor(null)} onChanged={() => void reload()} />}
       {editing && <GameSettingsDialog game={editing} toast={toast} onClose={() => setEditing(null)} onChanged={() => { setEditing(null); void reload(); }} />}

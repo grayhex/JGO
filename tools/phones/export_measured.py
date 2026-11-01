@@ -56,7 +56,9 @@ def export(folder):
     cx, cy, right, bottom = layout['crop']
     image = image.crop((cx, cy, right, bottom))
     width, height = image.size
-    output_height = 2048
+    # A horizontal N-Gage is already wider than its portrait source peers. Cap
+    # its long edge instead of enlarging the same source into an 8 MP download.
+    output_height = min(2048, math.floor(layout.get('maxExportWidth', 10**9) * height / width))
     output_width = round(width * output_height / height)
     output = image.resize((output_width, output_height), Image.Resampling.LANCZOS)
     resolution = layout['screen']
@@ -76,9 +78,14 @@ def export(folder):
     preview = output.copy()
     preview.thumbnail((400, 600))
     preview.save(dest / 'preview.webp', lossless=True, method=6)
-    zoom_height = round((layout['zoomBottom'] - cy) * output_height / height)
-    assert ey + eh < zoom_height < output_height
-    zoom = output.crop((0, 0, output_width, zoom_height))
+    # Landscape N-Gage bodies have controls beside the portrait display. Crop the
+    # central shell in both axes; portrait phones keep the existing upper crop.
+    zcrop = layout.get('zoomCrop', [cx, cy, right, layout.get('zoomBottom', bottom)])
+    zx, zy, zr, zb = [round((n - origin) * scale) for n, origin, scale in zip(
+        zcrop, [cx, cy, cx, cy], [output_width/width, output_height/height]*2)]
+    assert 0 <= zx <= ex and 0 <= zy <= ey and zr >= ex + ew and zb >= ey + eh
+    assert zr <= output_width and zb <= output_height and (zr-zx)*(zb-zy) < output_width*output_height
+    zoom = output.crop((zx, zy, zr, zb))
     zoom.save(dest / 'zoom.png')
     zoom.save(dest / 'zoom.webp', lossless=True, method=6)
     Image.new('RGBA', zoom.size).save(dest / 'zoom-glass.png')
@@ -99,11 +106,11 @@ def export(folder):
         'views': {
             'full': {'body': 'body.webp', 'glass': 'glass.png', 'width': output_width, 'height': output_height, 'screenRect': rect, 'controls': 'buttons'},
             'screen': {'body': 'zoom.webp', 'png': 'zoom.png', 'glass': 'zoom-glass.png', 'width': zoom.width, 'height': zoom.height,
-                       'aspectRatio': zoom.width/zoom.height, 'cropInFull': {'x': 0, 'y': 0, 'width': 1, 'height': zoom.height/output_height},
-                       'screenRect': {'x': ex/zoom.width, 'y': ey/zoom.height, 'width': ew/zoom.width, 'height': eh/zoom.height}, 'buttons': [], 'controls': 'external'},
+                       'aspectRatio': zoom.width/zoom.height, 'cropInFull': {'x': zx/output_width, 'y': zy/output_height, 'width': zoom.width/output_width, 'height': zoom.height/output_height},
+                       'screenRect': {'x': (ex-zx)/zoom.width, 'y': (ey-zy)/zoom.height, 'width': ew/zoom.width, 'height': eh/zoom.height}, 'buttons': [], 'controls': 'external'},
         },
         'notes': ['Original generated illustration; historical/typography acceptance pending.',
-                  '2048px export; native resolution and measured masks are retained in design/phones.',
+                  'Up to 2048px export; native resolution and measured masks are retained in design/phones.',
                   'Zoom is the same upper shell cropped above the hardware controls; it never changes emulation.'] + layout['notes'],
     }
     (dest / 'config.json').write_text(json.dumps(config, ensure_ascii=False, indent=2) + '\n')

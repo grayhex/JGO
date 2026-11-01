@@ -1,5 +1,9 @@
 export * from './phones.js';
 export * from './catalog.js';
+export * from './phoneSkins.js';
+export * from './platforms.js';
+export * from './emulatedDevices.js';
+import type { Platform, EmulatorBackend } from './platforms.js';
 /**
  * Wire protocol shared by the API and the web client. It is provider-neutral:
  * nothing here knows about Docker, Cloudflare or KEmulator internals.
@@ -36,6 +40,8 @@ export interface GameFileEntry {
 }
 
 export interface GameSettings {
+  /** Explicit emulator profile; absent = choose a compatible profile for the skin/platform. */
+  emulatedDeviceId?: string;
   /** Options beyond the phone profile; see {@link EmulationTweaks}. */
   emulation?: EmulationTweaks;
   skinId?: import('./phones.js').PhoneId;
@@ -51,7 +57,13 @@ export interface GameSettings {
   midlet?: string;
   /** Id of a KEmulator device preset (see GET /api/devices); sets key codes, fullscreen policy, platform string. */
   device?: string;
+  /**
+   * Symbian / N-Gage games: the firmware (an EKA2L1 "device", by its firmware code, e.g. `RM-84`) this game runs on. Unset = the
+   * per-platform default of the Symbian service, or the only installed device. JGO never guesses between several (see docs/SYMBIAN.md).
+   */
+  symbianDevice?: string;
 }
+
 
 export interface GameMeta {
   id: string;
@@ -63,6 +75,8 @@ export interface GameMeta {
   /** Class-file major version found in the JAR (KEmulator accepts <= 48). */
   classVersion: number;
   sizeBytes: number;
+  /** Default `j2me`. */
+  platform?: Platform;
   hasIcon: boolean;
   hasJad: boolean;
   favorite: boolean;
@@ -326,6 +340,8 @@ export interface ResourceUsage {
 }
 
 export interface SessionStatus {
+  /** Which emulator runs the game. */
+  backend?: EmulatorBackend;
   layout: LayoutId;
   heapMb: number;
   id: string;
@@ -558,4 +574,47 @@ export interface DevicePreset {
   platform: string | null;
   /** Free-text platform notes for the UI/report. */
   notes: string[];
+}
+
+/** State of the optional jgo-symbian service (EKA2L1), as `/api/symbian/status` reports it. Experimental. */
+export interface SymbianStatus {
+  experimental: true;
+  /** SYMBIAN_AGENT_URL is set. */
+  configured: boolean;
+  reachable: boolean;
+  /** EKA2L1 version the service image was built from. */
+  emulator: string | null;
+  firmware: { installed: boolean; devices: { code: string; manufacturer: string; model: string }[] };
+  /** Device (firmware code) chosen for all games of a platform that have no device of their own. */
+  defaults: Partial<Record<'symbian' | 'ngage' | 'ngage2', string>>;
+  /** Files lying in the service's inbox folder (firmware that does not have to travel through HTTP). */
+  inbox: { name: string; size: number }[];
+  /** Free and total space of the service's data volume (null when the service cannot tell). */
+  disk: { free: number; total: number } | null;
+  /** A game (or a firmware job) occupies the single emulator instance. */
+  busy: boolean;
+  message: string | null;
+  maxFirmwareBytes: number;
+  maxPackageBytes: number;
+}
+
+export interface SymbianJob {
+  id: string;
+  kind: 'install_device' | 'delete_device';
+  state: 'running' | 'succeeded' | 'failed';
+  progress: number | null;
+  error?: string | null;
+  errorCode?: string | null;
+}
+
+/** Factory images keep their original names together in one isolated upload bundle. */
+export interface FirmwareInstallRequest {
+  rom?: string;
+  rpkg?: string;
+  archive?: string;
+  vpl?: string;
+  bundle?: string;
+  /** Zero-based index in the VPL VariantPackingList. Required for multiple variants. */
+  variant?: number;
+  source?: 'inbox';
 }

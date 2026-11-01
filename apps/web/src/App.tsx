@@ -3,7 +3,7 @@ import { t as translateUI } from './i18n';
 import { lazy, Suspense } from 'react';
 import { useDeveloperMode } from './developer';
 const DevPhones = import.meta.env.VITE_DEVELOPER_BUILD === 'true' ? lazy(()=>import('./dev/PhonesPage').then(m=>({default:m.PhonesPage}))) : null;
-import type { HealthStatus } from '@j2me-web/protocol';
+import type { HealthStatus, SymbianStatus } from '@j2me-web/protocol';
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from './api';
 import { SetupWizard } from './components/SetupWizard';
@@ -54,6 +54,7 @@ export function App() {
   const developer=useDeveloperMode();
   const [path, go] = usePath();
   const [health, setHealth] = useState<HealthStatus | null>(null);
+  const [symbian, setSymbian] = useState<SymbianStatus | null>(null);
   const [needLogin, setNeedLogin] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [query, setQuery] = useState('');
@@ -83,6 +84,18 @@ export function App() {
     const t = window.setInterval(() => { api.health().then(setHealth, () => undefined); }, 15000);
     return () => window.clearInterval(t);
   }, [refreshHealth, boot]);
+  useEffect(() => {
+    if (!ready || needLogin) return;
+    let dead = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = async () => {
+      try { const status = await api.symbianStatus(); if (!dead) setSymbian(status); }
+      catch { if (!dead) setSymbian(old => old ? { ...old, reachable: false } : null); }
+      if (!dead) timer = setTimeout(tick, 15000);
+    };
+    void tick();
+    return () => { dead = true; clearTimeout(timer); };
+  }, [ready, needLogin]);
 
   if (needLogin) return <Login onDone={() => { setNeedLogin(false); void refreshHealth(); void boot(); }} />;
   if (!ready) return null;
@@ -103,7 +116,7 @@ export function App() {
 
   return (
     <>
-      <Shell path={path} go={go} health={health} title={translateUI(page.title)} subtitle={translateUI(page.subtitle)}>
+      <Shell path={path} go={go} health={health} symbian={symbian} title={translateUI(page.title)} subtitle={translateUI(page.subtitle)}>
         {page.node}
       </Shell>
       {wizard && (
