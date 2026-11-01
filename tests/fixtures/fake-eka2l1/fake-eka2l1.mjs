@@ -101,7 +101,10 @@ const server = http.createServer(async (req, res) => {
       if (!['sis', 'ngage', 'ngage2'].includes(type)) return error(res, 400, 'bad_request', 'unknown install type');
       if (type === 'ngage' && !(statSync(f).isDirectory() && existsSync(path.join(f, 'system', 'apps')))) return error(res, 500, 'install_failed', 'app installation failed');
       const uid = '0x2000' + (0xa000 + apps.length + 1).toString(16).toUpperCase();
-      const app = { uid, name: path.basename(f).replace(/\.[^.]+$/, ''), system: false };
+      // test hook: how this FAKE package behaves is written in its bytes ("FAKE:launch_fail", "FAKE:crash=KERN-EXEC/3", "FAKE:exit", "FAKE:no_screen", "FAKE:shot_error", "FAKE:fonterror")
+      let text = ''; try { text = statSync(f).isFile() ? readFileSync(f, 'utf8').slice(0, 4096) : ''; } catch { /* a card directory */ }
+      const marks = [...text.matchAll(/FAKE:([A-Za-z_]+)(?:=(\S+))?/g)];
+      const app = { uid, name: path.basename(f).replace(/\.[^.]+$/, ''), system: false, ...(marks.length ? { modes: marks.map((m) => m[1]), arg: marks.find((m) => m[2])?.[2] ?? null } : {}) };
       apps.push(app); added.push(app);
     }
     writeFileSync(appsFile, JSON.stringify(apps));
@@ -109,13 +112,24 @@ const server = http.createServer(async (req, res) => {
   }
   if (p[0] === 'v1' && p[1] === 'apps' && p[3] === 'launch' && req.method === 'POST') {
     if (!apps.find((a) => a.uid.toLowerCase() === p[2].toLowerCase())) return error(res, 404, 'not_found', 'app is not installed');
+    const app = apps.find((a) => a.uid.toLowerCase() === p[2].toLowerCase());
+    const logFile = path.join(data, 'EKA2L1.log');
+    appendFileSync(logFile, `I /src/src/emu/services/src/applist/applist.cpp:510 [Service.Applist]: Loading app registries\n`);
+    if (app.modes?.includes('fonterror')) appendFileSync(logFile, `E /src/src/emu/services/src/fbs/adapter/freetype_font_adapter.cpp:137 [Service.Fbs]: FreeType failed to query face count from memory, error: unknown file format\n`);
+    if (app.modes?.includes('launch_fail')) { session = { state: 'launch_failed', uid: p[2], screenVisible: false }; appendFileSync(logFile, `E /src/src/emu/kernel/src/process.cpp:1 [Kernel]: unable to spawn process for ${app.name}\n`); return error(res, 422, 'launch_failed', 'app launch failed'); }
     session = { state: 'launching', uid: p[2], screenVisible: false };
-    setTimeout(() => { session = { state: 'running', uid: p[2], name: apps.find((a) => a.uid.toLowerCase() === p[2].toLowerCase())?.name, screenVisible: true }; }, 200);
+    setTimeout(() => {
+      if (app.modes?.includes('crash')) { session = { state: 'crashed', uid: p[2], name: app.name, screenVisible: false, lastExit: { uid: p[2], fatal: app.arg ?? 'KERN-EXEC/3' } }; appendFileSync(logFile, `E /src/src/emu/kernel/src/thread.cpp:1 [Kernel]: panic ${app.arg ?? 'KERN-EXEC/3'}\n`); return; }
+      if (app.modes?.includes('exit')) { session = { state: 'exited', uid: p[2], name: app.name, screenVisible: false, lastExit: { uid: p[2], fatal: null } }; return; }
+      session = { state: 'running', uid: p[2], name: app.name, screenVisible: !app.modes?.includes('no_screen') };
+    }, 200);
     return json(res, 200, session);
   }
   if (is('v1', 'session') && req.method === 'GET') return json(res, 200, session);
   if (is('v1', 'session') && req.method === 'DELETE') { held.clear(); pointers.clear(); session = { state: 'closed', screenVisible: false }; return json(res, 200, session); }
   if (is('v1', 'screenshot')) {
+    const cur = apps.find((a) => a.uid.toLowerCase() === String(session.uid ?? '').toLowerCase());
+    if (cur?.modes?.includes('shot_error')) return error(res, 500, 'internal', 'cannot read the guest surface');
     if (!(session.state === 'running' && session.screenVisible)) return error(res, 409, 'no_screen', 'no screen');
     const png = picture();
     res.writeHead(200, { 'content-type': 'image/png', 'content-length': png.length, 'x-frame-count': String(frames) });

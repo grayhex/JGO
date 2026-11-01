@@ -8,6 +8,8 @@ import { AgentClient, AgentError } from './agentClient.js';
 import { ekaKeyName } from './keymap.js';
 import { decodePng } from './png.js';
 import { DeviceChoiceError, pickDevice } from './device.js';
+import { classifyLog, FailureRecorder, hintsFor } from './failure.js';
+import { EMULATED_DEVICES, type StartFailure, type StartFailureCause } from '@j2me-web/protocol';
 
 export interface Eka2l1Options {
   agent: AgentClient;
@@ -23,10 +25,17 @@ export interface Eka2l1Options {
   /** Target pictures per second; the emulator draws at its own pace, duplicates are skipped. */
   fps?: number;
   launchTimeoutMs?: number;
+  /** How long to wait for the first picture after the application started. */
+  pictureTimeoutMs?: number;
   statusPollMs?: number;
 }
 
 const SYSTEM_STATES = new Set(['exited', 'crashed', 'closed', 'launch_failed']);
+
+/** A start that stopped at a known step for a known reason. */
+class StartError extends Error {
+  constructor(message: string, readonly stage: StartFailure['stage'], readonly cause: StartFailureCause) { super(message); }
+}
 
 /**
  * Runs a game in EKA2L1 inside the optional jgo-symbian container. The emulator's own HTTP control API does the work
@@ -49,6 +58,10 @@ export class Eka2l1Adapter extends EventEmitter<AdapterEvents> implements Emulat
   private statusTimer: NodeJS.Timeout | null = null;
   private stopping: Promise<ExitInfo> | null = null;
   private warned = new Set<string>();
+  private failure: StartFailure | null = null;
+  private rec = new FailureRecorder();
+  private deviceInfo: { code: string; manufacturer: string; model: string } | null = null;
+  private stage: StartFailure['stage'] = 'device';
 
   constructor(private readonly o: Eka2l1Options) {
     super();
@@ -62,6 +75,9 @@ export class Eka2l1Adapter extends EventEmitter<AdapterEvents> implements Emulat
     return { state: this._state, frames: this.frames, fps: this.fpsWindow.length / 2, exit: this.exitInfo, pid: null, firstFrameAt: this.firstFrameAt, heldKeys: [...this.held] };
   }
 
+  /** Set when start() failed: what EKA2L1 answered, and what JGO concludes from it. */
+  getFailure(): StartFailure | null { return this.failure; }
+
   private log(line: string): void { this.emit('log', `[eka2l1] ${line}`); }
   private warnOnce(key: string, line: string): void { if (!this.warned.has(key)) { this.warned.add(key); this.log(line); } }
 
@@ -70,6 +86,7 @@ export class Eka2l1Adapter extends EventEmitter<AdapterEvents> implements Emulat
     this._state = 'starting';
     const { agent } = this.o;
     try {
+      this.stage = 'device';
       const health = await agent.health();
       // decided BEFORE anything is started: a wrong choice must not cost a process
       let device;
@@ -79,16 +96,21 @@ export class Eka2l1Adapter extends EventEmitter<AdapterEvents> implements Emulat
         if (e instanceof DeviceChoiceError) throw new AgentError(e.message, e.code === 'device_required' ? 409 : 412, e.code);
         throw e;
       }
+      this.deviceInfo = device;
       this.log(`device ${device.manufacturer} ${device.model} (${device.code})`);
       const inst = await agent.startInstance({ saveKey: this.o.saveKey });
       this.log(`instance ${inst.id} started`);
       await this.waitForEmulator();
       await this.ensureDevice(device.code);
+      this.stage = 'install';
       const uid = await this.installAndFind(inst.app?.uid ?? null);
+      this.rec.uid = uid;
+      this.stage = 'launch';
       this.log(`launching ${uid}`);
-      await agent.control('POST', `/v1/apps/${uid}/launch`, { wait: true, timeoutMs: this.o.launchTimeoutMs ?? 60_000 }, (this.o.launchTimeoutMs ?? 60_000) + 10_000);
+      await this.launch(uid);
       void this.audioLoop();
-      const first = await this.waitFirstFrame();
+      this.stage = 'first_frame';
+      const first = await this.waitForPicture();
       this._state = 'running';
       this.emit('ready', first);
       void this.frameLoop();
@@ -96,12 +118,65 @@ export class Eka2l1Adapter extends EventEmitter<AdapterEvents> implements Emulat
       this.statusTimer.unref();
     } catch (e) {
       const detail = e instanceof Error ? e.message : String(e);
+      // facts first, while the instance is still alive; then the teardown
+      await this.buildFailure(e);
       await this.teardown().catch(() => undefined);
-      await this.collectLogs();
       this._state = 'exited';
-      this.exitInfo = { code: 1, reason: 1, detail };
+      this.exitInfo = { code: 1, reason: 1, detail: this.failure?.message ?? detail };
       throw e instanceof Error ? e : new Error(detail);
     }
+  }
+
+  /** Starts the application and keeps the exact answer: "launch_failed" and "running" are very different news. */
+  private async launch(uid: string): Promise<void> {
+    const timeout = this.o.launchTimeoutMs ?? 60_000;
+    try {
+      const body = await this.o.agent.control<{ state?: string; name?: string }>('POST', `/v1/apps/${uid}/launch`, { wait: true, timeoutMs: timeout }, timeout + 10_000);
+      this.rec.launch = { httpStatus: 200, code: null, message: null, session: body };
+      if (body.name) this.rec.appName = body.name;
+      this.log(`launch answered: ${JSON.stringify(body)}`);
+      if (body.state === 'launch_failed' || body.state === 'crashed' || body.state === 'exited') throw new StartError(`EKA2L1 reported the application as "${body.state}" right after the launch request`, 'launch', body.state === 'crashed' ? 'app_crashed' : body.state === 'exited' ? 'app_exited' : 'launch_rejected');
+    } catch (e) {
+      if (e instanceof StartError) throw e;
+      if (e instanceof AgentError) {
+        this.rec.launch = { httpStatus: e.status, code: e.code ?? null, message: e.message, session: null };
+        this.log(`launch refused: HTTP ${e.status} ${e.code ?? ''} ${e.message}`);
+        throw new StartError(e.status === 0 ? e.message : `EKA2L1 refused to start the application: ${e.message}${e.code ? ` (${e.code})` : ''}`, 'launch', e.status === 0 ? 'service' : 'launch_rejected');
+      }
+      throw e;
+    }
+  }
+
+  /** The conclusion of a failed start, from what was actually seen. Never a made-up picture, never a guess presented as a fact. */
+  private async buildFailure(e: unknown): Promise<void> {
+    const { agent } = this.o;
+    let cause: StartFailureCause, stage = this.stage, message = e instanceof Error ? e.message : String(e);
+    if (e instanceof StartError) { cause = e.cause; stage = e.stage; }
+    else if (e instanceof AgentError) {
+      cause = e.code === 'no_firmware' ? 'no_firmware' : e.code === 'device_missing' || e.code === 'device_required' ? 'device' : e.status === 0 ? 'service' : stage === 'install' ? 'install_failed' : 'service';
+    } else cause = stage === 'install' ? 'install_failed' : 'service';
+    // a package that installed nothing is a game/firmware matter, not a service one
+    if (stage === 'install' && /no application appeared|cannot tell which/.test(message)) cause = 'install_failed';
+    let status: unknown = null;
+    try { status = await agent.control('GET', '/v1/status'); } catch { /* the service may be gone */ }
+    try {
+      const sess = await agent.control<{ state?: string; screenVisible?: boolean; lastExit?: unknown }>('GET', '/v1/session');
+      this.rec.session({ state: sess.state ?? 'unknown', screenVisible: sess.screenVisible ?? null, lastExit: sess.lastExit ?? null });
+    } catch { /* idem */ }
+    let lines: string[] = [];
+    try { const l = await agent.logs(); lines = [...l.output, ...l.eka2l1Log]; } catch { /* idem */ }
+    const { errors, fonts } = classifyLog(lines);
+    const firmwareOs = this.deviceInfo ? EMULATED_DEVICES.find((d) => d.engine === 'eka2l1' && d.firmware.product.toLowerCase() === this.deviceInfo!.code.toLowerCase())?.os ?? null : null;
+    const lastExit = [...this.rec.timeline].reverse().find((t) => t.lastExit)?.lastExit ?? null;
+    const shotErrors = [...new Set(this.rec.screenshots.filter((x) => x.result === 'error').map((x) => `HTTP ${x.httpStatus ?? '?'} ${x.code ?? ''}`.trim()))];
+    const { hints, likelyIncompatibleGame } = hintsFor({ cause, message, platform: this.o.platform, firmwareOs, launchCode: this.rec.launch?.code ?? null, lastExit, fonts, errors, screenshotErrors: shotErrors });
+    this.failure = {
+      stage, cause, message, likelyIncompatibleGame, uid: this.rec.uid, appName: this.rec.appName, platform: this.o.platform,
+      firmware: this.deviceInfo ? { ...this.deviceInfo, os: firmwareOs } : null,
+      launch: this.rec.launch, timeline: this.rec.timeline, screenshots: this.rec.screenshots, status, emulatorErrors: errors, fontNotes: fonts, hints, elapsedMs: this.rec.elapsed(),
+    };
+    this.log(`START FAILED at "${stage}": ${cause} - ${message}`);
+    for (const h of hints) this.log(`hint: ${h}`);
   }
 
   private async waitForEmulator(): Promise<void> {
@@ -143,10 +218,12 @@ export class Eka2l1Adapter extends EventEmitter<AdapterEvents> implements Emulat
     const up = await agent.upload(kind, this.o.fileName, createReadStream(this.o.packagePath), size);
     const type = this.o.platform === 'symbian' ? 'sis' : this.o.platform;
     const res = await agent.control<{ added?: { uid: string; name: string }[] }>('POST', '/v1/apps', { path: up.path, type }, 10 * 60_000);
-    let uid = res.added?.find((a) => a.uid)?.uid ?? null;
+    const addedApp = res.added?.find((a) => a.uid);
+    let uid = addedApp?.uid ?? null;
+    if (addedApp?.name) this.rec.appName = addedApp.name;
     if (!uid) {
       const apps = await agent.control<{ apps: { uid: string; name: string }[] }>('GET', '/v1/apps');
-      if (apps.apps.length === 1) uid = apps.apps[0]!.uid;
+      if (apps.apps.length === 1) { uid = apps.apps[0]!.uid; this.rec.appName = apps.apps[0]!.name; }
       else if (apps.apps.length > 1) throw new Error(`The package installed, but the emulator lists ${apps.apps.length} applications and JGO cannot tell which one is the game`);
     }
     if (!uid) throw new Error('The package was installed but no application appeared (is it a game for this device?)');
@@ -154,17 +231,41 @@ export class Eka2l1Adapter extends EventEmitter<AdapterEvents> implements Emulat
     return uid;
   }
 
-  private async waitFirstFrame(): Promise<{ width: number; height: number }> {
-    const deadline = Date.now() + 60_000;
+  /** Waits for the first picture, but also watches the application: a crash or an exit ends the wait at once, with the reason. */
+  private async waitForPicture(): Promise<{ width: number; height: number }> {
+    const deadline = Date.now() + (this.o.pictureTimeoutMs ?? 60_000);
+    let lastSessionAt = 0;
+    let probes = 0, errorsOnly = true;
     while (Date.now() < deadline) {
-      const shot = await this.o.agent.screenshot(this.abort.signal);
-      if (shot) {
-        const f = decodePng(shot.png);
+      const probe = await this.o.agent.screenshotProbe(this.abort.signal);
+      this.rec.screenshot(probe);
+      probes++;
+      if (probe.kind === 'ok') {
+        const f = decodePng(probe.png);
         return { width: f.width, height: f.height };
+      }
+      if (probe.kind !== 'error') errorsOnly = false;
+      if (Date.now() - lastSessionAt >= 500) {
+        lastSessionAt = Date.now();
+        try {
+          const s = await this.o.agent.control<{ state?: string; screenVisible?: boolean; lastExit?: { fatal?: string | null } | null; name?: string }>('GET', '/v1/session');
+          const state = s.state ?? 'unknown';
+          if (s.name) this.rec.appName = s.name;
+          this.rec.session({ state, screenVisible: s.screenVisible ?? null, lastExit: s.lastExit ?? null });
+          if (SYSTEM_STATES.has(state)) {
+            const fatal = s.lastExit?.fatal;
+            if (state === 'crashed') throw new StartError(`The application crashed before it showed a picture${fatal ? ` (panic ${fatal})` : ''}`, 'first_frame', 'app_crashed');
+            if (state === 'launch_failed') throw new StartError('EKA2L1 could not start the application (launch_failed)', 'first_frame', 'launch_rejected');
+            throw new StartError(`The application ${state === 'closed' ? 'was closed' : 'exited'} before it showed a picture`, 'first_frame', 'app_exited');
+          }
+        } catch (e) {
+          if (e instanceof StartError) throw e;
+        }
       }
       await new Promise((r) => setTimeout(r, 250));
     }
-    throw new Error('The game did not show a picture within 60 s');
+    if (probes > 0 && errorsOnly) throw new StartError('EKA2L1 kept answering the screenshot request with an error, so no picture could be read', 'first_frame', 'screenshot_error');
+    throw new StartError(`The application is running but did not show a picture within ${Math.round((this.o.pictureTimeoutMs ?? 60_000) / 1000)} s`, 'first_frame', 'no_picture');
   }
 
   private async frameLoop(): Promise<void> {

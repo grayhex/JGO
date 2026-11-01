@@ -1,3 +1,48 @@
 .phones-models { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: var(--s-xl); margin-top: var(--s-xl); }
 .phone-preview { padding: var(--s-lg); text-align: center; }
-.phone-preview img { display: block; width: 100%; height: 280px; object-fit: contain; margin-bottom: var(--s-lg); }
+.phone-preview img:not(.skin-body):not(.skin-glass) { display: block; width: 100%; height: 280px; object-fit: contain; margin-bottom: var(--s-lg); } /* not the skin layers: they are sized by the skin box, a fixed height here made wide phones (N-Gage) float away from their screen */
+
+/* /phones: what a phone can run and whether its firmware is loaded */
+.phone-platforms { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin: 0; }
+.phone-platforms .chip { font-size: 0.72rem; padding: 1px 8px; }
+.phone-platforms .chip.on { background: transparent; border-color: var(--primary); color: var(--primary); font-weight: 600; }
+.phone-firmware { display: inline-flex; align-items: center; gap: 6px; margin: 2px 0 0; font-size: 0.78rem; }
+.phone-firmware .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted, #8b95a1); }
+.phone-firmware.loaded { color: var(--ok, #1f9d55); }
+.phone-firmware.loaded .dot { background: var(--ok, #1f9d55); }
+.phone-firmware.missing { color: var(--muted, #8b95a1); }
+.phone-pick.no-fit:disabled { opacity: 0.38; filter: grayscale(0.7); cursor: not-allowed; }
+.phone-pick.fits { border-color: var(--primary-tint-strong, var(--primary)); }
+.phone-nofit { color: var(--danger, #c0392b); font-size: 0.78rem; margin: 2px 0 0; font-weight: 600; }
+.phone-fit { color: var(--ok, #1f9d55); font-size: 0.78rem; margin: 2px 0 0; font-weight: 600; }
+
+/* Settings → Symbian */
+.symbian-panel h3 { margin: var(--s-xl) 0 var(--s-sm); }
+.symbian-panel h4 { margin: 0 0 2px; font-size: 1rem; }
+.sym-status { border: 1px solid var(--outline); border-radius: var(--r-lg, 12px); display: grid; gap: var(--s-md); background: var(--surface-soft); }
+.sym-status-main { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sym-status-main .spacer { flex: 1; }
+.sym-disk-text { display: flex; justify-content: space-between; gap: 12px; font-size: 0.85rem; margin-bottom: 4px; }
+.sym-meter { height: 8px; border-radius: 99px; background: var(--outline); overflow: hidden; }
+.sym-meter > span { display: block; height: 100%; background: var(--ok, #1f9d55); border-radius: 99px; }
+.sym-meter.low > span { background: var(--danger, #c0392b); }
+.sym-empty { border: 1px dashed var(--outline-strong); border-radius: var(--r-lg, 12px); padding: var(--s-xl); text-align: center; }
+.sym-empty p { margin: 4px 0; }
+.sym-devices, .sym-defaults { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-md); }
+.sym-device { display: grid; grid-template-columns: 96px 1fr auto; gap: var(--s-lg); align-items: center; border: 1px solid var(--outline); border-radius: var(--r-lg, 12px); background: var(--surface-soft); }
+.sym-thumb { width: 96px; height: 80px; display: grid; place-items: center; }
+.sym-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.sym-device-body .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.sym-device-body .chip { font-size: 0.72rem; padding: 1px 8px; }
+.sym-device-body .chip.on { background: transparent; border-color: var(--primary); color: var(--primary); }
+.sym-default { display: grid; grid-template-columns: 1fr minmax(220px, 300px); gap: var(--s-lg); align-items: start; padding: var(--s-md) var(--s-lg); border: 1px solid var(--outline); border-radius: var(--r-lg, 12px); }
+.sym-default p { margin: 2px 0 0; }
+.sym-default-pick { display: grid; gap: 6px; }
+.sym-add { display: grid; grid-template-columns: 1fr auto; gap: var(--s-lg); align-items: center; border: 1px solid var(--outline); border-radius: var(--r-lg, 12px); }
+.sym-drop { position: relative; display: grid; gap: 4px; padding: var(--s-lg); border: 2px dashed var(--outline-strong); border-radius: var(--r-lg, 12px); cursor: pointer; }
+.sym-drop:hover, .sym-drop:focus-within { border-color: var(--primary); }
+.sym-drop.has-file { border-style: solid; border-color: var(--primary); }
+.sym-drop input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.sym-drop-title { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; word-break: break-all; }
+.sym-inbox { margin-top: var(--s-lg); border: 1px solid var(--outline); border-radius: var(--r-lg, 12px); display: grid; gap: var(--s-md); }
+@media (max-width: 640px) { .sym-device { grid-template-columns: 64px 1fr; } .sym-device > .btn { grid-column: 1 / -1; } .sym-default, .sym-add { grid-template-columns: 1fr; } }

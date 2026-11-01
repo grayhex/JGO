@@ -19,6 +19,7 @@ import { UploadError } from './jar.js';
 import { analyzeJar, emulatorClassSet, readAttributes } from './analysis/analyze.js';
 import { registerAdminRoutes } from './adminRoutes.js';
 import { registerSymbianRoutes } from './symbianRoutes.js';
+import { symbianDiagnosticsText } from './eka2l1/status.js';
 import { Library, newId, validateSettings } from './library.js';
 import { MetadataService } from './metadata.js';
 import { DEFAULT_API_BASE, MobyClient } from './mobygames.js';
@@ -156,7 +157,7 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
   });
 
   app.setErrorHandler((err: Error & { statusCode?: number; code?: string }, req, reply) => {
-    if (err instanceof UploadError || err instanceof SessionError) return reply.code(err.status).send({ error: err.code, message: err.message });
+    if (err instanceof UploadError || err instanceof SessionError) return reply.code(err.status).send({ error: err.code, message: err.message, ...(err instanceof SessionError && err.details !== undefined ? { details: err.details } : {}) });
     if (err.code === 'FST_REQ_FILE_TOO_LARGE' || err.code === 'FST_FILES_LIMIT') return reply.code(413).send({ error: 'too_large', message: 'Upload too large' });
     if (err.statusCode && err.statusCode < 500) return reply.code(err.statusCode).send({ error: err.code ?? 'bad_request', message: err.message });
     req.log.error(err);
@@ -289,7 +290,7 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
     if (!game) throw new UploadError('not_found', 'Game not found', 404);
     if ((game.platform ?? 'j2me') === 'j2me') throw new UploadError('not_applicable', 'Native readiness applies to Symbian and N-Gage games.', 404);
     const status = await readSymbianStatus(cfg);
-    return { status, plan: nativePhonePlan(game.platform as 'symbian' | 'ngage' | 'ngage2', game.settings, status) };
+    return { status, plan: nativePhonePlan(game.platform as 'symbian' | 'ngage' | 'ngage2', game.settings, status, game.packageFormat) };
   });
 
   app.get<{ Params: { id: string } }>('/api/games/:id/analysis', async (req) => {
@@ -386,7 +387,7 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
   app.get<{ Params: { id: string } }>('/api/sessions/:id/diagnostics', async (req, reply) => {
     const s = sessions.get(req.params.id);
     if (!s) throw new SessionError('not_found', 'Session not found', 404);
-    const text = await buildDiagnostics({ status: s.status(), gameName: s.game.name, settings: s.game.settings, logTail: s.logTail.slice(-300), bridgeDir: s.bridgeDir, javaBin: cfg.javaBin, version: VERSION });
+    const text = await buildDiagnostics({ status: s.status(), gameName: s.game.name, settings: s.game.settings, logTail: s.logTail.slice(-300), bridgeDir: s.bridgeDir, javaBin: cfg.javaBin, version: VERSION, ...(s.status().backend === 'eka2l1' ? { extra: [{ title: 'Symbian service', body: await symbianDiagnosticsText(cfg) }] } : {}) });
     return reply.header('Content-Type', 'text/plain; charset=utf-8').header('Content-Disposition', `attachment; filename="jgo-diagnostics-${s.id}.txt"`).header('Cache-Control', 'no-store').send(text);
   });
 

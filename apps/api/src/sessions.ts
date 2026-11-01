@@ -18,7 +18,7 @@ import {
 import { ResourceMeter } from './procstats.js';
 import { writeMidletsIni, writeSoundfontProperty } from './appSettings.js';
 import { findPreset, loadDevicePresets } from './devices.js';
-import { nativePhonePlan } from '@j2me-web/protocol';
+import { emulatedDevice, nativePhonePlan, type StartFailure } from '@j2me-web/protocol';
 import { readSymbianStatus } from './eka2l1/status.js';
 import { KEmulatorAdapter, type ExitInfo, type FrameMsg } from './kemulator/adapter.js';
 import type { EmulatorAdapter } from './emulator.js';
@@ -32,6 +32,8 @@ export class SessionError extends Error {
     public code: string,
     message: string,
     public status = 400,
+    /** Machine-readable facts for the client (for example why a Symbian start failed). */
+    public details?: unknown,
   ) {
     super(message);
   }
@@ -71,6 +73,8 @@ export class Session {
   logTail: string[] = [];
   diagnostics: string[] = [];
   exit: ExitInfo | null = null;
+  /** Why a Symbian / N-Gage start failed (see StartFailure). */
+  failure: StartFailure | null = null;
   framesDropped = 0;
   /** The size of the last picture, when the emulator says it (EKA2L1); J2ME sessions use the settings. */
   private picture: { width: number; height: number } | null = null;
@@ -139,6 +143,7 @@ export class Session {
       fps: Math.round(st.fps * 10) / 10,
       exitCode: this.exit?.code ?? null,
       exitDetail: this.exit?.detail ?? null,
+      ...(this.failure ? { failure: this.failure } : {}),
       title: this.title,
       softkeys: this.softkeys,
       logTail: this.logTail.slice(-60),
@@ -480,9 +485,11 @@ export class SessionManager {
       // A local session can be replaced normally. A firmware job or an instance
       // owned by another service client must not cost the running Java session.
       if (status.busy && currentSaveKey && this.active().some(s => s.game.platform && s.game.platform !== 'j2me' && symbianSaveKey(s.owner, s.game.id) === currentSaveKey)) status.busy = false;
-      const plan = nativePhonePlan(game.platform as 'symbian' | 'ngage' | 'ngage2', overrides, status);
-      if (!plan.ready) throw new SessionError(plan.code!, plan.message, plan.code === 'symbian_unavailable' ? 503 : plan.code === 'device_required' || plan.code === 'symbian_busy' ? 409 : 412);
-      overrides = { ...overrides, symbianDevice: plan.firmwareCode!, layout: 'nokia' };
+      const plan = nativePhonePlan(game.platform as 'symbian' | 'ngage' | 'ngage2', overrides, status, game.packageFormat);
+      if (!plan.ready) throw new SessionError(plan.code!, plan.message, plan.code === 'symbian_unavailable' ? 503 : plan.code === 'device_required' || plan.code === 'symbian_busy' ? 409 : plan.code === 'incompatible_package' || plan.code === 'no_compatible_firmware' ? 422 : 412);
+      // the picture is announced at the size of the phone that matches the firmware (176x208 for an N70), not at a J2ME default
+      const dev = plan.deviceId ? emulatedDevice(plan.deviceId) : undefined;
+      overrides = { ...overrides, symbianDevice: plan.firmwareCode!, layout: 'nokia', ...(dev ? { width: dev.screen.width, height: dev.screen.height } : {}), ...(plan.skinId && !overrides.skinId ? { skinId: plan.skinId } : {}) };
     }
     if (!external && game.classVersion >= 49) {
       throw new SessionError('unsupported_jar', `This JAR contains Java ${game.classVersion - 44}+ class files; KEmulator only runs J2ME-era classes (version <= 48).`, 422);
@@ -596,6 +603,19 @@ export class SessionManager {
       return session;
     } catch (e) {
       session.state = 'failed';
+      const failure = adapter.getFailure();
+      if (failure) {
+        // keep the reason where the diagnostics and the UI can find it: not only in a toast
+        session.failure = failure;
+        session.exit = { code: 1, reason: 1, detail: failure.message };
+        session.endedAt = Date.now();
+        throw new SessionError(
+          failure.cause === 'no_firmware' ? 'no_firmware' : failure.cause === 'device' ? ((e as AgentError).code === 'device_required' ? 'device_required' : 'device_missing') : failure.cause === 'service' ? 'symbian_unavailable' : 'start_failed',
+          failure.message,
+          failure.cause === 'no_firmware' || (failure.cause === 'device' && (e as AgentError).code !== 'device_required') ? 412 : failure.cause === 'device' ? 409 : failure.cause === 'service' ? 503 : 500,
+          { failure, sessionId: session.id },
+        );
+      }
       const code = e instanceof AgentError ? (e.code === 'no_firmware' || e.code === 'device_missing' || e.code === 'device_required' ? e.code : e.status === 0 ? 'symbian_unavailable' : 'start_failed') : 'start_failed';
       throw new SessionError(code, `${(e as Error).message}`, code === 'no_firmware' || code === 'device_missing' ? 412 : code === 'device_required' ? 409 : code === 'symbian_unavailable' ? 503 : 500);
     }

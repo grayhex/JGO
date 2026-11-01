@@ -216,12 +216,91 @@ describe('Symbian service (real agent, fake EKA2L1)', () => {
     assert.doesNotMatch(t, new RegExp(TOKEN), 'the token never appears in a report');
   });
 
+  it('a Symbian 9 package is refused on Symbian 8.x firmware before anything is installed (the Worms World / N70 report)', async () => {
+    const head = Buffer.alloc(24); head.writeUInt32LE(0x10201a7a, 0);
+    const up = await uploadPkg(env.base, 'wormsworld.sisx', Buffer.concat([head, Buffer.from('FAKE:never_installed')]));
+    assert.equal(up.status, 201, JSON.stringify(up.body));
+    assert.equal(up.body.game.packageFormat, 'sis9');
+    const r = await fetch(`${env.base}/api/sessions`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ gameId: up.body.game.id }) });
+    const body = (await r.json()) as any;
+    assert.equal(r.status, 422, JSON.stringify(body));
+    assert.equal(body.error, 'incompatible_package');
+    assert.match(body.message, /Symbian 9/);
+    assert.match(body.message, /Nokia N70/);
+    // nothing was uploaded to the service or started
+    const st = (await (await fetch(`${env.base}/api/symbian/status`)).json()) as any;
+    assert.equal(st.busy, false);
+    const plan = (await (await fetch(`${env.base}/api/games/${up.body.game.id}/phone`)).json()) as any;
+    assert.equal(plan.plan.code, 'incompatible_package');
+    await fetch(`${env.base}/api/games/${up.body.game.id}?saves=1`, { method: 'DELETE' });
+  });
+
+  it('S60 and N-Gage games never inherit the J2ME default phone, and never start on a phone that cannot host them', async () => {
+    // somebody made a Sony Ericsson the default phone for new Java games...
+    const set = await fetch(`${env.base}/api/settings`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ phone: { skinId: 'sony-ericsson-k790i', width: 240, height: 320, layout: 'sonyericsson' } }) });
+    assert.equal(set.status, 200, await set.clone().text());
+    const up = await uploadPkg(env.base, 'Phone Check.sis', Buffer.from('phone check'));
+    const g = up.body.game;
+    // ...a Symbian game does not get it: no skin pinned, the screen of a typical S60 phone, a neutral layout
+    assert.equal(g.settings.skinId, undefined);
+    assert.deepEqual([g.settings.width, g.settings.height, g.settings.layout], [176, 208, 'nokia']);
+    // a stale or hand-made Sony Ericsson skin on the game is refused at the start, before anything runs
+    const patched = await fetch(`${env.base}/api/games/${g.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ settings: { skinId: 'sony-ericsson-k790i' } }) });
+    assert.equal(patched.status, 200);
+    const r = await fetch(`${env.base}/api/sessions`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ gameId: g.id }) });
+    const body = (await r.json()) as any;
+    assert.equal(r.status, 412, JSON.stringify(body));
+    assert.equal(body.error, 'incompatible_skin');
+    assert.match(body.message, /Java ME phone is not a Symbian or N-Gage device/);
+    assert.match(body.message, /Nokia N70/, 'it names a phone that fits the installed firmware');
+    // with a Nokia that has a profile the same game starts at the size of that phone
+    await fetch(`${env.base}/api/games/${g.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ settings: { skinId: 'nokia-n70' } }) });
+    const ok = await fetch(`${env.base}/api/sessions`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ gameId: g.id }) });
+    const s = (await ok.json()) as any;
+    assert.equal(ok.status, 201, JSON.stringify(s));
+    assert.deepEqual([s.width, s.height], [176, 208]);
+    await fetch(`${env.base}/api/sessions/${s.id}`, { method: 'DELETE' });
+    await waitFor(async () => !((await (await fetch(`${env.base}/api/symbian/status`)).json()) as any).busy, 'the service to be idle again', 8000);
+    await fetch(`${env.base}/api/settings`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ phone: { skinId: 'nokia-n95', width: 240, height: 320, layout: 'nokia' } }) });
+    await fetch(`${env.base}/api/games/${g.id}?saves=1`, { method: 'DELETE' });
+  });
+
+  it('a game that cannot be started says why: the failure travels with the error, is kept in the session and ends up in the diagnostics', async () => {
+    const up = await uploadPkg(env.base, 'Contra.sis', Buffer.from('FAKE:launch_fail FAKE:fonterror'));
+    const r = await fetch(`${env.base}/api/sessions`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ gameId: up.body.game.id }) });
+    const body = (await r.json()) as any;
+    assert.equal(r.status, 500, JSON.stringify(body));
+    assert.equal(body.error, 'start_failed');
+    assert.match(body.message, /refused to start the application/);
+    const f = body.details.failure;
+    assert.equal(f.cause, 'launch_rejected');
+    assert.equal(f.launch.httpStatus, 422);
+    assert.equal(f.likelyIncompatibleGame, true);
+    assert.match(f.uid, /^0x2000A/);
+    // the failed session stays inspectable, with the reason in its status and in the report
+    const sid = body.details.sessionId as string;
+    const st = (await (await fetch(`${env.base}/api/sessions/${sid}`)).json()) as any;
+    assert.equal(st.state, 'failed');
+    assert.equal(st.failure.cause, 'launch_rejected');
+    assert.match(st.exitDetail, /refused to start the application/);
+    const rep = await (await fetch(`${env.base}/api/sessions/${sid}/diagnostics`)).text();
+    assert.match(rep, /==== start failure ====/);
+    assert.match(rep, /RESULT: launch_rejected at step "launch"/);
+    assert.match(rep, /LAUNCH ANSWER: HTTP 422 launch_failed/);
+    assert.match(rep, /INCOMPATIBILITY between this game and EKA2L1/);
+    assert.match(rep, /FreeType failed to query face count/);
+    assert.match(rep, /==== Symbian service ====/);
+    assert.doesNotMatch(rep, new RegExp(TOKEN));
+    await waitFor(async () => !((await (await fetch(`${env.base}/api/symbian/status`)).json()) as any).busy, 'the service to be idle again', 8000);
+  });
+
   it('keeps the game\'s saves in the service and removes them with the game', async () => {
     const savesRoot = path.join(agentData, 'saves');
-    assert.equal(readdirSync(savesRoot).length, 1, 'one game has played, one save directory');
+    const before = readdirSync(savesRoot).length;
+    assert.equal(before, 2, 'the game that played and the one that failed to start each have a save directory');
     const d = await fetch(`${env.base}/api/games/${gameId}?saves=1`, { method: 'DELETE' });
     assert.equal(d.status, 204);
-    await waitFor(() => !existsSync(savesRoot) || readdirSync(savesRoot).length === 0, 'the service to drop the saves', 5000);
+    await waitFor(() => readdirSync(savesRoot).length === before - 1, 'the service to drop the deleted game\'s saves only', 5000);
   });
 
   it('serializes uploads in a factory bundle, including filenames that differ only by case', async () => {

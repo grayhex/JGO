@@ -1,8 +1,9 @@
 import { useNativePhone } from '../nativePhone';
 import { NativeTestingPanel } from './NativeTestingPanel';
+import { StartFailureCard } from './StartFailureCard';
 import { t as translateUI } from '../i18n';
 import { useDeveloperMode } from '../developer';
-import { isPhoneId, resolvePhone } from '@j2me-web/protocol';
+import { isPhoneId, resolvePhone, PHONE_COMPATIBILITY, skinSupportsPlatform } from '@j2me-web/protocol';
 import { TextEditor } from './TextEditor';
 import { RecordingPanel } from './RecordingPanel';
 import { getLastGame, setLastGame } from '../lastGame';
@@ -40,6 +41,7 @@ const STATE_BADGE: Record<string, string> = { running: 'prod', starting: 'dev', 
 export function Player({ gameId, toast, onExit, health }: { gameId: string; toast: (k: Toast['kind'], t: string) => void; onExit: () => void; health: HealthStatus | null }) {
   const developer=useDeveloperMode();
   const [game, setGame] = useState<GameMeta | null>(null);
+  const [failure, setFailure] = useState<{ failure: import('@j2me-web/protocol').StartFailure; sessionId: string | null } | null>(null);
   const j2me = (game?.platform ?? 'j2me') === 'j2me'; // Symbian and N-Gage games (EKA2L1) have no heap, J2ME profile or game speed
   const native = useNativePhone(game);
   const [session, setSession] = useState<SessionStatus | null>(null);
@@ -204,7 +206,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   const attach = useCallback((s: SessionStatus) => {
     streamRef.current?.close();
     sessionRef.current = s;
-    setSession(s); setSpeed(s.speed ?? 1); setState(s.state); setFrameSize({ w: s.width, h: s.height }); setLog(s.logTail);
+    setSession(s); if (s.failure) setFailure({ failure: s.failure, sessionId: s.id }); setSpeed(s.speed ?? 1); setState(s.state); setFrameSize({ w: s.width, h: s.height }); setLog(s.logTail);
     const st = new SessionStream(s.id, {
       onEvent,
       onFrame: (img) => {
@@ -326,7 +328,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   const start = async () => {
     if (!game || busy || !loaded || (j2me ? !advanced && !matched : !native.data?.plan.ready && !(live && session?.backend === 'eka2l1' && native.data?.plan.code === 'symbian_busy'))) return;
     const version = ++launchVersion.current;
-    setBusy(true); setLog([]); setMenu(null); setPerm(null); setCpuHist([]); setFpsHist([]);
+    setBusy(true); setLog([]); setMenu(null); setPerm(null); setCpuHist([]); setFpsHist([]); setFailure(null);
     void audio.resume(); // inside the click handler: allowed by autoplay policy
     try {
       const started = await api.startSession(game.id, j2me ? { layout, heapMb, ...(res ?? {}), device: device || null, skinId: prefs.skinId, profileMode: advanced ? 'advanced' : 'auto', emulation: emuPatch } : { skinId: prefs.skinId });
@@ -336,6 +338,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
       const err = e as ApiError;
       toast('error', err.message);
       setLog(err.message.split('\n'));
+      if (err.details?.failure) setFailure({ failure: err.details.failure, sessionId: err.details.sessionId ?? null });
       if (!j2me) { setState('failed'); native.refresh(); }
     } finally { if (version === launchVersion.current) setBusy(false); }
   };
@@ -455,14 +458,21 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
     try { await api.patchGame(game.id, { settings: { ...res, layout, heapMb, device: device || null, skinId:prefs.skinId,profileMode:advanced?'advanced':'auto', emulation: emuPatch } }); toast('info', 'Saved as this game’s defaults'); } catch (e) { toast('error', (e as Error).message); }
   };
 
-  const suggested = useRef<string | null>(null);
+  // A Symbian / N-Gage game is shown on a phone that can host it: its own choice when that fits, otherwise the phone that matches the
+  // installed firmware. The browser's J2ME phone preference (a Sony Ericsson, say) is never used for it.
+  const healed = useRef<string | null>(null);
   useEffect(() => {
-    const id = native.data?.plan.skinId;
-    if (!game || j2me || game.settings.skinId || !id || suggested.current === game.id) return;
-    suggested.current = game.id;
-    setPrefs({ skinId: id });
-    api.patchGame(game.id, { settings: { skinId: id } }).then(setGame, e => toast('error', (e as Error).message));
-  }, [game?.id, game?.settings.skinId, j2me, native.data?.plan.skinId]);
+    const plan = native.data?.plan;
+    if (!game || j2me || !plan?.skinId || !game.platform) return;
+    const fits = (id?: string) => !!id && isPhoneId(id) && (plan.deviceId ? PHONE_COMPATIBILITY[id].includes(plan.deviceId) : skinSupportsPlatform(id, game.platform!, game.packageFormat));
+    const shown = fits(game.settings.skinId) ? game.settings.skinId! : plan.skinId;
+    if (prefs.skinId !== shown) setPrefs({ skinId: shown });
+    const key = `${game.id}:${game.settings.skinId ?? ''}:${shown}`;
+    if (game.settings.skinId !== shown && healed.current !== key) {
+      healed.current = key;
+      api.patchGame(game.id, { settings: { skinId: shown } }).then(setGame, e => toast('error', (e as Error).message));
+    }
+  }, [game?.id, game?.settings.skinId, j2me, native.data?.plan.skinId, native.data?.plan.deviceId, prefs.skinId]);
   const running = state === 'running' || state === 'starting' || state === 'stopping';
   // A game that names the screen it was made for (manifest or JAD) is set up for it once, without asking.
   const hintApplied = useRef<string | null>(null);
@@ -566,6 +576,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
           {j2me && health?.ok === false && <div className="note warn">{translateUI("The emulator runtime is not ready on this server.")}</div>}
         </Panel>
 
+        {!j2me && failure && <StartFailureCard failure={failure.failure} sessionId={failure.sessionId} />}
         {!j2me && game && <NativeTestingPanel game={game} data={native.data} error={native.error} running={running || busy} starting={busy || state === 'starting'} onChanged={setGame} onRefresh={native.refresh} onSkin={id => setPrefs({ skinId: id })} toast={toast} />}
         {j2me && (
         <Panel icon="device" title={translateUI("Emulation profile")}>
