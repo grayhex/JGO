@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { GameFileEntry } from '@j2me-web/protocol';
+import type { GameFileEntry } from '@mgo/protocol';
 import { api } from '../api';
 import { t as translateUI } from '../i18n';
 

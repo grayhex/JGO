@@ -173,9 +173,9 @@ describe('genres: classifications by game, a catalog imported by SHA-256', () =>
     const entry = exp.json.games.find((g: any) => g.sha256 === sha(jars.other));
     assert.equal(entry.genre, 'Fighting');
     assert.equal((await call('POST', '/api/library/catalog/preview', exp.json)).json.invalid, 0);
-    // a copy of the database file, as `jgo backup` takes it, opened by a fresh library
+    // a copy of the database file, as `mgo backup` takes it, opened by a fresh library
     app.library.db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
-    const copyDir = tmpDir('jgo-backup-');
+    const copyDir = tmpDir('mgo-backup-');
     copyFileSync(path.join(app.cfg.dataDir, 'library.sqlite'), path.join(copyDir, 'library.sqlite'));
     const restored = new Library(copyDir);
     assert.equal(restored.classes.get(group.other!)?.primaryGenre, 'Fighting');
@@ -187,7 +187,7 @@ describe('genres: classifications by game, a catalog imported by SHA-256', () =>
     const extra = { guess: makeJar('Guess', { vendor: 'ACME' }), blank: makeJar('Blank', { vendor: 'ACME' }), checked: makeJar('Checked', { vendor: 'ACME' }) };
     for (const [k, jar] of Object.entries(extra)) { const { game } = app.library.add(jar, null, 1 << 30); ids[k] = game.id; group[k] = game.groupKey; }
     const item = (jar: Uint8Array, over: object) => ({ rank: 1, title: 'T', title_key: 't', genre: 'Action', genre_confidence: 'manual', sha256: sha(jar), source_relative: 'Gameloft\\Secret.jar', file: 'Secret.jar', resolution: '', vendor: 'V', version: '1', ...over });
-    const manifest = { schema: 'jgo-curator-manifest-v1', generated_by: 'J2ME Curator 1.1.0', report_source_root: '\\\\192.168.1.5\\Games', target: 500, items: [
+    const manifest = { schema: 'mgo-curator-manifest-v1', generated_by: 'J2ME Curator 1.1.0', report_source_root: '\\\\192.168.1.5\\Games', target: 500, items: [
       item(extra.checked, { title: 'Checked', genre: 'Sports' }),
       item(extra.guess, { title: 'Guess', genre: 'Strategy', genre_confidence: 'heuristic' }),
       item(extra.blank, { title: 'Blank', genre: 'Other', genre_confidence: 'unclassified' }),
@@ -195,6 +195,9 @@ describe('genres: classifications by game, a catalog imported by SHA-256', () =>
     ] };
     const pre = await call('POST', '/api/library/catalog/preview', manifest);
     assert.equal(pre.status, 200, pre.text);
+    const legacy = await call('POST', '/api/library/catalog/preview', { ...manifest, schema: 'j' + 'go-curator-manifest-v1' });
+    assert.equal(legacy.status, 200, 'previously exported curator manifests still import');
+    assert.deepEqual(legacy.json, pre.json);
     assert.deepEqual([pre.json.entries, pre.json.ok, pre.json.invalid], [4, 3, 1]);
     assert.ok(!JSON.stringify(pre.json).includes('Secret') && !JSON.stringify(pre.json).includes('192.168'), 'no path in the answer');
     const r = await call('POST', '/api/library/catalog/import', manifest);
@@ -235,14 +238,14 @@ describe('genres: classifications by game, a catalog imported by SHA-256', () =>
   });
 
   it('a genre can come from the folder a file sits in, and is the weakest source after a guess', async () => {
-    const dir = tmpDir('jgo-folders-');
+    const dir = tmpDir('mgo-folders-');
     const lib = new Library(dir);
     const add = (name: string) => lib.add(makeJar(name, { vendor: 'ACME' }), null, 1 << 30).game.groupKey;
     const racer = add('Racer'), shooter = add('Shooter'), twin = add('Twin'), curated = add('Curated'), mine = add('Mine'), nofolder = add('Plain');
     lib.classes.importCatalog({ schema: 1, games: [] }, () => null);
     lib.classes.setManual(mine, { primaryGenre: 'Puzzle' });
     const r1 = lib.classes.assignFromFolders([
-      { groupKey: racer, relPath: 'JGO-Top500/Racing/Racer.jar' },
+      { groupKey: racer, relPath: 'MGO-Top500/Racing/Racer.jar' },
       { groupKey: shooter, relPath: 'top/action/sub/Shooter.jar' },
       { groupKey: twin, relPath: 'Racing/Twin.jar' },
       { groupKey: twin, relPath: 'Sports/Twin v2.jar' },
@@ -255,7 +258,7 @@ describe('genres: classifications by game, a catalog imported by SHA-256', () =>
     assert.equal(lib.classes.get(twin), null);
     assert.equal(lib.classes.get(mine)?.primaryGenre, 'Puzzle');
     assert.equal(lib.classes.get(nofolder), null);
-    assert.deepEqual(lib.classes.assignFromFolders([{ groupKey: racer, relPath: 'JGO-Top500/Racing/Racer.jar' }]), { assigned: 0, unchanged: 1, skipped: 0 }, 'idempotent');
+    assert.deepEqual(lib.classes.assignFromFolders([{ groupKey: racer, relPath: 'MGO-Top500/Racing/Racer.jar' }]), { assigned: 0, unchanged: 1, skipped: 0 }, 'idempotent');
     // a catalog entry outranks the folder; a folder outranks a guess
     const sha = createHash('sha256').update(makeJar('Curated', { vendor: 'ACME' })).digest('hex');
     lib.classes.importCatalog({ schema: 1, games: [{ sha256: sha, genre: 'Strategy' }] }, (x) => (x === sha ? curated : null));
@@ -307,7 +310,7 @@ describe('genres: classifications by game, a catalog imported by SHA-256', () =>
   });
 
   it('an older database without the table is upgraded in place, and no game is lost', () => {
-    const dir = tmpDir('jgo-old-');
+    const dir = tmpDir('mgo-old-');
     const old = new Library(dir);
     old.add(makeJar('Old'), null, 1 << 30);
     old.db.exec('DROP TABLE game_classifications');

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { TEXT_CONSTRAINT, type TextArea } from '@j2me-web/protocol';
+import { TEXT_CONSTRAINT, type TextArea } from '@mgo/protocol';
 import { t as translateUI } from '../i18n';
 
 /**

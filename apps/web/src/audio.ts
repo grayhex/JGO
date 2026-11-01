@@ -1,4 +1,4 @@
-import { AUDIO_RATE } from '@j2me-web/protocol';
+import { AUDIO_RATE } from '@mgo/protocol';
 
 export interface AudioStats { state: AudioContextState | 'off'; rms: number; bufferedMs: number; chunks: number; bytes: number }
 

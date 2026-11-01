@@ -1,4 +1,4 @@
-import { KEY_LAYOUTS, KEY_NUM0, KEY_POUND, KEY_STAR, type KeyCodes, type LayoutId } from '@j2me-web/protocol';
+import { KEY_LAYOUTS, KEY_NUM0, KEY_POUND, KEY_STAR, type KeyCodes, type LayoutId } from '@mgo/protocol';
 
 /** Logical phone keys; the numeric J2ME code is resolved through the selected layout. */
 export type Action = 'up' | 'down' | 'left' | 'right' | 'fire' | 'softLeft' | 'softRight' | 'clear' | 'star' | 'pound' | `d${0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9}`;

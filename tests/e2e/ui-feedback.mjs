@@ -11,8 +11,8 @@ import { chromium } from 'playwright';
 
 const root = process.cwd();
 const { makeJar } = await import(pathToFileURL(path.join(root, 'apps/api/src/dev/testing.ts')).href);
-const dir = mkdtempSync(path.join(tmpdir(), 'jgo-fb-'));
-const lib = mkdtempSync(path.join(tmpdir(), 'jgo-fb-lib-'));
+const dir = mkdtempSync(path.join(tmpdir(), 'mgo-fb-'));
+const lib = mkdtempSync(path.join(tmpdir(), 'mgo-fb-lib-'));
 for (const n of ['Alpha', 'Bravo', 'Charlie']) writeFileSync(path.join(lib, `${n}.jar`), makeJar(n, { vendor: 'ACME' }));
 const port = 22100 + Math.floor(Math.random() * 300);
 const base = `http://127.0.0.1:${port}`;
@@ -32,8 +32,10 @@ try {
   // ---- 1. the folder is imported as soon as it is chosen ----
   assert.equal((await games()).length, 0);
   await p.goto(base + '/settings#library');
-  await p.locator('.root', { hasText: lib }).click();
-  await p.getByRole('button', { name: 'Use this folder' }).click();
+  const folder = p.locator('.source-folder').first();
+  if (await folder.getAttribute('open') === null) await folder.locator('summary').click();
+  await folder.locator('.root', { hasText: lib }).click();
+  await p.locator('.source-folder').first().getByRole('button', { name: 'Use this folder' }).click();
   await wait(async () => (await games()).length === 3, 'the 3 games were imported without pressing Scan');
   console.log('✔ choosing the library folder imports it by itself');
 
@@ -64,7 +66,7 @@ try {
   const g = (await games())[0];
   await p.goto(`${base}/play/${g.id}`);
   await p.locator('[data-testid=phone-profile-match]').waitFor();
-  await p.getByRole('link', { name: 'Game', exact: true }).waitFor(); // the game is loaded and remembered
+  await p.getByTestId('current-game').waitFor(); // the game is loaded and remembered
   await p.goto(base + '/phones');
   await p.getByRole('button', { name: /K790i/ }).click();
   await p.waitForURL(`**/play/${g.id}`, { waitUntil: 'commit' });

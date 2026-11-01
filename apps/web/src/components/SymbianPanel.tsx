@@ -1,12 +1,12 @@
 import { t as translateUI } from '../i18n';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { EMULATED_DEVICES, GAME_PLATFORM_LABELS, PHONE_COMPATIBILITY, type EmulatedDevice, type SymbianJob, type SymbianStatus } from '@j2me-web/protocol';
+import { EMULATED_DEVICES, GAME_PLATFORM_LABELS, PHONE_COMPATIBILITY, type EmulatedDevice, type SymbianJob, type SymbianStatus } from '@mgo/protocol';
 import { api, type ApiError } from '../api';
 import { Icon } from './Icon';
 import { Hint } from './ui';
 
 type Toaster = (kind: 'info' | 'error', text: string) => void;
-const JOB_KEY = 'jgo.symbian.job.v1';
+const JOB_KEY = 'mgo.symbian.job.v1';
 const mb = (n: number) => `${Math.round(n / 1048576).toLocaleString()} MB`;
 const gb = (n: number) => `${(n / 1024 ** 3).toFixed(1)} GB`;
 type Native = Extract<EmulatedDevice, { engine: 'eka2l1' }>;

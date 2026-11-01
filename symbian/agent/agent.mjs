@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { audioDiagnostics, runtimeMetrics } from './diagnostics.mjs';
+import { audioEnvironment } from './audio.mjs';
 // mgo-symbian agent: the only thing MGO talks to in the Symbian container. It starts and stops EKA2L1 (one at a time), gives every
 // game its own data directory, takes uploads, captures the sound, and passes an allow-list of EKA2L1's /v1 control API through.
 // No dependencies: Node 22 only. Configuration is by environment (see symbian/README.md).
@@ -14,6 +16,7 @@ import { factoryDirectory, factoryUploadPath, factoryInstallFiles } from './fact
 
 const run = promisify(execFile);
 const env = process.env;
+const audioCapture = { streams: 0, bytes: 0, lastError: null };
 /**
  * The shared secret between MGO and this service. Either AGENT_TOKEN, or AGENT_TOKEN_FILE: a file on a volume both containers mount;
  * it is created here on the first start, so the default compose file needs no token to be typed in.
@@ -38,7 +41,7 @@ const DATA = path.resolve(env.DATA_DIR ?? '/data');
 const MAX_FIRMWARE = Number(env.MAX_FIRMWARE_BYTES ?? 2 * 1024 ** 3);
 const MAX_PACKAGE = Number(env.MAX_PACKAGE_BYTES ?? 512 * 1024 ** 2);
 const MAX_INSTANCE_MS = Number(env.MAX_INSTANCE_SECONDS ?? 7200) * 1000;
-const AUDIO_CMD = (env.AUDIO_CMD ?? 'parec --device=jgo_sink.monitor --format=s16le --rate=44100 --channels=2 --latency-msec=40').split(' ').filter(Boolean);
+const AUDIO_CMD = (env.AUDIO_CMD ?? 'parec --device=mgo_sink.monitor --format=s16le --rate=44100 --channels=2 --latency-msec=40').split(' ').filter(Boolean);
 const VERSION_FILE = env.EKA2L1_VERSION_FILE ?? '/opt/eka2l1/VERSION';
 const PRIVATE_RUN = path.join(DATA, 'run');
 const BASE = path.join(DATA, 'base');
@@ -212,8 +215,8 @@ async function startInstance({ saveKey, maintenance }) {
       cwd: path.dirname(EKA_BIN),
       env: {
         PATH: env.PATH, LANG: 'C.UTF-8', HOME: path.join(dir, 'home'), XDG_DATA_HOME: xdg, XDG_CONFIG_HOME: path.join(dir, 'home', '.config'), XDG_CACHE_HOME: path.join(dir, 'home', '.cache'),
-        DISPLAY: env.DISPLAY ?? ':99', LIBGL_ALWAYS_SOFTWARE: '1', QT_QPA_PLATFORM: env.QT_QPA_PLATFORM ?? 'xcb', PULSE_SERVER: env.PULSE_SERVER ?? '', PULSE_RUNTIME_PATH: env.PULSE_RUNTIME_PATH ?? '',
-        QT_QUICK_BACKEND: 'software', XDG_RUNTIME_DIR: env.XDG_RUNTIME_DIR ?? '',
+        DISPLAY: env.DISPLAY ?? ':99', LIBGL_ALWAYS_SOFTWARE: '1', QT_QPA_PLATFORM: env.QT_QPA_PLATFORM ?? 'xcb', ...audioEnvironment(env),
+        QT_QUICK_BACKEND: 'software',
         ...Object.fromEntries(PASS_ENV.filter((n) => env[n] !== undefined).map((n) => [n, env[n]])),
       },
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -401,7 +404,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && p === '/agent/health') {
       const devices = readDevices();
       let emulator = null; try { emulator = readFileSync(VERSION_FILE, 'utf8').trim(); } catch { /* not built from source */ }
-      return json(res, 200, { ok: true, emulator, firmware: { installed: devices.length > 0, devices }, defaults: readDefaults(), inbox: listInbox(), disk: diskInfo(), instance: { running: !!instance, saveKey: instance?.saveKey ?? null, since: instance?.since ?? null }, audio: true });
+      return json(res, 200, { ok: true, emulator, firmware: { installed: devices.length > 0, devices }, defaults: readDefaults(), inbox: listInbox(), disk: diskInfo(), instance: { running: !!instance, saveKey: instance?.saveKey ?? null, since: instance?.since ?? null }, audio: true, metrics: runtimeMetrics(file => readFileSync(file, 'utf8')), audioDiagnostics: await audioDiagnostics(env, audioCapture) });
     }
     if (req.method === 'GET' && p === '/agent/log') {
       if (instance) return json(res, 200, { live: true, agent: ring.slice(-120), output: instance.log.slice(-120), eka2l1Log: tailFile(emulatorLogFile(instance), 300) });
@@ -414,7 +417,7 @@ const server = http.createServer(async (req, res) => {
       if (!b.maintenance && readDevices().length === 0) return err(res, 412, 'no_firmware', 'no device is installed');
       const inst = await startInstance({ saveKey: b.saveKey, maintenance: !!b.maintenance });
       let app = null;
-      try { app = JSON.parse(readFileSync(path.join(SAVES, inst.saveKey ?? '-', 'jgo-app.json'), 'utf8')); } catch { /* first run */ }
+      try { app = JSON.parse(readFileSync(path.join(SAVES, inst.saveKey ?? '-', 'mgo-app.json'), 'utf8')); } catch { /* first run */ }
       return json(res, 200, { id: inst.id, app });
     }
     if (req.method === 'DELETE' && p === '/agent/instance') { await stopInstance(); return json(res, 200, { ok: true }); }
@@ -509,7 +512,7 @@ const server = http.createServer(async (req, res) => {
       const b = await readJson(req);
       if (!/^0x[0-9A-Fa-f]{1,8}$/.test(b.uid ?? '')) return err(res, 400, 'bad_request', 'uid must look like 0x1000ABCD');
       mkdirSync(path.join(SAVES, m[1]), { recursive: true, mode: 0o700 });
-      writeFileSync(path.join(SAVES, m[1], 'jgo-app.json'), JSON.stringify({ uid: b.uid }));
+      writeFileSync(path.join(SAVES, m[1], 'mgo-app.json'), JSON.stringify({ uid: b.uid }));
       return json(res, 200, { ok: true });
     }
     if (req.method === 'DELETE' && (m = /^\/agent\/saves\/([0-9a-f]{32})$/.exec(p))) {
@@ -539,14 +542,17 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'GET' && p === '/agent/audio') {
       if (!instance) return err(res, 409, 'no_instance', 'no instance is running');
-      const cmd = spawn(AUDIO_CMD[0], AUDIO_CMD.slice(1), { stdio: ['ignore', 'pipe', 'ignore'], env: { PATH: env.PATH, PULSE_SERVER: env.PULSE_SERVER ?? '', PULSE_RUNTIME_PATH: env.PULSE_RUNTIME_PATH ?? '', XDG_RUNTIME_DIR: env.XDG_RUNTIME_DIR ?? '' } });
+      const cmd = spawn(AUDIO_CMD[0], AUDIO_CMD.slice(1), { stdio: ['ignore', 'pipe', 'pipe'], env: audioEnvironment(env) });
       let started = false;
+      cmd.stderr.on('data', b => { audioCapture.lastError = b.toString('utf8').trim().slice(0, 400); log('audio capture:', audioCapture.lastError); });
+      audioCapture.streams++;
+      cmd.stdout.on('data', b => { audioCapture.bytes += b.length; });
       cmd.on('error', () => { if (!started && !res.headersSent) err(res, 503, 'no_audio', 'sound capture is not available'); else res.destroy(); });
       cmd.stdout.once('data', () => { started = true; });
       res.writeHead(200, { 'content-type': 'application/octet-stream', 'cache-control': 'no-store' });
       cmd.stdout.pipe(res);
       const stop = () => { try { cmd.kill('SIGKILL'); } catch { /* gone */ } };
-      res.on('close', stop); req.on('aborted', stop); cmd.on('exit', () => res.end());
+      res.on('close', stop); req.on('aborted', stop); cmd.on('exit', code => { audioCapture.streams = Math.max(0, audioCapture.streams - 1); if (code && !res.destroyed) log('audio capture exited:', code); res.end(); });
       return;
     }
     if (p === '/v1' || p.startsWith('/v1/')) {

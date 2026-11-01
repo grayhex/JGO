@@ -1,5 +1,5 @@
 import { t as translateUI } from '../i18n';
-import { GENRES, PACKAGE_FORMAT_LABEL, GAME_PLATFORMS, GAME_PLATFORM_LABELS, isGamePlatform, type GamePlatform, type GameMeta, type HealthStatus, type ScanReport } from '@j2me-web/protocol';
+import { GENRES, PACKAGE_FORMAT_LABEL, GAME_PLATFORMS, GAME_PLATFORM_LABELS, isGamePlatform, type GamePlatform, type GameMeta, type HealthStatus, type ScanReport } from '@mgo/protocol';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../api';
 
@@ -39,11 +39,11 @@ function playTime(seconds: number): string | null {
 
 function Cover({ g }: { g: GameMeta }) {
   const [broken, setBroken] = useState(false);
-  const art = !!g.info?.hasCover && !broken; // a MobyGames cover, served by this server
+  const art = !!(g.ngageInfo?.hasCover || g.info?.hasCover) && !broken; // a MobyGames cover, served by this server
   const hue = 170 + (parseInt(g.groupKey.slice(0, 4), 16) % 46); // teal to blue: the palette has one signal colour, cyan
   return (
     <div className={`cover ${art ? 'art' : ''}`} style={{ ['--hue' as string]: hue }}>
-      {art ? <img src={api.coverUrl(g.id)} alt="" loading="lazy" onError={() => setBroken(true)} /> : g.hasIcon && !broken ? <img src={api.iconUrl(g.id)} alt="" onError={() => setBroken(true)} /> : <span className="initials">{g.name.slice(0, 2).toUpperCase()}</span>}
+      {art ? <img src={g.ngageInfo?.hasCover ? `/api/games/${g.id}/ngage-cover` : api.coverUrl(g.id)} alt="" loading="lazy" onError={() => setBroken(true)} /> : g.hasIcon && !broken ? <img src={api.iconUrl(g.id)} alt="" onError={() => setBroken(true)} /> : <span className="initials">{g.name.slice(0, 2).toUpperCase()}</span>}
     </div>
   );
 }
@@ -52,7 +52,7 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
   const [games, setGames] = useState<GameMeta[] | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
   const [platform, setPlatform] = useState<GamePlatform | 'all'>(() => {
-    try { const value = localStorage.getItem('jgo.library.platform'); return isGamePlatform(value) ? value : 'all'; } catch { return 'all'; }
+    try { const value = localStorage.getItem('mgo.library.platform'); return isGamePlatform(value) ? value : 'all'; } catch { return 'all'; }
   });
   const [view, setViewState] = useState<View>(loadView);
   const setView = (v: View) => { setViewState(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* storage unavailable */ } };
@@ -69,7 +69,7 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
   const setGenre = (g: GenreFilter) => { setGenreState(g); try { localStorage.setItem(GENRE_KEY, g); } catch { /* storage unavailable */ } };
   const [scan, setScan] = useState<ScanReport | null>(null);
   const server = useServerSettings();
-  const libraryPath = server?.settings.libraryPath ?? null;
+  const libraryPath = server?.settings.libraryPath || Object.values(server?.settings.libraryPaths ?? {}).find(Boolean) || null;
   const [chosen, setChosen] = useState<Record<string, string>>({}); // groupKey -> selected version id
   const fileInput = useRef<HTMLInputElement>(null);
   const depth = useRef(0);
@@ -204,7 +204,7 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
         <input className="input lib-search" type="search" placeholder={translateUI("Search games or vendors")} value={query} onChange={(e) => onQuery(e.target.value)} aria-label={translateUI("Search")} data-testid="search" />
         <select className="select compact" aria-label={translateUI('Game platform')} data-testid="platform-filter" value={platform} onChange={e => {
           const value = e.target.value as GamePlatform | 'all'; setPlatform(value);
-          try { localStorage.setItem('jgo.library.platform', value); } catch { /* storage unavailable */ }
+          try { localStorage.setItem('mgo.library.platform', value); } catch { /* storage unavailable */ }
         }}>
           <option value="all">{translateUI('All platforms')}</option>
           {GAME_PLATFORMS.map(p => <option key={p} value={p}>{GAME_PLATFORM_LABELS[p]}</option>)}
@@ -312,9 +312,11 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
                 <div className="meta">
                   <h3>{sel.name}</h3>
                   <p className="muted">{translateUI(sel.info?.year ? `${sel.vendor} · ${sel.info.year}` : sel.vendor)}</p>
+                  {sel.ngageInfo && <p className="ngage-card-facts">{sel.ngageInfo.publisher} · {sel.ngageInfo.year}{sel.ngageInfo.rating !== null ? ` · ${sel.ngageInfo.rating}%` : ''}</p>}
                   <p>{time}</p>
                 </div>
               </button>
+              {sel.ngageInfo && <div className="ngage-attribution"><span>{sel.ngageInfo.multiplayer ?? sel.ngageInfo.developer}</span><a href={sel.ngageInfo.sourceUrl} target="_blank" rel="noreferrer">All About Symbian ↗</a></div>}
               <div className="card-foot">
                 {versionControl}
                 {flags}

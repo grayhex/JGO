@@ -1,4 +1,4 @@
-# Phone artwork for J2ME Web
+# Phone artwork for MGO
 
 Fifteen independently shaped handset illustrations, **review drafts**. Files are original generated artwork informed by the linked photographic references; they are not manufacturer-authorized reproductions. Historical acceptance (especially tiny legends, materials and precise physical key boundaries) is still required. Reference independence gaps are recorded in each references.md; do not interpret export validation as historical certification.
 

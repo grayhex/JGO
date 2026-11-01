@@ -7,7 +7,7 @@ const repo=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 if(root===repo || !process.argv[2] || existsSync(path.join(root,'.git')))throw Error('Pass a staged runtime app directory');
 const manifests=['package.json','apps/api/package.json','apps/web/package.json','packages/protocol/package.json'];
 for(const rel of manifests)if(!existsSync(path.join(root,rel)))throw Error('Not a staged MGO runtime: '+rel);
-if(JSON.parse(readFileSync(path.join(root,'package.json'),'utf8')).name!=='j2me-web')throw Error('Not an MGO runtime');
+if(JSON.parse(readFileSync(path.join(root,'package.json'),'utf8')).name!=='mgo')throw Error('Not an MGO runtime');
 for(const p of ['apps/api/src','apps/web/src','apps/web/public','packages/protocol/src','apps/api/dist/lab','apps/api/dist/dev','apps/api/dist/testing.js','apps/api/dist/fakeMoby.js','tests','design','tools','.git'])rmSync(path.join(root,p),{recursive:true,force:true});
 function clean(dir){for(const f of readdirSync(dir,{withFileTypes:true})){if(f.name==='node_modules')continue;const p=path.join(dir,f.name);if(f.isDirectory())clean(p);else if(/\.test\.|\.map$|reference-manifest\.json$|references\.md$|\.d\.ts$/.test(f.name))rmSync(p);}}
 clean(root);

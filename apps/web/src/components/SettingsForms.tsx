@@ -1,5 +1,5 @@
 import { t as translateUI } from '../i18n';
-import { KEY_LAYOUTS, SCREEN_PRESETS, type DevicePreset, type LayoutId, type PublicSettings, type SettingsResponse, type SystemStatus } from '@j2me-web/protocol';
+import { EMULATED_DEVICES, GAME_PLATFORM_LABELS, profilesForSkin, PHONE_SKIN_IDS, KEY_LAYOUTS, SCREEN_PRESETS, type DevicePreset, type LayoutId, type PublicSettings, type SettingsResponse, type SystemStatus } from '@mgo/protocol';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { setServerSettings, useServerSettings } from '../serverSettings';
@@ -78,7 +78,7 @@ export function PhoneDefaultsForm({ toast, auto }: { toast: Toaster; auto?: bool
       </label>
       <label className="field">
         <span className="label-caps">{translateUI("Resolution")}</span>
-        <select className="select" value={preset ? `${preset.width}x${preset.height}` : 'custom'} onChange={(e) => { const [w, h] = e.target.value.split('x').map(Number); if (w && h) set({ width: w, height: h, device: null }); }}>
+        <select className="select" aria-label={translateUI("Resolution")} value={preset ? `${preset.width}x${preset.height}` : 'custom'} onChange={(e) => { const [w, h] = e.target.value.split('x').map(Number); if (w && h) set({ width: w, height: h, device: null }); }}>
           {SCREEN_PRESETS.map((p) => <option key={p.label} value={`${p.width}x${p.height}`}>{translateUI(p.label)}</option>)}
           {!preset && <option value="custom">{draft.width}×{draft.height} {translateUI("(custom)")}</option>}
         </select>
@@ -169,9 +169,9 @@ export function ServerForm({ toast, auto }: { toast: Toaster; auto?: boolean }) 
       <SaveBar auto={auto} dirty={dirty} busy={busy} onSave={() => void save('Server settings saved')} onReset={saved ? () => set(saved) : undefined} note="Applies immediately; running games are not interrupted." />
       <dl className="facts">
         <dt>{translateUI("Listens on")}</dt><dd className="mono">{server.readonly.host}:{server.readonly.port}</dd>
-        <dt>{translateUI("Access")}</dt><dd>{translateUI(server.readonly.auth === 'token' ? 'Protected by the access token (show it with `jgo token` in the container)' : 'No token: reachable from this machine only')}</dd>
+        <dt>{translateUI("Access")}</dt><dd>{translateUI(server.readonly.auth === 'token' ? 'Protected by the access token (show it with `mgo token` in the container)' : 'No token: reachable from this machine only')}</dd>
       </dl>
-      <p className="muted small">{translateUI("Address, port and the access token are set at install time (")}<code>{translateUI("/etc/jgo/jgo.env")}</code>{translateUI(") and cannot be changed from the web UI.")}</p>
+      <p className="muted small">{translateUI("Address, port and the access token are set at install time (")}<code>{translateUI("/etc/mgo/mgo.env")}</code>{translateUI(") and cannot be changed from the web UI.")}</p>
     </div>
   );
 }
@@ -203,4 +203,17 @@ export function SystemChecks({ status, onReload }: { status: SystemStatus | null
       {onReload && <button className="btn sm" type="button" onClick={onReload}><Icon name="restart" /> {translateUI("Check again")}</button>}
     </div>
   );
+}
+
+export function NativePhoneDefaults({ toast }: { toast: Toaster }) {
+  const server = useServerSettings();
+  return <div className="platform-defaults">{(['ngage', 'ngage2', 'symbian'] as const).map(platform => <label className="field" key={platform}>
+    <span className="label-caps">{GAME_PLATFORM_LABELS[platform]}</span>
+    <select className="select" aria-label={`Default phone (${platform})`} value={server?.settings.nativePhones?.[platform] ?? ''} onChange={e => {
+      void api.patchSettings({ nativePhones: { [platform]: e.target.value || null } }).then(setServerSettings, e => toast('error', e.message));
+    }}>
+      <option value="">{translateUI('Automatic — match installed firmware')}</option>
+      {PHONE_SKIN_IDS.filter(id => profilesForSkin(id, platform).length).map(id => <option key={id} value={id}>{EMULATED_DEVICES.find(d => profilesForSkin(id, platform).some(p => p.id === d.id))?.name ?? id}</option>)}
+    </select>
+  </label>)}</div>;
 }

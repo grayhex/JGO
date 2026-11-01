@@ -1,6 +1,6 @@
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import type { GameInfo, GameMeta, MetadataJob, MetaStatus, MobyCandidate } from '@j2me-web/protocol';
+import type { GameInfo, GameMeta, MetadataJob, MetaStatus, MobyCandidate } from '@mgo/protocol';
 import { UploadError } from './jar.js';
 import type { Library } from './library.js';
 import { ATTRIBUTION, decideMatch, MobyError, normalizeTitle, toCandidate, type MobyClient, type MobyGameData } from './mobygames.js';

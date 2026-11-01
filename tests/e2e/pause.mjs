@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright';
 
-const dir = mkdtempSync(path.join(tmpdir(), 'jgo-pause-'));
+const dir = mkdtempSync(path.join(tmpdir(), 'mgo-pause-'));
 const port = 20600 + Math.floor(Math.random() * 300);
 const base = `http://127.0.0.1:${port}`;
 const server = spawn('node', ['apps/api/dist/server.js'], { env: { ...process.env, PORT: String(port), DATA_DIR: dir, HOST: '127.0.0.1', LOG_LEVEL: 'warn' }, stdio: ['ignore', 'inherit', 'inherit'] });

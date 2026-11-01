@@ -1,4 +1,4 @@
-// Drives a RUNNING native JGO (systemd, token auth) from outside: 2D picture, M3G picture on llvmpipe, game audio, RMS.
+// Drives a RUNNING native MGO (systemd, token auth) from outside: 2D picture, M3G picture on llvmpipe, game audio, RMS.
 // Usage: BASE=http://IP:8080 TOKEN=... node tests/lxc/smoke.mjs <auth|2d|3d|audio|launches> [fixture.jar]
 import { readFileSync } from 'node:fs';
 import { inflateRawSync } from 'node:zlib';
@@ -133,13 +133,13 @@ if (cmd === 'auth') {
   const patch = (b) => j('/api/settings', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) });
   ok('library: the settings API needs the token', (await fetch(base + '/api/settings')).status === (token ? 401 : 200));
   const roots = await j('/api/library/roots');
-  ok('library: the import folder of the data directory is an allowed location', roots.json.roots.some((r) => r.path === '/var/lib/jgo/import' && r.exists && r.readable), JSON.stringify(roots.json.roots.map((r) => [r.path, r.exists])));
+  ok('library: the import folder of the data directory is an allowed location', roots.json.roots.some((r) => r.path === '/var/lib/mgo/import' && r.exists && r.readable), JSON.stringify(roots.json.roots.map((r) => [r.path, r.exists])));
   ok('library: /etc is refused as a library folder', (await patch({ libraryPath: '/etc' })).status === 400);
-  ok('library: so is a path with ..', (await patch({ libraryPath: '/var/lib/jgo/import/../saves' })).status === 400);
+  ok('library: so is a path with ..', (await patch({ libraryPath: '/var/lib/mgo/import/../saves' })).status === 400);
   ok('library: the folder cannot be browsed outside the allowed locations', (await j('/api/library/browse?path=%2Fetc')).status === 400);
-  const set = await patch({ libraryPath: '/var/lib/jgo/import', audio: { volume: 33 } });
-  ok('library: the import folder is accepted, audio volume saved', set.status === 200 && set.json.settings.libraryPath === '/var/lib/jgo/import' && set.json.settings.audio.volume === 33, JSON.stringify(set.json).slice(0, 200));
-  const chk = await j('/api/library/check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: '/var/lib/jgo/import' }) });
+  const set = await patch({ libraryPath: '/var/lib/mgo/import', audio: { volume: 33 } });
+  ok('library: the import folder is accepted, audio volume saved', set.status === 200 && set.json.settings.libraryPath === '/var/lib/mgo/import' && set.json.settings.audio.volume === 33, JSON.stringify(set.json).slice(0, 200));
+  const chk = await j('/api/library/check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: '/var/lib/mgo/import' }) });
   ok('library: the folder check sees the JAR', chk.json.ok && chk.json.jarCount >= 1, JSON.stringify(chk.json).slice(0, 200));
   await j('/api/library/scan', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"mode":"update"}' });
   let rep = null;

@@ -1,4 +1,4 @@
-import { EMULATION_DEFAULTS, EMULATION_LIMITS, type EmulationTweaks } from '@j2me-web/protocol';
+import { EMULATION_DEFAULTS, EMULATION_LIMITS, type EmulationTweaks } from '@mgo/protocol';
 import { t as translateUI } from '../i18n';
 import { Hint, Switch } from './ui';
 

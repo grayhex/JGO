@@ -1,4 +1,4 @@
-import { EMULATED_DEVICES, PHONE_COMPATIBILITY, javaPreset, type DevicePreset, type PhoneCatalog, type SymbianStatus } from '@j2me-web/protocol';
+import { EMULATED_DEVICES, PHONE_COMPATIBILITY, javaPreset, type DevicePreset, type PhoneCatalog, type SymbianStatus } from '@mgo/protocol';
 
 /** Catalog readiness uses the installed firmware, independently of the artwork. */
 export function phoneCatalog(presets: readonly DevicePreset[], status: SymbianStatus): PhoneCatalog {

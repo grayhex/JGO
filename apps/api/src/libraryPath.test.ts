@@ -6,8 +6,8 @@ import { browseLibrary, checkLibraryDir, listRoots, resolveInsideRoots, walkLibr
 import { makeJar, put, testConfig, tmpDir } from './dev/testing.js';
 
 describe('library path safety', () => {
-  const root = tmpDir('jgo-root-');
-  const outside = tmpDir('jgo-outside-');
+  const root = tmpDir('mgo-root-');
+  const outside = tmpDir('mgo-outside-');
   put(root, 'a/one.jar', makeJar('One'));
   put(root, 'a/one.jad', 'MIDlet-Name: One\n');
   put(root, 'b/deep/two.JAR', makeJar('Two'));
@@ -71,7 +71,7 @@ describe('library path safety', () => {
 
   it('an unreadable directory is reported with a hint (skipped when running as root, who can read anything)', async (t) => {
     if (process.getuid?.() === 0) return t.skip('root ignores permissions');
-    const d = tmpDir('jgo-noread-');
+    const d = tmpDir('mgo-noread-');
     chmodSync(d, 0o000);
     const r = await checkLibraryDir(testConfig({ roots: [d] }), d);
     chmodSync(d, 0o700);
@@ -96,4 +96,13 @@ describe('library path safety', () => {
     assert.equal(r.find((x) => x.path === root)!.exists, true);
     assert.equal(r.find((x) => x.path === '/definitely/not/here')!.exists, false);
   });
+});
+
+it('counts N-Gage card archives during the directory check', async () => {
+  const root = tmpDir('mgo-ngage-check-');
+  put(root, 'Card.zip', Buffer.from('PK\x03\x04 synthetic'));
+  const result = await checkLibraryDir(testConfig({ roots: [root] }), root);
+  assert.equal(result.packageCount, 1);
+  assert.equal(result.jarCount, 0);
+  assert.equal(result.warnings.some(w => w.includes('No game files')), false);
 });

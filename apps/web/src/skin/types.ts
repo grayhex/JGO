@@ -1,7 +1,7 @@
 import type { Action } from '../input';
 
-export type { SkinRect as Rect, PhoneSkinView as SkinView } from '@j2me-web/protocol';
-export type SkinConfig = import('@j2me-web/protocol').PhoneSkin;
+export type { SkinRect as Rect, PhoneSkinView as SkinView } from '@mgo/protocol';
+export type SkinConfig = import('@mgo/protocol').PhoneSkin;
 export type SkinButton = SkinConfig['buttons'][number];
 
 export interface Hitbox {

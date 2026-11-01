@@ -2,10 +2,10 @@ import { useSyncExternalStore } from 'react';
 import ru from './ru.json';
 export type Locale='en'|'ru';
 let locale:Locale='en';
-try{if(localStorage.getItem('jgo.locale')==='ru')locale='ru';}catch{}
+try{if(localStorage.getItem('mgo.locale')==='ru')locale='ru';}catch{}
 const entries=Object.entries(ru).sort((a,b)=>b[0].length-a[0].length);
 const listeners=new Set<()=>void>();
-export function setLocale(value:Locale){locale=value;try{localStorage.setItem('jgo.locale',value);}catch{}if(typeof document!=='undefined')document.documentElement.lang=value;for(const cb of listeners)cb();}
+export function setLocale(value:Locale){locale=value;try{localStorage.setItem('mgo.locale',value);}catch{}if(typeof document!=='undefined')document.documentElement.lang=value;for(const cb of listeners)cb();}
 export function useLocale(){return useSyncExternalStore(cb=>{listeners.add(cb);return()=>listeners.delete(cb);},()=>locale,()=> 'en' as Locale);}
 export function t(value:string, values?:Record<string,string|number>):string;
 export function t<T>(value:T):T;

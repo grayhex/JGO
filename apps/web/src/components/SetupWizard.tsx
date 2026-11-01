@@ -1,5 +1,5 @@
 import { t as translateUI } from '../i18n';
-import type { SystemStatus } from '@j2me-web/protocol';
+import type { SystemStatus } from '@mgo/protocol';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
 import { setServerSettings, useServerSettings } from '../serverSettings';

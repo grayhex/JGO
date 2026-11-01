@@ -50,7 +50,7 @@ async function playMidi(): Promise<{ userPath: string; log: () => Promise<string
 
 describe('MIDI SoundFont setting', () => {
   before(async () => {
-    traceDir = mkdtempSync(path.join(tmpdir(), 'jgo-sf-trace-'));
+    traceDir = mkdtempSync(path.join(tmpdir(), 'mgo-sf-trace-'));
     env = await startApp({ MAX_SESSIONS: '1', ...(hasStrace ? { KEM_LAUNCH_WRAPPER: `strace -ff -qq -e trace=openat -o ${traceDir}/t` } : {}) });
   });
   after(async () => { await env.app.sessions.stopAll(); await env.stop(); cleanup(env); rmSync(traceDir, { recursive: true, force: true }); });

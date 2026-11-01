@@ -48,7 +48,7 @@ describe('Replayer', () => {
 });
 
 describe('parseRecording', () => {
-  const good = JSON.stringify({ format: 'jgo-input-recording', version: 1, ...meta, durationMs: 50, events: [{ at: 1, ev: { t: 'key', s: 'D', code: 49 } }, { at: 9, ev: { t: 'key', s: 'U', code: 49 } }] });
+  const good = JSON.stringify({ format: 'mgo-input-recording', version: 1, ...meta, durationMs: 50, events: [{ at: 1, ev: { t: 'key', s: 'D', code: 49 } }, { at: 9, ev: { t: 'key', s: 'U', code: 49 } }] });
   it('accepts a good file', () => assert.equal(parseRecording(good, 'g1').events.length, 2));
   it('rejects other games, other formats and damaged files with a reason', () => {
     assert.throws(() => parseRecording(good, 'other'), /another game/);

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { it } from 'node:test';
-import { PHONE_PROFILES } from '@j2me-web/protocol';
+import { PHONE_PROFILES } from '@mgo/protocol';
 import { SKIN_IDS } from './registry';
 
 it('the fifteen selectable skins have server profiles and actual runtime assets', () => {

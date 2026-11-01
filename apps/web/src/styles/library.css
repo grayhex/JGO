@@ -118,3 +118,6 @@ button.genre-badge.unconfirmed { color: var(--muted); font-weight: 500; font-sty
   .lib-grid.list .game-row { --cols: 40px minmax(0, 1fr) auto; }
   .lib-grid.list .game-row .c-time, .lib-grid.list .game-row .c-genre { display: none; }
 }
+.ngage-card-facts { font-size: .75rem; }
+.ngage-attribution { display: grid; gap: 4px; padding: 0 16px 10px; font-size: .68rem; color: var(--muted); }
+.ngage-attribution a { color: var(--muted); }

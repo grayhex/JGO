@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# tools/proxmox/jgo-library-mount.sh against a fake `pct`: what it passes to Proxmox, and what it refuses.
+# tools/proxmox/mgo-library-mount.sh against a fake `pct`: what it passes to Proxmox, and what it refuses.
 set -uo pipefail
 cd "$(dirname "$0")/../.." || exit 1
-SCRIPT=$PWD/tools/proxmox/jgo-library-mount.sh
+SCRIPT=$PWD/tools/proxmox/mgo-library-mount.sh
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/games/sub" "$tmp/private"
@@ -24,26 +24,26 @@ echo "pct $*" >>"$FAKE_LOG"
 F
 chmod +x "$tmp/pct"
 export PCT_BIN="$tmp/pct" FAKE_CONF="$tmp/conf" FAKE_LOG="$tmp/log"
-printf 'arch: amd64\nhostname: jgo\nunprivileged: 1\n' >"$tmp/conf"
+printf 'arch: amd64\nhostname: mgo\nunprivileged: 1\n' >"$tmp/conf"
 
 run() { : >"$FAKE_LOG"; OUT=$(bash "$SCRIPT" "$@" 2>&1); RC=$?; LOG=$(cat "$FAKE_LOG"); }
 
-DESC="read-only bind mount to /mnt/jgo-library, then a reboot"
+DESC="read-only bind mount to /mnt/mgo-library, then a reboot"
 run 101 "$tmp/games"
-check test $RC -eq 0 -a "$LOG" = "pct set 101 --mp0 $tmp/games,mp=/mnt/jgo-library,ro=1
+check test $RC -eq 0 -a "$LOG" = "pct set 101 --mp0 $tmp/games,mp=/mnt/mgo-library,ro=1
 pct reboot 101"
 
 DESC="--rw leaves out ro=1, --no-reboot does not reboot"
 run 101 "$tmp/games" --rw --no-reboot
-check test $RC -eq 0 -a "$LOG" = "pct set 101 --mp0 $tmp/games,mp=/mnt/jgo-library"
+check test $RC -eq 0 -a "$LOG" = "pct set 101 --mp0 $tmp/games,mp=/mnt/mgo-library"
 
 DESC="the next free slot is used"
 printf 'mp0: /x,mp=/mnt/other\nmp1: /y,mp=/mnt/more,ro=1\n' >"$tmp/conf"
 run 101 "$tmp/games" --no-reboot
-check test $RC -eq 0 -a "$LOG" = "pct set 101 --mp2 $tmp/games,mp=/mnt/jgo-library,ro=1"
+check test $RC -eq 0 -a "$LOG" = "pct set 101 --mp2 $tmp/games,mp=/mnt/mgo-library,ro=1"
 
 DESC="a second library mount is refused"
-printf 'mp0: /srv/games,mp=/mnt/jgo-library,ro=1\n' >"$tmp/conf"
+printf 'mp0: /srv/games,mp=/mnt/mgo-library,ro=1\n' >"$tmp/conf"
 run 101 "$tmp/games"
 check test $RC -ne 0 -a -z "$LOG"
 

@@ -134,7 +134,7 @@ describe('metadata service', () => {
   after(() => fake.stop());
 
   function setup() {
-    const dir = tmpDir('jgo-meta-');
+    const dir = tmpDir('mgo-meta-');
     const lib = new Library(dir);
     const client = new MobyClient(() => fake.validKey, { base: fake.base, minIntervalMs: 0, sleep: noSleep });
     const svc = new MetadataService(lib, dir, () => client, () => true);

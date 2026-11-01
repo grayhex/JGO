@@ -13,7 +13,7 @@ MGO умеет запускать игры Symbian S60 и N-Gage 1.0/2.0 вто�
  браузер ──WebSocket (тот же протокол, что у J2ME)──► MGO (app) ──HTTP + токен──► mgo-symbian
                                                                                   ├─ agent.mjs (порт 8766, единственный открытый порт)
                                                                                   ├─ Xvfb :99 + Mesa llvmpipe (программный OpenGL)
-                                                                                  ├─ PulseAudio, null-sink «jgo_sink»  ← звук снимается с его monitor
+                                                                                  ├─ PulseAudio, null-sink «mgo_sink»  ← звук снимается с его monitor
                                                                                   └─ EKA2L1 (Qt) --debug-control-port, только 127.0.0.1
 ```
 
@@ -51,7 +51,7 @@ MGO умеет запускать игры Symbian S60 и N-Gage 1.0/2.0 вто�
    ```
 
    Не нужен Symbian — удалите из `compose.yaml` блок `mgo-symbian` и строки `SYMBIAN_*` в `app`: остальное работает как раньше.
-   Образ `ghcr.io/grayhex/mgo-symbian` публикует CI после слияния в `main` (старое имя `jgo-symbian` остаётся алиасом на переходный период).
+   Образ `ghcr.io/grayhex/mgo-symbian` публикует CI после слияния в `main` (старое имя `mgo-symbian` остаётся алиасом на переходный период).
    Собрать самому (30–60 минут: компилируются EKA2L1 и FFmpeg):
 
    ```bash
@@ -63,7 +63,7 @@ MGO умеет запускать игры Symbian S60 и N-Gage 1.0/2.0 вто�
 4. Загрузите игру и нажмите «Играть».
 
 Прошивки и ROM не входят ни в репозиторий, ни в образ, ни в CI: в `.gitignore` и в `Dockerfile` их нет, а `compose.yaml` хранит их только в томе
-`jgo-symbian-data` (имя оставлено прежним, чтобы при обновлении не потерять уже загруженную прошивку). Откуда взять прошивку законно — на вашей совести (например, дамп собственного телефона).
+`mgo-symbian-data` (имя оставлено прежним, чтобы при обновлении не потерять уже загруженную прошивку). Откуда взять прошивку законно — на вашей совести (например, дамп собственного телефона).
 
 ## Устройство (прошивка) игры
 
@@ -91,7 +91,7 @@ EKA2L1 может держать несколько прошивок («устр
 Проверка пути до отправки настоящей прошивки (ничего не сохраняется, тело считается и отбрасывается):
 
 ```bash
-node tools/symbian/check-upload.mjs https://jgo.example.com --mb 600 --token <AUTH_TOKEN>
+node tools/symbian/check-upload.mjs https://mgo.example.com --mb 600 --token <AUTH_TOKEN>
 ```
 
 Скрипт различает отказ MGO (JSON `too_large`), отказ прокси (HTML `413`), разрыв соединения и неверный токен. Шлюз MGO с реальным nginx проверяет тест
@@ -152,7 +152,7 @@ mkdir -p symbian-inbox && cp RM-84.rom RM-84.rpkg symbian-inbox/
   (кнопка «Don't show this again» самого окна) — после этого порт отвечает. Проверено на реальном бинарнике.
 - Агент + реальный EKA2L1: токен, `412 no_firmware`, режим обслуживания, прокси `/v1/status`, `403` на `/v1/files`, остановка экземпляра
   (тест `agent with the real EKA2L1`, запускается при `EKA2L1_BIN=…/eka2l1_qt`; в CI — шаг smoke образа).
-- Цепочка звука PulseAudio: null-sink `jgo_sink` + `parec --device=jgo_sink.monitor` от пользователя без root принимает синтетический тон без искажений.
+- Цепочка звука PulseAudio: null-sink `mgo_sink` + `parec --device=mgo_sink.monitor` от пользователя без root принимает синтетический тон без искажений.
 - Агент + **поддельный** EKA2L1 (`tests/fixtures/fake-eka2l1`, он честно подписан как подделка) + API + WebSocket: загрузка и установка прошивки заданием,
   412 до установки, лимиты размера (413), установка пакета, кадры собственного размера, звук, клавиши по порядку, тач с `id`, запоминание установленного
   приложения, раздельные диски игр, удаление сохранений, 403 для опасных маршрутов, одновременно один экземпляр. Это проверяет **сторону MGO**, но ничего не
@@ -191,7 +191,7 @@ mkdir -p symbian-inbox && cp RM-84.rom RM-84.rpkg symbian-inbox/
 | `AGENT_TOKEN`, `AGENT_PORT` | mgo-symbian | —, 8766 |
 | `MAX_PACKAGE_BYTES`, `MAX_FIRMWARE_BYTES`, `MAX_INSTANCE_SECONDS` | mgo-symbian | 512 МБ, 2 ГБ, 7200 |
 | `EKA2L1_BIN`, `EKA2L1_ARGS`, `EKA2L1_ENV_PASSTHROUGH` | mgo-symbian | `/opt/eka2l1/eka2l1_qt`, пусто, пусто |
-| `AUDIO_CMD` | mgo-symbian | `parec --device=jgo_sink.monitor --format=s16le --rate=44100 --channels=2 --latency-msec=40` |
+| `AUDIO_CMD` | mgo-symbian | `parec --device=mgo_sink.monitor --format=s16le --rate=44100 --channels=2 --latency-msec=40` |
 | `SYMBIAN_CPUS`, `SYMBIAN_MEMORY`, `SYMBIAN_INBOX` | compose | 2, 3g, `./symbian-inbox` |
 | `INBOX_DIR`, `INSTANCE_SHARED_DIRS`, `INSTANCE_PERSIST_DIRS` | mgo-symbian | `/inbox`, `roms,drives/z`, `drives/c,drives/e` |
 

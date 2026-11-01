@@ -30,7 +30,7 @@ await fetch(base + '/api/setup/skip', { method: 'POST' });
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 try {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-  await ctx.addInitScript(()=>localStorage.setItem('jgo.developer-mode','true'));
+  await ctx.addInitScript(()=>localStorage.setItem('mgo.developer-mode','true'));
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));

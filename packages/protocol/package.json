@@ -1,5 +1,5 @@
 {
-  "name": "@j2me-web/protocol",
+  "name": "@mgo/protocol",
   "version": "0.1.0-beta.1",
   "private": true,
   "type": "module",

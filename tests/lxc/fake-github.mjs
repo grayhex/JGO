@@ -1,14 +1,14 @@
-// A stand-in for api.github.com + github.com that serves JGO releases from a directory, over TLS.
+// A stand-in for api.github.com + github.com that serves MGO releases from a directory, over TLS.
 //   node fake-github.mjs <releases-dir> <tls-dir> [port]
 // <releases-dir>/<tag>/<assets...>, and <releases-dir>/latest holding the tag of the latest release.
 // The container resolves api.github.com / github.com to this host and trusts the test CA, so the real
-// fetch_and_deploy_gh_release / check_for_gh_release helpers and `jgo update` talk to it unmodified.
+// fetch_and_deploy_gh_release / check_for_gh_release helpers and `mgo update` talk to it unmodified.
 import { createServer } from 'node:https';
 import { createReadStream, existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 const [dir, tls, port = '443'] = process.argv.slice(2);
-const REPO = 'grayhex/JGO';
+const REPO = 'grayhex/MGO';
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
 const tags = () => readdirSync(dir).filter((f) => statSync(path.join(dir, f)).isDirectory());

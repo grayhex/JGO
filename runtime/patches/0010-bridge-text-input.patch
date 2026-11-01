@@ -43,7 +43,7 @@ index 00000000..9c418990
 + * j2me-web: the Bridge counterpart of the SWT CaretImpl. The SWT frontend lays a native text widget over
 + * the focused TextField; here the client does the typing. The focused text area is announced with the
 + * Bridge "A" packet (x, y, w, h as shorts + UTF-8 text; no data = no text area) and, before it, with the
-+ * JGO extension packet "N" (u32 maxSize | u32 constraints | u8 'F' TextField or 'B' TextBox) that carries
++ * MGO extension packet "N" (u32 maxSize | u32 constraints | u8 'F' TextField or 'B' TextBox) that carries
 + * what the client needs to edit the text the way a phone would. The client answers with "E" (see BridgeInput).
 + */
 +final class BridgeCaret implements ICaret {

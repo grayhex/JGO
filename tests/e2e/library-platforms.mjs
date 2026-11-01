@@ -9,7 +9,7 @@ import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
 
 const { makeJar } = await import(pathToFileURL(path.join(process.cwd(), 'apps/api/src/dev/testing.ts')).href);
-const dir = mkdtempSync(path.join(tmpdir(), 'jgo-plat-'));
+const dir = mkdtempSync(path.join(tmpdir(), 'mgo-plat-'));
 const port = 23300 + Math.floor(Math.random() * 90);
 const base = `http://127.0.0.1:${port}`;
 const server = spawn('node', ['apps/api/dist/server.js'], { env: { ...process.env, PORT: String(port), DATA_DIR: dir, HOST: '127.0.0.1', LOG_LEVEL: 'warn' }, stdio: ['ignore', 'inherit', 'inherit'] });

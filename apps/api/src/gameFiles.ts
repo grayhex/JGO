@@ -2,7 +2,7 @@ import { createWriteStream, lstatSync, mkdirSync, readdirSync, renameSync, rmSyn
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import type { Readable } from 'node:stream';
-import type { GameFileEntry } from '@j2me-web/protocol';
+import type { GameFileEntry } from '@mgo/protocol';
 import { UploadError } from './jar.js';
 
 /** Most a game may keep in its file area, and most entries one listing shows. */

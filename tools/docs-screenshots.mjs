@@ -17,7 +17,8 @@ mkdirSync(out, { recursive: true });
 const jars = readdirSync(jarDir).filter((f) => /\.jar$/i.test(f)).sort().map((f) => path.join(jarDir, f));
 if (!jars.length) { console.error('no .jar files in', jarDir); process.exit(2); }
 
-const dir = mkdtempSync(path.join(tmpdir(), 'jgo-shots-'));
+const minColours = Number(process.env.MGO_DOCS_MIN_COLOURS || 70);
+const dir = mkdtempSync(path.join(tmpdir(), 'mgo-shots-'));
 const port = 23800 + Math.floor(Math.random() * 90);
 const base = `http://127.0.0.1:${port}`;
 const server = spawn('node', ['apps/api/dist/server.js'], { env: { ...process.env, PORT: String(port), DATA_DIR: dir, HOST: '127.0.0.1', LOG_LEVEL: 'warn' }, stdio: 'ignore' });
@@ -34,7 +35,7 @@ try {
     const r = await (await fetch(base + '/api/games', { method: 'POST', body: fd })).json();
     if (r.game) games.push(r.game);
   }
-  // titles and genres as a collection would have them (the JARs of this repository's test fixtures are skipped by the caller)
+  // Optional labels for a real collection; repository test fixtures retain their own names.
   const GENRE = [/spider|assassin|iron|batman|gangstar/i, 'Action', /pool|football|fifa|nba|tennis/i, 'Sports', /asphalt|racing|rally|taxi/i, 'Racing', /tetris|bubble|block|puzzle/i, 'Puzzle'];
   const TITLE = { 'amazing spider': 'The Amazing Spider-Man', assassins: "Assassin's Creed" };
   for (const g of games) {
@@ -79,11 +80,11 @@ try {
     let st = { colours: 0, white: 1 };
     for (let i = 0; i < 70; i++) { // up to 35 s per game
       st = await look();
-      if (st.colours >= 70 && st.white < 0.3) break;
+      if (st.colours >= minColours && st.white < 0.3) break;
       await sleep(500);
     }
     console.log(hero.name, JSON.stringify(st));
-    if (st.colours >= 70 && st.white < 0.3) { shown = hero; break; }
+    if (st.colours >= minColours && st.white < 0.3) { shown = hero; break; }
     const live = await json('GET', '/api/sessions');
     for (const x of live) await json('DELETE', `/api/sessions/${x.id}`);
     await sleep(1500);
@@ -99,7 +100,7 @@ try {
   await sleep(800);
   await shot('phones.png');
   await page.goto(base + '/settings');
-  await page.locator('#library').waitFor();
+  await page.locator('#system').waitFor();
   await sleep(800);
   await shot('settings.png');
   console.log('screenshots written to', out);

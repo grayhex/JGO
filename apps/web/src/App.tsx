@@ -3,7 +3,7 @@ import { t as translateUI } from './i18n';
 import { lazy, Suspense } from 'react';
 import { useDeveloperMode } from './developer';
 const DevPhones = import.meta.env.VITE_DEVELOPER_BUILD === 'true' ? lazy(()=>import('./dev/PhonesPage').then(m=>({default:m.PhonesPage}))) : null;
-import type { HealthStatus, SymbianStatus } from '@j2me-web/protocol';
+import type { HealthStatus, SymbianStatus } from '@mgo/protocol';
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from './api';
 import { SetupWizard } from './components/SetupWizard';
@@ -26,7 +26,7 @@ function Login({ onDone }: { onDone: () => void }) {
   return (
     <div className="login">
       <div className="login-hero"><Seg<'en' | 'ru'> label="Language / Язык" value={locale} onChange={setLocale} options={[{ value: 'en', label: 'EN', title: 'English' }, { value: 'ru', label: 'RU', title: 'Русский' }]} />
-        <h1>{translateUI("J2ME Web")}</h1>
+        <h1>{translateUI("MGO")}</h1>
         <p>{translateUI("Your Java ME games, played by the real KEmulator on this server and streamed to any browser.")}</p>
       </div>
       <div className="login-side">
@@ -39,7 +39,7 @@ function Login({ onDone }: { onDone: () => void }) {
           }}
         >
           <h2>{translateUI("Sign in")}</h2>
-          <p className="muted">{translateUI("This server requires an access token. On a Proxmox install run")} <code>{translateUI("jgo token")}</code> {translateUI("in the container.")}</p>
+          <p className="muted">{translateUI("This server requires an access token. On a Proxmox install run")} <code>{translateUI("mgo token")}</code> {translateUI("in the container.")}</p>
           <input className="input" type="password" autoFocus placeholder={translateUI("Access token")} value={token} onChange={(e) => setToken(e.target.value)} aria-label={translateUI("Access token")} />
           <button className="btn primary" type="submit" disabled={busy || !token}>{translateUI("Sign in")}</button>
           {err && <p className="error">{err}</p>}
@@ -107,7 +107,7 @@ export function App() {
   const page = play
     ? { title: 'Player', subtitle: 'Live emulator session', node: <Player key={play[1]} gameId={play[1]!} toast={toast} onExit={() => go('/')} health={health} /> }
     : settings
-      ? { title: 'Settings', subtitle: 'Library, MobyGames, phone, sound, server', node: <SettingsPage toast={toast} onRunWizard={() => setWizard(true)} onLibraryChanged={() => window.dispatchEvent(new Event('j2me:library-changed'))} /> }
+      ? { title: 'Settings', subtitle: 'Library, emulators and server preferences.', node: <SettingsPage toast={toast} onRunWizard={() => setWizard(true)} onLibraryChanged={() => window.dispatchEvent(new Event('j2me:library-changed'))} /> }
     : phoneLab && DevPhones
       ? { title: 'Phones', subtitle: 'Phone lab', node: <Suspense fallback={null}><DevPhones /></Suspense> }
     : phones

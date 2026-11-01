@@ -4,7 +4,7 @@ import {mkdtempSync,rmSync,readFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {chromium} from 'playwright';
-const data=mkdtempSync(path.join(tmpdir(),'jgo-recovery-browser-')),port=20100+Math.floor(Math.random()*200),base=`http://127.0.0.1:${port}`;
+const data=mkdtempSync(path.join(tmpdir(),'mgo-recovery-browser-')),port=20100+Math.floor(Math.random()*200),base=`http://127.0.0.1:${port}`;
 let proc,browser;
 const wait=async(fn,limit=20000)=>{const until=Date.now()+limit;while(Date.now()<until){try{if(await fn())return;}catch{}await new Promise(r=>setTimeout(r,100));}throw Error('timeout');};
 const start=async()=>{proc=spawn('node',['apps/api/dist/server.js'],{env:{...process.env,HOST:'127.0.0.1',PORT:String(port),DATA_DIR:data,LOG_LEVEL:'warn'},stdio:['ignore','inherit','inherit']});await wait(async()=>(await fetch(base+'/api/health')).ok);};

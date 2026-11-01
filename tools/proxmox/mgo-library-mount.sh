@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Share a folder of the Proxmox VE host with a JGO container as the game library (read-only by default).
+# Share a folder of the Proxmox VE host with a MGO container as the game library (read-only by default).
 #
-#   jgo-library-mount.sh CTID /path/on/host [--rw] [--mp mpN] [--no-reboot] [--dry-run]
-#   jgo-library-mount.sh CTID --remove       [--no-reboot] [--dry-run]
+#   mgo-library-mount.sh CTID /path/on/host [--rw] [--mp mpN] [--no-reboot] [--dry-run]
+#   mgo-library-mount.sh CTID --remove       [--no-reboot] [--dry-run]
 #
 # Run it on the Proxmox host as root. It only adds one bind mount (mp<N>) to the container configuration:
-# the folder appears inside the container at /mnt/jgo-library, which JGO accepts as a library location.
+# the folder appears inside the container at /mnt/mgo-library, which MGO accepts as a library location.
 # Nothing is copied, and nothing in the folder is changed (the mount is read-only unless you ask for --rw).
 set -Eeuo pipefail
 
 PCT=${PCT_BIN:-pct}
-TARGET=/mnt/jgo-library
+TARGET=/mnt/mgo-library
 dry=0 reboot=1 ro=1 mp='' remove=0 ct='' dir=''
 
 die() { printf '✘ %s\n' "$*" >&2; exit 1; }
@@ -87,4 +87,4 @@ if ((reboot)); then
 else
   say "Restart the container to apply it:  pct reboot $ct"
 fi
-say "Then open JGO > Settings > Game library and choose $TARGET."
+say "Then open MGO > Settings > Game library and choose $TARGET."

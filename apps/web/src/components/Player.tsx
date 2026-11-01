@@ -3,7 +3,7 @@ import { NativeTestingPanel } from './NativeTestingPanel';
 import { StartFailureCard } from './StartFailureCard';
 import { t as translateUI } from '../i18n';
 import { useDeveloperMode } from '../developer';
-import { isPhoneId, resolvePhone, PHONE_COMPATIBILITY, skinSupportsPlatform } from '@j2me-web/protocol';
+import { isPhoneId, resolvePhone, PHONE_COMPATIBILITY, skinSupportsPlatform } from '@mgo/protocol';
 import { TextEditor } from './TextEditor';
 import { RecordingPanel } from './RecordingPanel';
 import { getLastGame, setLastGame } from '../lastGame';
@@ -14,7 +14,7 @@ import { Recorder, Replayer } from '../recording';
 import { downloadBlob, fileSafe, framePng } from '../snapshot';
 import { GamepadPoller, loadPadProfile, type PadAction, type PadState } from '../gamepad';
 import { GamepadSettings } from './GamepadSettings';
-import { KEY_LAYOUTS, SCREEN_PRESETS, type DevicePreset, type EmulationTweaks, type GameMeta, type HealthStatus, type LayoutId, type ServerEvent, type SessionState, type SessionStatus } from '@j2me-web/protocol';
+import { KEY_LAYOUTS, SCREEN_PRESETS, type DevicePreset, type EmulationTweaks, type GameMeta, type HealthStatus, type LayoutId, type ServerEvent, type SessionState, type SessionStatus } from '@mgo/protocol';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError, type JarAnalysisView } from '../api';
 import type { Toast } from '../App';
@@ -41,7 +41,7 @@ const STATE_BADGE: Record<string, string> = { running: 'prod', starting: 'dev', 
 export function Player({ gameId, toast, onExit, health }: { gameId: string; toast: (k: Toast['kind'], t: string) => void; onExit: () => void; health: HealthStatus | null }) {
   const developer=useDeveloperMode();
   const [game, setGame] = useState<GameMeta | null>(null);
-  const [failure, setFailure] = useState<{ failure: import('@j2me-web/protocol').StartFailure; sessionId: string | null } | null>(null);
+  const [failure, setFailure] = useState<{ failure: import('@mgo/protocol').StartFailure; sessionId: string | null } | null>(null);
   const j2me = (game?.platform ?? 'j2me') === 'j2me'; // Symbian and N-Gage games (EKA2L1) have no heap, J2ME profile or game speed
   const native = useNativePhone(game);
   const [session, setSession] = useState<SessionStatus | null>(null);
@@ -204,6 +204,9 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   }, [input, toast]);
 
   const attach = useCallback((s: SessionStatus) => {
+    // Native launch monitoring can attach before the POST response arrives.
+    // Keep that viewer: reconnecting the same session releases held inputs.
+    if (sessionRef.current?.id === s.id && streamRef.current) return;
     streamRef.current?.close();
     sessionRef.current = s;
     setSession(s); if (s.failure) setFailure({ failure: s.failure, sessionId: s.id }); setSpeed(s.speed ?? 1); setState(s.state); setFrameSize({ w: s.width, h: s.height }); setLog(s.logTail);
@@ -571,7 +574,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
               options={[{ value: '-75', label: '×0.25' }, { value: '-50', label: '×0.5' }, { value: '1', label: '×1' }, { value: '2', label: '×2' }, { value: '4', label: '×4' }]} />
             {![-75, -50, 1, 2, 4].includes(speed) && <span className="hint">{translateUI("Custom speed")}: {speed}</span>}
           </div>}
-          {session && <button className="btn ghost sm" onClick={() => api.diagnostics(session.id).then((b) => downloadBlob(b, `jgo-diagnostics-${fileSafe(game?.name ?? 'game')}.txt`), (e) => toast('error', (e as Error).message))} title={translateUI("A text report with the settings, the emulator log and the JVM state: attach it to a bug report")} data-testid="diagnostics">{translateUI("Download diagnostics")}</button>}
+          {session && <button className="btn ghost sm" onClick={() => api.diagnostics(session.id).then((b) => downloadBlob(b, `mgo-diagnostics-${fileSafe(game?.name ?? 'game')}.txt`), (e) => toast('error', (e as Error).message))} title={translateUI("A text report with the settings, the emulator log and the JVM state: attach it to a bug report")} data-testid="diagnostics">{translateUI("Download diagnostics")}</button>}
           {state === 'failed' && <div className="note err">{translateUI("The emulator stopped unexpectedly. The log below has the details.")}</div>}
           {j2me && health?.ok === false && <div className="note warn">{translateUI("The emulator runtime is not ready on this server.")}</div>}
         </Panel>

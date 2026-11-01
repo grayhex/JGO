@@ -161,7 +161,7 @@ node tools/audit/probe.mjs media apis      # или выборочно; резу
 | API | Результат | Замечание |
 |---|---|---|
 | WMA / SMS (`sms://`) | **FAIL**: `NullPointerException … IEmulatorFrontend.getMessage() is null` | дефект: исключение не «безопасное», а NPE из ядра (I-03) |
-| JSR-75 FileConnection | OK: запись `file:///root1/audit.txt`, корни `root/` | файлы лежат в каталоге пользователя игры (попадают в `jgo backup`), смотреть и выгружать их негде (I-13) |
+| JSR-75 FileConnection | OK: запись `file:///root1/audit.txt`, корни `root/` | файлы лежат в каталоге пользователя игры (попадают в `mgo backup`), смотреть и выгружать их негде (I-13) |
 | PIM | OK (`PIMImpl`) | содержимое не проверялось |
 | Location (JSR-179) | OK (`EmulatedLocationProvider`) | координаты — заглушка эмулятора; данные из браузера не передаются |
 | Sensor (JSR-256) | OK, найдено 2 датчика ускорения | данных нет: источник — внешний SensorSimulator по TCP (I-12) |
@@ -213,22 +213,22 @@ node tools/audit/probe.mjs media apis      # или выборочно; резу
 
 | ID | Приоритет | Задача | Issue | Статус |
 |---|---|---|---|---|
-| I-01 | P0 | Ввод текста: `TextField`/`TextBox` (Bridge `E`/`A`, редактор в UI) | [#6](https://github.com/grayhex/JGO/issues/6) | сделано (патч `0010`), см. §9 |
-| I-02 | P1 | Пауза, suspend/resume MIDlet и автопауза скрытой вкладки | [#7](https://github.com/grayhex/JGO/issues/7) | сделано (патч `0012`) |
-| I-03 | P1 | SMS/WMA: управляемая ошибка вместо NPE | [#8](https://github.com/grayhex/JGO/issues/8) | сделано (патч `0011`) |
-| I-04 | P1 | Настройка MIDI SoundFont (`SoundfontPath`) | [#9](https://github.com/grayhex/JGO/issues/9) | сделано |
-| I-05 | P1 | Контрактные тесты Bridge: проба → автоматические проверки в CI | [#10](https://github.com/grayhex/JGO/issues/10) | сделано |
-| I-06 | P2 | Ссылки из `platformRequest`: явное подтверждение и открытие | [#11](https://github.com/grayhex/JGO/issues/11) | сделано |
-| I-07 | P2 | Параметры эмуляции на игру (реальные ключи `AppSettings`) | [#12](https://github.com/grayhex/JGO/issues/12) | сделано |
-| I-08 | P2 | Скорость игры (speed modifier) | [#13](https://github.com/grayhex/JGO/issues/13) | сделано (патч `0013`) |
-| I-09 | P2 | Диагностика: X-Ray, force paint, трассировка, снимок памяти | [#14](https://github.com/grayhex/JGO/issues/14) | сделано частично: экспорт диагностики; X-Ray и окна SWT — ограничение ядра |
-| I-10 | P2 | Снимок экрана и запись GIF на клиенте | [#15](https://github.com/grayhex/JGO/issues/15) | сделано (PNG; запись GIF не делалась) |
-| I-11 | P2 | Запись и воспроизведение клавиш (`-rec`) | [#16](https://github.com/grayhex/JGO/issues/16) | сделано (на клиенте) |
-| I-12 | P2 | Датчики и геолокация из браузера (исследование) | [#17](https://github.com/grayhex/JGO/issues/17) | исследовано, решение «не делаем сейчас»: [SENSORS.md](SENSORS.md) |
-| I-13 | P2 | Файловая область игры (JSR-75): просмотр, выгрузка, загрузка | [#18](https://github.com/grayhex/JGO/issues/18) | сделано |
-| I-14 | P2 | Бэклог проверки совместимости (неподтверждённое) | [#19](https://github.com/grayhex/JGO/issues/19) | частично проверено, остальное — §9.2 |
+| I-01 | P0 | Ввод текста: `TextField`/`TextBox` (Bridge `E`/`A`, редактор в UI) | [#6](https://github.com/grayhex/MGO/issues/6) | сделано (патч `0010`), см. §9 |
+| I-02 | P1 | Пауза, suspend/resume MIDlet и автопауза скрытой вкладки | [#7](https://github.com/grayhex/MGO/issues/7) | сделано (патч `0012`) |
+| I-03 | P1 | SMS/WMA: управляемая ошибка вместо NPE | [#8](https://github.com/grayhex/MGO/issues/8) | сделано (патч `0011`) |
+| I-04 | P1 | Настройка MIDI SoundFont (`SoundfontPath`) | [#9](https://github.com/grayhex/MGO/issues/9) | сделано |
+| I-05 | P1 | Контрактные тесты Bridge: проба → автоматические проверки в CI | [#10](https://github.com/grayhex/MGO/issues/10) | сделано |
+| I-06 | P2 | Ссылки из `platformRequest`: явное подтверждение и открытие | [#11](https://github.com/grayhex/MGO/issues/11) | сделано |
+| I-07 | P2 | Параметры эмуляции на игру (реальные ключи `AppSettings`) | [#12](https://github.com/grayhex/MGO/issues/12) | сделано |
+| I-08 | P2 | Скорость игры (speed modifier) | [#13](https://github.com/grayhex/MGO/issues/13) | сделано (патч `0013`) |
+| I-09 | P2 | Диагностика: X-Ray, force paint, трассировка, снимок памяти | [#14](https://github.com/grayhex/MGO/issues/14) | сделано частично: экспорт диагностики; X-Ray и окна SWT — ограничение ядра |
+| I-10 | P2 | Снимок экрана и запись GIF на клиенте | [#15](https://github.com/grayhex/MGO/issues/15) | сделано (PNG; запись GIF не делалась) |
+| I-11 | P2 | Запись и воспроизведение клавиш (`-rec`) | [#16](https://github.com/grayhex/MGO/issues/16) | сделано (на клиенте) |
+| I-12 | P2 | Датчики и геолокация из браузера (исследование) | [#17](https://github.com/grayhex/MGO/issues/17) | исследовано, решение «не делаем сейчас»: [SENSORS.md](SENSORS.md) |
+| I-13 | P2 | Файловая область игры (JSR-75): просмотр, выгрузка, загрузка | [#18](https://github.com/grayhex/MGO/issues/18) | сделано |
+| I-14 | P2 | Бэклог проверки совместимости (неподтверждённое) | [#19](https://github.com/grayhex/MGO/issues/19) | частично проверено, остальное — §9.2 |
 
-Задачи заведены на GitHub: I-01…I-14 = [#6…#19](https://github.com/grayhex/JGO/issues). Критерии приёмки — в тексте каждой.
+Задачи заведены на GitHub: I-01…I-14 = [#6…#19](https://github.com/grayhex/MGO/issues). Критерии приёмки — в тексте каждой.
 
 ## 9. Что изменилось после аудита (задачи #6–#19)
 
@@ -238,20 +238,20 @@ node tools/audit/probe.mjs media apis      # или выборочно; резу
 
 | Issue | Что теперь | Как проверено |
 |---|---|---|
-| [#6](https://github.com/grayhex/JGO/issues/6) ввод текста | фокус на `TextField`/`TextBox` → пакеты `N` + `A`; текст от клиента → `E <percent-encoded UTF-8>`; усечение до `maxSize`, фильтр `NUMERIC`/`DECIMAL`/`PHONENUMBER`, `UNEDITABLE` не правится, `itemStateChanged` вызывается; в плеере — редактор (пароль скрыт, подходящая клавиатура, `maxlength`, многострочный для `TextBox`) | `tests/integration/text-input.test.ts`, `tests/e2e/text-input.mjs` |
-| [#7](https://github.com/grayhex/JGO/issues/7) пауза | команда `S 1`/`S 0`: `hideNotify`+`pauseApp`, цикл отрисовки заморожен, кадры не идут; при продолжении `startApp`+`showNotify`; кнопка Pause/Resume; игра приостанавливается, когда ни один зритель не видит страницу | `tests/integration/pause.test.ts`, `tests/e2e/pause.mjs` |
-| [#8](https://github.com/grayhex/JGO/issues/8) SMS | `getMessage()` возвращает заглушку: `send` бросает `IOException("SMS is not available")`, вместо `NullPointerException` | `bridge-regressions.test.ts` (SMS) |
-| [#9](https://github.com/grayhex/JGO/issues/9) SoundFont | загрузка SF2 в Settings; путь пишется в `property.txt` при каждом старте; эмулятор открывает файл (доказано `strace`) | `tests/integration/soundfont.test.ts`, `apps/api/src/soundfont.test.ts`, `tests/e2e/soundfont.mjs` |
-| [#10](https://github.com/grayhex/JGO/issues/10) контрактные тесты | декодируются все исходящие пакеты (`D T C M V P U I N A`); устойчивость к плохому вводу (`X I E S K T C P`, неизвестные типы) | `tests/integration/bridge-contract.test.ts` |
-| [#11](https://github.com/grayhex/JGO/issues/11) ссылки | диалог с полным адресом, «Открыть» только по клику, `noopener noreferrer`; `javascript:`/`file:`/`data:` по-прежнему отсекаются сервером | `tests/e2e/player-tools.mjs`, `bridge-regressions.test.ts` |
-| [#12](https://github.com/grayhex/JGO/issues/12) параметры | `GameSettings.emulation`: `FrameRate`, `StartAppOnResume`, `MIDPLocale`, `HasPointerEvents`, `Font*Size` — каждый ключ доказан наблюдением из игры; неизвестные и неверные значения отвергаются | `tests/integration/speed-and-tweaks.test.ts`, `tests/e2e/emulation-options.mjs` |
-| [#13](https://github.com/grayhex/JGO/issues/13) скорость | команда `Y n` (−100…100, не 0), кнопки ×0.25…×4; исправлена формула сна ядра при замедлении (стоковая растягивала `sleep` в 5·\|m\| раз) | `speed-and-tweaks.test.ts` (часы игры идут в 0,5×/1×/2×) |
-| [#14](https://github.com/grayhex/JGO/issues/14) диагностика | `GET /api/sessions/:id/diagnostics`: настройки, журнал, `jcmd` (версия, куча, потоки JVM); кнопка в панели Session. Данные JVM требуют `jcmd` (пакет `openjdk-21-jdk-headless`); при установке только JRE (`install/jgo-install.sh`, образ Docker) отчёт содержит всё остальное и честно пишет, чего нет | `tests/integration/diagnostics.test.ts` |
-| [#15](https://github.com/grayhex/JGO/issues/15) снимок | PNG в размере кадра игры (с поворотом), сохранить или скопировать | `tests/e2e/player-tools.mjs` |
-| [#16](https://github.com/grayhex/JGO/issues/16) запись | запись/воспроизведение клавиш, касаний, команд и текста с таймингом, файл привязан к игре | `apps/web/src/recording.test.ts`, `tests/e2e/player-tools.mjs` |
-| [#17](https://github.com/grayhex/JGO/issues/17) датчики | исследование, решение «не делаем сейчас»: [SENSORS.md](SENSORS.md) | запуск в изолированном сетевом пространстве |
-| [#18](https://github.com/grayhex/JGO/issues/18) файлы игры | панель «Файлы игры»: список, скачать, загрузить, удалить; проверка пути по сегментам (без `..`, абсолютных путей, обратных слэшей, NUL, символических ссылок), квота 64 МБ | `tests/integration/game-files.test.ts`, `tests/e2e/player-tools.mjs` |
-| [#19](https://github.com/grayhex/JGO/issues/19) совместимость | см. 9.2 | — |
+| [#6](https://github.com/grayhex/MGO/issues/6) ввод текста | фокус на `TextField`/`TextBox` → пакеты `N` + `A`; текст от клиента → `E <percent-encoded UTF-8>`; усечение до `maxSize`, фильтр `NUMERIC`/`DECIMAL`/`PHONENUMBER`, `UNEDITABLE` не правится, `itemStateChanged` вызывается; в плеере — редактор (пароль скрыт, подходящая клавиатура, `maxlength`, многострочный для `TextBox`) | `tests/integration/text-input.test.ts`, `tests/e2e/text-input.mjs` |
+| [#7](https://github.com/grayhex/MGO/issues/7) пауза | команда `S 1`/`S 0`: `hideNotify`+`pauseApp`, цикл отрисовки заморожен, кадры не идут; при продолжении `startApp`+`showNotify`; кнопка Pause/Resume; игра приостанавливается, когда ни один зритель не видит страницу | `tests/integration/pause.test.ts`, `tests/e2e/pause.mjs` |
+| [#8](https://github.com/grayhex/MGO/issues/8) SMS | `getMessage()` возвращает заглушку: `send` бросает `IOException("SMS is not available")`, вместо `NullPointerException` | `bridge-regressions.test.ts` (SMS) |
+| [#9](https://github.com/grayhex/MGO/issues/9) SoundFont | загрузка SF2 в Settings; путь пишется в `property.txt` при каждом старте; эмулятор открывает файл (доказано `strace`) | `tests/integration/soundfont.test.ts`, `apps/api/src/soundfont.test.ts`, `tests/e2e/soundfont.mjs` |
+| [#10](https://github.com/grayhex/MGO/issues/10) контрактные тесты | декодируются все исходящие пакеты (`D T C M V P U I N A`); устойчивость к плохому вводу (`X I E S K T C P`, неизвестные типы) | `tests/integration/bridge-contract.test.ts` |
+| [#11](https://github.com/grayhex/MGO/issues/11) ссылки | диалог с полным адресом, «Открыть» только по клику, `noopener noreferrer`; `javascript:`/`file:`/`data:` по-прежнему отсекаются сервером | `tests/e2e/player-tools.mjs`, `bridge-regressions.test.ts` |
+| [#12](https://github.com/grayhex/MGO/issues/12) параметры | `GameSettings.emulation`: `FrameRate`, `StartAppOnResume`, `MIDPLocale`, `HasPointerEvents`, `Font*Size` — каждый ключ доказан наблюдением из игры; неизвестные и неверные значения отвергаются | `tests/integration/speed-and-tweaks.test.ts`, `tests/e2e/emulation-options.mjs` |
+| [#13](https://github.com/grayhex/MGO/issues/13) скорость | команда `Y n` (−100…100, не 0), кнопки ×0.25…×4; исправлена формула сна ядра при замедлении (стоковая растягивала `sleep` в 5·\|m\| раз) | `speed-and-tweaks.test.ts` (часы игры идут в 0,5×/1×/2×) |
+| [#14](https://github.com/grayhex/MGO/issues/14) диагностика | `GET /api/sessions/:id/diagnostics`: настройки, журнал, `jcmd` (версия, куча, потоки JVM); кнопка в панели Session. Данные JVM требуют `jcmd` (пакет `openjdk-21-jdk-headless`); при установке только JRE (`install/mgo-install.sh`, образ Docker) отчёт содержит всё остальное и честно пишет, чего нет | `tests/integration/diagnostics.test.ts` |
+| [#15](https://github.com/grayhex/MGO/issues/15) снимок | PNG в размере кадра игры (с поворотом), сохранить или скопировать | `tests/e2e/player-tools.mjs` |
+| [#16](https://github.com/grayhex/MGO/issues/16) запись | запись/воспроизведение клавиш, касаний, команд и текста с таймингом, файл привязан к игре | `apps/web/src/recording.test.ts`, `tests/e2e/player-tools.mjs` |
+| [#17](https://github.com/grayhex/MGO/issues/17) датчики | исследование, решение «не делаем сейчас»: [SENSORS.md](SENSORS.md) | запуск в изолированном сетевом пространстве |
+| [#18](https://github.com/grayhex/MGO/issues/18) файлы игры | панель «Файлы игры»: список, скачать, загрузить, удалить; проверка пути по сегментам (без `..`, абсолютных путей, обратных слэшей, NUL, символических ссылок), квота 64 МБ | `tests/integration/game-files.test.ts`, `tests/e2e/player-tools.mjs` |
+| [#19](https://github.com/grayhex/MGO/issues/19) совместимость | см. 9.2 | — |
 
 Что не вошло и почему: **запись GIF** (в #15 она помечена «опционально»), **X-Ray, Force paint, окна `Info/Memory/Watches/Profiler/Methods/M3G view`** (#14: ядро рисует X-Ray только в SWT-окне, `BridgeOutput.sendBuffer` всегда копирует обычный буфер — это ограничение ядра, переключатель без эффекта не добавлялся).
 
@@ -268,7 +268,7 @@ node tools/audit/probe.mjs media apis      # или выборочно; резу
 | PIM, Bluetooth, камера | **ограничение ядра**: заглушки / `null` / сбой (аудит §5.6) | аудит `apis` |
 | Видео (`video/*`) | **не поддерживается этой конфигурацией**: нужен VLC на сервере, типы `video/*` отсутствуют в `getSupportedContentTypes` | аудит `media` |
 | Mascot Capsule v3 с `.mbac` | **не проверено**: нет свободно распространяемой модели; примитивы рисуются (тест при `KEM_DISPLAY`) | нужна игра пользователя |
-| «Сеть как в телефоне» | **иная семантика**: игра получает `UnknownHostException` из-за сетевой изоляции; `NetworkNotAvailable` ядра не используется | `jgo network allow` отключает изоляцию |
+| «Сеть как в телефоне» | **иная семантика**: игра получает `UnknownHostException` из-за сетевой изоляции; `NetworkNotAvailable` ядра не используется | `mgo network allow` отключает изоляцию |
 | Производительность 3D на реальных играх | **не оценивалась**; на тестовой сцене — см. `3d.test.ts` | нужны игры пользователя |
 
 ## 10. Чего аудит не делал

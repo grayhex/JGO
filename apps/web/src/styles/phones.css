@@ -1,6 +1,6 @@
 .phones-models { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: var(--s-xl); margin-top: var(--s-xl); }
 .phone-preview { padding: var(--s-lg); text-align: center; }
-.phone-preview img:not(.skin-body):not(.skin-glass) { display: block; width: 100%; height: 280px; object-fit: contain; margin-bottom: var(--s-lg); } /* not the skin layers: they are sized by the skin box, a fixed height here made wide phones (N-Gage) float away from their screen */
+.phone-preview > img { display: block; width: 100%; height: 280px; object-fit: contain; margin-bottom: var(--s-lg); } /* not the skin layers: they are sized by the skin box, a fixed height here made wide phones (N-Gage) float away from their screen */
 
 /* /phones: what a phone can run and whether its firmware is loaded */
 .phone-platforms { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin: 0; }
@@ -46,3 +46,16 @@
 .sym-drop-title { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; word-break: break-all; }
 .sym-inbox { margin-top: var(--s-lg); border: 1px solid var(--outline); border-radius: var(--r-lg, 12px); display: grid; gap: var(--s-md); }
 @media (max-width: 640px) { .sym-device { grid-template-columns: 64px 1fr; } .sym-device > .btn { grid-column: 1 / -1; } .sym-default, .sym-add { grid-template-columns: 1fr; } }
+
+/* Fifteen devices fit in a compact catalog without repeating compatibility prose. */
+.phones-models { grid-template-columns: repeat(auto-fill,minmax(165px,1fr)); gap: 12px; margin-top: 16px; }
+.phone-preview.phone-pick { padding: 12px; gap: 6px; }
+.phone-pick .phone-pick-skin { height: 140px; }
+.phone-pick h2 { font-size: .86rem; line-height: 1.3; margin: 6px 0 0; }
+.phone-pick > p { margin: 3px 0; font-size: .73rem; }
+.phone-pick .phone-platforms { gap: 3px; }
+.phone-pick .phone-platforms .chip { font-size: .63rem; padding: 1px 5px; }
+.phone-pick .phone-firmware { display: block; font-size: .68rem; }
+.phone-firmware .dot { display: inline-block; margin-right: 4px; width: 6px; height: 6px; }
+.phones-intro { max-width: 920px; }
+@media(max-width: 420px) { .phones-models { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; } .phone-pick .phone-pick-skin { height: 140px; } }

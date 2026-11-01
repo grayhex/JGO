@@ -5,9 +5,20 @@ Formatted after [Keep a Changelog](https://keepachangelog.com/); versions follow
 
 ## [Unreleased]
 
-### Changed (rename: JGO → MGO, Mobile Games Online)
-- The product is now **MGO — Mobile Games Online**: UI, README, docs, error messages, diagnostics, images (`ghcr.io/grayhex/mgo`, `mgo-gateway`, `mgo-symbian`; the old `jgo*` image names are still published as aliases for one transition period). User-facing variables are `MGO_TOKEN`, `MGO_VERSION`, `MGO_BIND`, `MGO_PORT`, `MGO_DATA`, `MGO_LIBRARY`, `MGO_SYMBIAN_VERSION`; the `JGO_*` names still work.
-- **Deliberately not renamed** (renaming would break existing installs): the Compose project `jgo` and the volumes `jgo-data`, `jgo-auth`, `jgo-symbian-data` (your saves, token and firmware stay in place), the native-install identifiers (`jgo` CLI, the `jgo` user, `/opt/jgo`, `/var/lib/jgo`, LXC scripts), internal env names such as `JGO_AUTH_DIR`, browser `localStorage` keys, and the repository URL `grayhex/JGO`.
+### Changed
+- Complete MGO naming for images, CLI, services, configuration and documentation; migration notes preserve access to existing data.
+- HTTPS gateway with persistent certificates, HTTP redirect, WSS and streamed large uploads.
+- Settings tabs, live container monitoring, separate Java/N-Gage/SIS directories and platform phone defaults; compact phone cards and a current-game sidebar with three version/status entries.
+- Original N-Gage catalog metadata and cached covers from All About Symbian, with attribution and protected manual classifications.
+
+### Fixed
+- Viewers attached during startup receive the running state and retain their audio subscription; a delayed launch response no longer reconnects the same session and releases held input.
+- Symbian audio uses an explicit shared PulseAudio socket/sink despite isolated per-game HOME directories, reports capture errors, and reassembles fragmented HTTP PCM into complete stereo frames.
+- N95 8GB RM-320 is recognized; package generation takes priority over an incompatible platform default. Choosing a native phone binds its real firmware.
+- A game's own running instance no longer causes a busy warning.
+
+
+### Changed (deployment)
 - **One `compose.yaml` now contains the Symbian service** (`mgo-symbian`): no `compose.symbian*.yaml`, no `SYMBIAN_TOKEN` to type in. The app and the service share a secret through the `symbian-auth` volume (the service creates it on the first start; the app mounts it read-only). The service sits on an internal `symbian` network with no route out, with the same hardening and limits as before. `compose.build.yaml` also builds `mgo-symbian`; CI builds only `app gateway` there because the EKA2L1 build takes 30-60 minutes (it has its own workflow). Remove the `mgo-symbian` block and the `SYMBIAN_*` lines if you only play Java ME games.
 
 ### Fixed (first real Symbian run: Contra on Nokia N70, RM-84)
@@ -25,7 +36,7 @@ Formatted after [Keep a Changelog](https://keepachangelog.com/); versions follow
 - Native-core testing UI on top of PR #35: live service/firmware readiness, explicit profiles and actual installed-device selection, matching-skin action without replacing firmware, platform filters, upload progress/cancellation, resumable firmware-job monitoring, starting-session logs and diagnostics. Symbian UI tests use a fake emulator and do not certify a real game.
 
 ### Added (experimental)
-- **Symbian S60 and N-Gage 1.0/2.0 through EKA2L1** as a second emulation core, in an optional container (`jgo-symbian`, `compose.symbian.yaml`): the library knows the platforms `j2me`, `symbian`, `ngage`, `ngage2` (`.sis`, `.sisx`, `.n-gage`, N-Gage 1.0 card `.zip`) and picks the core automatically; the KEmulator path is unchanged. Frames, sound and input use the existing WebSocket protocol (frames carry their own size). Firmware is added by the user in Settings → Symbian, streamed into the service and never stored in the repository or the image. EKA2L1 is built from a pinned upstream commit (its HTTP control API is not in a release yet). See `docs/SYMBIAN.md` for what was verified (control API on the real binary, the agent, the adapter against a fake) and what was not (a real game with real firmware).
+- **Symbian S60 and N-Gage 1.0/2.0 through EKA2L1** as a second emulation core, in an optional container (`mgo-symbian`, `compose.symbian.yaml`): the library knows the platforms `j2me`, `symbian`, `ngage`, `ngage2` (`.sis`, `.sisx`, `.n-gage`, N-Gage 1.0 card `.zip`) and picks the core automatically; the KEmulator path is unchanged. Frames, sound and input use the existing WebSocket protocol (frames carry their own size). Firmware is added by the user in Settings → Symbian, streamed into the service and never stored in the repository or the image. EKA2L1 is built from a pinned upstream commit (its HTTP control API is not in a release yet). See `docs/SYMBIAN.md` for what was verified (control API on the real binary, the agent, the adapter against a fake) and what was not (a real game with real firmware).
 - **Large uploads through the gateway.** The nginx gateway had a global `client_max_body_size 40m`, which would have stopped a firmware (up to 2 GB) and a Symbian package (up to 512 MB) with `413` before they reached the app. Now `/api/games` (1 GB) and `/api/symbian/firmware` (4 GB) have their own limits and stream the body (`proxy_request_buffering off`: nothing is spooled to the gateway's tmpfs); everything else keeps 40 MB; the app and the Symbian service still enforce the real limits. Tested through a real nginx (`tests/integration/gateway.test.ts`, with the old configuration as a control). `tools/symbian/check-upload.mjs` + `POST /api/symbian/upload-probe` check the path through your own reverse proxy or tunnel.
 - **A game is bound to a device (firmware)**: `symbianDevice` in the game's settings, a default per platform in the Symbian service, otherwise the only installed device; with several devices and no choice the start is refused (`409 device_required`) instead of taking the first one.
 - **Firmware from a folder** (`/inbox`, read-only): for files that are too big for the browser or the proxy. **Symbian diagnostics** (`/api/symbian/diagnostics`): service log, emulator output and `EKA2L1.log` of the last run. N-Gage 1.0 card zips may have a wrapping folder and any letter case.
@@ -45,12 +56,12 @@ Formatted after [Keep a Changelog](https://keepachangelog.com/); versions follow
 - README and screenshots renewed; the old ones are removed.
 
 ### Added
-- **`:edge` image**: `edge.yml` publishes `jgo:edge` and `jgo-gateway:edge` (and an immutable `sha-<commit>`) after every green CI on `main`, with Buildx and the Actions cache; a red CI publishes nothing. `latest` now moves only for an official release, and a version tag already in GHCR is never overwritten.
+- **`:edge` image**: `edge.yml` publishes `mgo:edge` and `mgo-gateway:edge` (and an immutable `sha-<commit>`) after every green CI on `main`, with Buildx and the Actions cache; a red CI publishes nothing. `latest` now moves only for an official release, and a version tag already in GHCR is never overwritten.
 - **Library clean-up**: remove all games whose files are gone, or empty the whole library (type `DELETE`), optionally with saves. Genres and MobyGames data are kept.
-- **Genres from folder names** (`JGO-Top500/Racing/…`), applied after every scan and by a button; sorting (name, added, last played, time played, genre) and a status filter (not played, played, file gone, genre not confirmed) in the library.
+- **Genres from folder names** (`MGO-Top500/Racing/…`), applied after every scan and by a button; sorting (name, added, last played, time played, genre) and a status filter (not played, played, file gone, genre not confirmed) in the library.
 - **Play time** on every game card (hours and minutes, all versions of a game together): counted while a game's session runs, saved every 30 s and when it ends (column `games.play_seconds`).
 - **Genres.** A game's genre is metadata of the game (all its versions), not of a folder: table `game_classifications`, 13 genres plus free tags, chips with counts over the library, a genre badge and dialog on every card.
-- **Genre catalog** (`jgo_catalog.json` in JGO's format or the J2ME Curator manifest, matched by SHA-256; file paths are stripped in the browser and never sent; curator confidence `heuristic`/`unclassified` is kept as an unconfirmed genre): preview, then import in one transaction, idempotent; export. Genres chosen by hand are locked; MobyGames outranks the catalog; no paths are sent to the API. See `docs/LIBRARY.md`.
+- **Genre catalog** (`mgo_catalog.json` in MGO's format or the J2ME Curator manifest, matched by SHA-256; file paths are stripped in the browser and never sent; curator confidence `heuristic`/`unclassified` is kept as an unconfirmed genre): preview, then import in one transaction, idempotent; export. Genres chosen by hand are locked; MobyGames outranks the catalog; no paths are sent to the API. See `docs/LIBRARY.md`.
 
 ### Changed
 - Titles are cleaned of release-group and site tags (`**MASYAKA**`, `-zub-`, `[NP]`, `dedomil.net`…) and file-name style words are split (`ExtremeAirSnowboarding3D`); a catalog title replaces an unreadable one (`ewjim` → `Earthworm Jim`).
@@ -82,14 +93,14 @@ Formatted after [Keep a Changelog](https://keepachangelog.com/); versions follow
 
 ## [0.1.0-beta.1] - first beta
 
-First public beta of JGO: a self-hosted web player for Java ME (J2ME/MIDP) games that runs the real
+First public beta of MGO: a self-hosted web player for Java ME (J2ME/MIDP) games that runs the real
 [KEmulator nnmod](https://github.com/shinovon/KEmulator) on your server.
 
 ### Installation
-- **Docker is the main way** (NAS, server): images `ghcr.io/grayhex/jgo` and `ghcr.io/grayhex/jgo-gateway`, `compose.yaml` + `.env`
+- **Docker is the main way** (NAS, server): images `ghcr.io/grayhex/mgo` and `ghcr.io/grayhex/mgo-gateway`, `compose.yaml` + `.env`
   (token required), optional data folder with `PUID`/`PGID`, read-only games folder, games without network access. See `docs/DOCKER.md`.
-- Proxmox VE LXC (Community Scripts format, systemd, command `jgo`) as the additional way. See `docs/PROXMOX.md`.
-- `jgo update` orders versions as SemVer (a beta is older than its release).
+- Proxmox VE LXC (Community Scripts format, systemd, command `mgo`) as the additional way. See `docs/PROXMOX.md`.
+- `mgo update` orders versions as SemVer (a beta is older than its release).
 
 ### Player
 - Real KEmulator in the server, frames/audio/input over WebSocket; sessions survive page reloads and network drops.

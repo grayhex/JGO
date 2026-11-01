@@ -1,7 +1,8 @@
+import { monitoring } from './monitoring.js';
 import { execFile } from 'node:child_process';
 import { accessSync, constants, existsSync, readdirSync, statfsSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import type { SystemCheck, SystemStatus } from '@j2me-web/protocol';
+import type { SystemCheck, SystemStatus } from '@mgo/protocol';
 import { type Config, readKemCommit } from './config.js';
 import type { Library } from './library.js';
 import { resolveInsideRoots } from './libraryPath.js';
@@ -37,8 +38,8 @@ export async function mesaCheck(cfg: Config): Promise<SystemCheck> {
   if (!gl || !mesa) {
     return { id: 'mesa', label: 'Mesa (software OpenGL)', state: 'warn', detail: 'libGL / Mesa not found: 2D games and sound work, 3D games (M3G, Mascot Capsule) will not.', hint: 'apt install libgl1 libgl1-mesa-dri libglx-mesa0' };
   }
-  if (!display) return { id: 'mesa', label: 'Mesa (software OpenGL)', state: 'warn', detail: 'Mesa is installed but no display is configured (KEM_DISPLAY): 3D games are disabled.', hint: 'jgo doctor' };
-  if (sock && !existsSync(sock)) return { id: 'mesa', label: 'Mesa (software OpenGL)', state: 'warn', detail: `Mesa is installed but the virtual display ${display} is not running.`, hint: 'systemctl status jgo-xvfb' };
+  if (!display) return { id: 'mesa', label: 'Mesa (software OpenGL)', state: 'warn', detail: 'Mesa is installed but no display is configured (KEM_DISPLAY): 3D games are disabled.', hint: 'mgo doctor' };
+  if (sock && !existsSync(sock)) return { id: 'mesa', label: 'Mesa (software OpenGL)', state: 'warn', detail: `Mesa is installed but the virtual display ${display} is not running.`, hint: 'systemctl status mgo-xvfb' };
   return { id: 'mesa', label: 'Mesa (software OpenGL)', state: 'ok', detail: `Mesa llvmpipe available, virtual display ${display || 'n/a'} is up.` };
 }
 
@@ -67,17 +68,17 @@ export async function systemStatus(cfg: Config, library: Library, store: Setting
   const jarPath = path.join(cfg.kemDir, 'KEmulator.jar');
   checks.push(java
     ? { id: 'java', label: 'Java', state: 'ok', detail: `OpenJDK ${java}` }
-    : { id: 'java', label: 'Java', state: 'error', detail: `"${cfg.javaBin}" was not found or does not start.`, hint: 'apt install openjdk-21-jre-headless, or run `jgo doctor`' });
+    : { id: 'java', label: 'Java', state: 'error', detail: `"${cfg.javaBin}" was not found or does not start.`, hint: 'apt install openjdk-21-jre-headless, or run `mgo doctor`' });
   const commit = readKemCommit(cfg.kemDir);
   checks.push(existsSync(jarPath)
     ? { id: 'kemulator', label: 'KEmulator', state: 'ok', detail: commit ? `KEmulator nnmod, commit ${commit.slice(0, 10)}` : 'KEmulator.jar present (commit unknown)' }
-    : { id: 'kemulator', label: 'KEmulator', state: 'error', detail: 'KEmulator.jar is missing from the installation.', hint: '`jgo update`, or `jgo rollback` if it was working before' });
+    : { id: 'kemulator', label: 'KEmulator', state: 'error', detail: 'KEmulator.jar is missing from the installation.', hint: '`mgo update`, or `mgo rollback` if it was working before' });
   const adapterOk = existsSync(cfg.adapterBin) && canExec(cfg.adapterBin);
   const runOk = (() => { try { return existsSync(cfg.runDir) ? writable(cfg.runDir) : true; } catch { return false; } })();
   checks.push(!adapterOk
-    ? { id: 'bridge', label: 'Bridge (kem-adapter)', state: 'error', detail: 'The Bridge supervisor binary is missing or not executable.', hint: '`jgo update` or `jgo doctor`' }
+    ? { id: 'bridge', label: 'Bridge (kem-adapter)', state: 'error', detail: 'The Bridge supervisor binary is missing or not executable.', hint: '`mgo update` or `mgo doctor`' }
     : !runOk
-      ? { id: 'bridge', label: 'Bridge (kem-adapter)', state: 'error', detail: 'The Bridge is installed but its runtime directory is not writable.', hint: 'systemctl restart jgo' }
+      ? { id: 'bridge', label: 'Bridge (kem-adapter)', state: 'error', detail: 'The Bridge is installed but its runtime directory is not writable.', hint: 'systemctl restart mgo' }
       : { id: 'bridge', label: 'Bridge (kem-adapter)', state: 'ok', detail: 'Supervisor installed, runtime directory writable.' });
   checks.push(await mesaCheck(cfg));
 
@@ -92,27 +93,26 @@ export async function systemStatus(cfg: Config, library: Library, store: Setting
   } catch { /* unknown filesystem */ }
   const libraryBytes = library.totalBytes();
   const gb = (n: number) => `${(n / 1073741824).toFixed(1)} GB`;
-  if (!dataWritable) checks.push({ id: 'storage', label: 'Storage', state: 'error', detail: 'The data directory is not writable: nothing can be saved.', hint: 'check the container disk and `systemctl status jgo`' });
+  if (!dataWritable) checks.push({ id: 'storage', label: 'Storage', state: 'error', detail: 'The data directory is not writable: nothing can be saved.', hint: 'check the container disk and `systemctl status mgo`' });
   else if (total && free < Math.min(512 * 1024 * 1024, total * 0.05)) checks.push({ id: 'storage', label: 'Storage', state: 'warn', detail: `Only ${gb(free)} of ${gb(total)} left on the data disk.`, hint: 'grow the container disk (pct resize) or remove games' });
   else checks.push({ id: 'storage', label: 'Storage', state: 'ok', detail: total ? `${gb(free)} free of ${gb(total)}; library ${gb(libraryBytes)} of ${gb(cfg.libraryQuotaBytes)} quota` : `library ${gb(libraryBytes)}` });
   const quotaUsed = cfg.libraryQuotaBytes ? libraryBytes / cfg.libraryQuotaBytes : 0;
   if (quotaUsed > 0.9) checks.push({ id: 'quota', label: 'Library quota', state: 'warn', detail: `${Math.round(quotaUsed * 100)}% of the library quota is used.`, hint: 'raise it in Settings > Server' });
 
   // library directory (read access only: counting files is the job of the "check" button)
-  const lp = store.get().libraryPath;
-  if (lp) {
-    const hit = resolveInsideRoots(cfg, lp);
-    let readable = false;
-    if (hit) { try { accessSync(hit.real, constants.R_OK | constants.X_OK); readable = true; } catch { /* no */ } }
-    checks.push(!hit
-      ? { id: 'library', label: 'Game library directory', state: 'error', detail: 'The configured directory is missing or outside the allowed locations. Is the folder mounted?', hint: 'Settings > Library' }
-      : !readable
-        ? { id: 'library', label: 'Game library directory', state: 'error', detail: 'The directory exists but the jgo user cannot read it.', hint: 'docs/PROXMOX.md, "Game library": file permissions and uid mapping' }
-        : { id: 'library', label: 'Game library directory', state: 'ok', detail: 'Readable.' });
-  } else {
-    checks.push({ id: 'library', label: 'Game library directory', state: 'ok', detail: 'Not configured (optional): games can still be uploaded.' });
-  }
+  const configured = store.get();
+  const paths = [...new Set([configured.libraryPath, ...Object.values(configured.libraryPaths ?? {})].filter((p): p is string => !!p))];
+  if (paths.length) {
+    const failed = paths.filter(dir => {
+      const hit = resolveInsideRoots(cfg, dir);
+      if (!hit) return true;
+      try { accessSync(hit.real, constants.R_OK | constants.X_OK); return false; } catch { return true; }
+    });
+    checks.push(failed.length
+      ? { id: 'library', label: 'Game library directory', state: 'error', detail: `Unavailable folders: ${failed.join(', ')}. Existing games are kept.`, hint: 'Settings > Game library' }
+      : { id: 'library', label: 'Game library directory', state: 'ok', detail: paths.length === 1 ? 'Readable.' : `${paths.length} library folders are readable.` });
+  } else checks.push({ id: 'library', label: 'Game library directory', state: 'ok', detail: 'Not configured (optional): games can still be uploaded.' });
   const moby = store.mobygamesInfo();
   checks.push({ id: 'mobygames', label: 'MobyGames', state: 'ok', detail: moby.configured ? `API key configured (${moby.source === 'environment' ? 'from the environment' : 'stored on the server'}).` : 'No API key (optional): the library works with the metadata inside the JAR files.' });
-  return { version, checks, storage: { totalBytes: total, freeBytes: free, libraryBytes, quotaBytes: cfg.libraryQuotaBytes } };
+  return { version, sampledAt: new Date().toISOString(), monitoring: monitoring(), checks, storage: { totalBytes: total, freeBytes: free, libraryBytes, quotaBytes: cfg.libraryQuotaBytes } };
 }

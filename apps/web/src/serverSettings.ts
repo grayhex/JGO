@@ -1,4 +1,4 @@
-import type { PublicSettings, SettingsResponse } from '@j2me-web/protocol';
+import type { PublicSettings, SettingsResponse } from '@mgo/protocol';
 import { useSyncExternalStore } from 'react';
 import { api } from './api';
 

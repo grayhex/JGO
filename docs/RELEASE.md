@@ -6,8 +6,8 @@
 2. Проверка без публикации: Actions → **Release** → *Run workflow* с нужной версией. Собирает тарболл и оба образа, ничего не публикует; артефакты можно скачать и посмотреть.
 3. Тег: `git tag v0.1.0-beta.1 && git push origin v0.1.0-beta.1`. Workflow **Release**:
    * публикует образы `ghcr.io/grayhex/mgo:<версия>` и `ghcr.io/grayhex/mgo-gateway:<версия>`; **версионный тег никогда не перезаписывается** (если такая версия уже есть в GHCR, workflow пропускает публикацию образа и предупреждает: выпустите новую версию); `:latest` двигается **только для официального релиза** (версия без суффикса `-beta`/`-rc`/… и релиз не помечен как pre-release);
-   * создаёт GitHub Release с `compose.yaml`, `compose.egress.yaml`, `env.example`, тарболлом для Proxmox (`jgo-<версия>-linux-amd64.tar.gz`), `SHA256SUMS` и исходниками KEmulator (лицензии GPL/Apache/EPL).
-4. **Один раз** после первой публикации: GitHub → профиль → *Packages* → `jgo` и `mgo-gateway` → *Package settings* → *Change visibility* → **Public**. Пока пакеты приватны, NAS не сможет скачать образ.
+   * создаёт GitHub Release с `compose.yaml`, `compose.egress.yaml`, `env.example`, тарболлом для Proxmox (`mgo-<версия>-linux-amd64.tar.gz`), `SHA256SUMS` и исходниками KEmulator (лицензии GPL/Apache/EPL).
+4. **Один раз** после первой публикации: GitHub → профиль → *Packages* → `mgo` и `mgo-gateway` → *Package settings* → *Change visibility* → **Public**. Пока пакеты приватны, NAS не сможет скачать образ.
 5. Проверка установки «с нуля» по [DOCKER.md](DOCKER.md) на чистой машине, затем — на реальном NAS.
 
 Теги `-alpha`, `-rc`, `-dev` помечаются как pre-release (Community Scripts пропускают их); `-beta` — обычный GitHub Release, чтобы скрипт Proxmox мог его установить.
@@ -18,7 +18,7 @@ Workflow **Edge image** (`.github/workflows/edge.yml`) запускается п
 
 | Тег | Когда обновляется | Для кого |
 |---|---|---|
-| `edge` | после каждого зелёного merge в `main` | вы на NAS, тестеры: `JGO_VERSION=edge` и `docker compose pull && docker compose up -d` |
+| `edge` | после каждого зелёного merge в `main` | вы на NAS, тестеры: `MGO_VERSION=edge` и `docker compose pull && docker compose up -d` |
 | `sha-<коммит>` | вместе с `edge`, не меняется | откат на конкретный коммит |
 | `<версия>` | при выпуске релиза, не перезаписывается | предсказуемые обновления |
 | `latest` | только при официальном релизе | остальные пользователи |
@@ -33,7 +33,7 @@ Workflow **Edge image** (`.github/workflows/edge.yml`) запускается п
 | Контракт Bridge | `tests/integration/bridge-contract.test.ts` |
 | Docker: сборка, запуск, токен обязателен, игры без сети, не root, read-only, папка данных другого пользователя (PUID/PGID), данные переживают перезапуск | job `docker` в `ci.yml` |
 | Proxmox: установка, песочница, обновление и откат, резервные копии | jobs `install` и `lxc` |
-| Порядок версий `jgo update` (beta < релиз) | `tests/scripts/version-order.test.sh` |
+| Порядок версий `mgo update` (beta < релиз) | `tests/scripts/version-order.test.sh` |
 | Границы production и dev | `tests/scripts/production.mjs` |
 
 **Не проверено (риски беты):**

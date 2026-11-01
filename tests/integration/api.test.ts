@@ -22,7 +22,7 @@ async function expectClean() {
   await waitFor(() => dirEntries(env.runDir).length === 0, 'bridge run dir cleaned', 5000);
 }
 
-describe('J2ME Web API against a real KEmulator (Bridge)', () => {
+describe('MGO API against a real KEmulator (Bridge)', () => {
   before(async () => {
     env = await startApp();
   });

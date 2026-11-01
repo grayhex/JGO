@@ -1,4 +1,4 @@
-import { GENRES, type GameMeta } from '@j2me-web/protocol';
+import { GENRES, type GameMeta } from '@mgo/protocol';
 
 /** How the library is ordered and which games it shows besides the genre and the search. A "game" here is a group: all versions of one title. */
 export type SortKey = 'name' | 'name-desc' | 'added' | 'played' | 'time' | 'genre';

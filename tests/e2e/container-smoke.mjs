@@ -1,12 +1,13 @@
 // Smoke test against a RUNNING stack (docker compose up): real KEmulator inside the container.
-// Usage: BASE=http://127.0.0.1:8080 [TOKEN=<JGO_TOKEN>] node tests/e2e/container-smoke.mjs
+// Usage: NODE_EXTRA_CA_CERTS=/path/to/server.crt BASE=https://localhost:8443 [TOKEN=<MGO_TOKEN>] node tests/e2e/container-smoke.mjs
+import WebSocket from 'ws';
 import { readFileSync } from 'node:fs';
 import { inflateRawSync } from 'node:zlib';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const base = process.env.BASE ?? 'http://127.0.0.1:8080';
+const base = process.env.BASE ?? 'https://localhost:8443';
 // compose.yaml requires a token: every request carries it as a bearer token
 const token = process.env.TOKEN;
 const authHeaders = token ? { authorization: `Bearer ${token}` } : {};

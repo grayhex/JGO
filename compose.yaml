@@ -2,31 +2,37 @@
 #
 #   1. paste this YAML into NAS/Portainer or save it as compose.yaml
 #   2. edit the game library path below, then Deploy / docker compose up -d
-#   3. open http://<NAS IP>:8080 and sign in with the token from app container logs
-# No .env or manual token needed. The credential lives in the private jgo-auth volume.
+#   3. open https://<NAS IP>:8443 and sign in with the token from app container logs
+# Set MGO_TLS_SAN for your NAS IP/DNS before the first start, or mount a trusted
+# certificate pair with MGO_TLS_CERTS (docs/HTTPS.md). The generated local
+# certificate needs explicit client trust.
+# No manual token needed. The credential lives in the private mgo-auth volume.
 #
 # Java ME (.jar/.jad) works out of the box. Symbian / N-Gage (.sis/.sisx/.n-gage) run in the second service, mgo-symbian
 # (EKA2L1): it is part of this file, nothing to switch on. It needs YOUR firmware: Settings -> Symbian -> "Firmware archive".
 # No Symbian games? Delete the whole mgo-symbian block (and SYMBIAN_* lines in app): MGO works exactly as before.
 #
-# Variables (all optional, via .env): MGO_TOKEN, MGO_VERSION, MGO_BIND, MGO_PORT, MGO_DATA, MGO_LIBRARY. The old JGO_* names still work.
+# Variables (all optional, via .env): MGO_TOKEN, MGO_VERSION, MGO_BIND, MGO_PORT, MGO_DATA, MGO_LIBRARY.
 #
 # Details, NAS walkthroughs, updates and backups: docs/DOCKER.md
 # Source builds use the separate compose.build.yaml override; this file needs NO local source tree.
 #
-# `name: jgo` and the jgo-* volume names are the pre-rename names ON PURPOSE: your saves, settings and Symbian firmware stay
-# where they are when you upgrade. Do not rename them on an existing install.
-name: jgo
+# Before upgrading a renamed installation, point MGO_DATA and the firmware volume
+# at your existing data; the application data format has not changed.
+name: mgo
 
 services:
   app:
-    image: ghcr.io/grayhex/mgo:${MGO_VERSION:-${JGO_VERSION:-latest}}
+    image: ghcr.io/grayhex/mgo:${MGO_VERSION:-latest}
     restart: unless-stopped
     init: true
     environment:
-      # Optional override: MGO_TOKEN (or the old JGO_TOKEN) still works. Empty = auto-generate once in jgo-auth.
-      AUTH_TOKEN: ${MGO_TOKEN:-${JGO_TOKEN:-}}
-      JGO_AUTH_DIR: /jgo-auth
+      # Optional override: MGO_TOKEN still works. Empty = auto-generate once in mgo-auth.
+      TRUST_PROXY: "1"
+      AAS_PROXY_URL: http://gateway:9090
+      LIBRARY_ROOTS: /mnt/mgo-library /mnt/mgo-java /mnt/mgo-ngage /mnt/mgo-sis
+      AUTH_TOKEN: ${MGO_TOKEN:-}
+      MGO_AUTH_DIR: /mgo-auth
       # The app listens on the private compose network only; the gateway below publishes it.
       MAX_SESSIONS: ${MAX_SESSIONS:-1}
       SESSION_MAX_MINUTES: ${SESSION_MAX_MINUTES:-120}
@@ -43,22 +49,25 @@ services:
       MAX_FIRMWARE_MB: ${MAX_FIRMWARE_MB:-2048}
     volumes:
       # MGO_DATA defaults to a persistent Docker volume. To use a NAS folder instead,
-      # replace the left-hand side with /volume1/docker/jgo/data and adjust PUID/PGID.
+      # replace the left-hand side with /volume1/docker/mgo/data and adjust PUID/PGID.
       # Never delete /data during upgrades: it contains saves and settings.
-      - ${MGO_DATA:-${JGO_DATA:-jgo-data}}:/data
+      - ${MGO_DATA:-mgo-data}:/data
       # Private Docker-managed credentials volume, independent of NAS folder ACLs.
       # Do not mount this from a NAS shared folder or delete it on upgrade.
-      - jgo-auth:/jgo-auth
+      - mgo-auth:/mgo-auth
       - symbian-auth:/symbian-auth:ro
-      # EDIT THE LEFT-HAND PATH for your NAS: e.g. /volume1/games/j2me:/mnt/jgo-library:ro
+      # EDIT THE LEFT-HAND PATH for your NAS: e.g. /volume1/games/j2me:/mnt/mgo-library:ro
       # The default ./games is relative to this compose project; MGO only reads it.
-      # After deployment select /mnt/jgo-library in Settings > Game library.
-      - ${MGO_LIBRARY:-${JGO_LIBRARY:-./games}}:/mnt/jgo-library:ro
+      # After deployment select /mnt/mgo-library in Settings > Game library.
+      - ${MGO_LIBRARY:-./games}:/mnt/mgo-library:ro
+      - ${MGO_JAVA_LIBRARY:-./games/java}:/mnt/mgo-java:ro
+      - ${MGO_NGAGE_LIBRARY:-./games/ngage}:/mnt/mgo-ngage:ro
+      - ${MGO_SIS_LIBRARY:-./games/sis}:/mnt/mgo-sis:ro
     networks: [internal, symbian]
     # --- hardening: the JAR is untrusted code ---
     # If /data is a NAS bind-mounted directory, grant this UID:GID write access
     # or set user to the owner of that NAS folder (e.g. "1000:10").
-    # With the Docker-managed jgo-data volume, keep the default 10001:10001.
+    # With the Docker-managed mgo-data volume, keep the default 10001:10001.
     user: "${PUID:-10001}:${PGID:-10001}"
     read_only: true
     cap_drop: [ALL]
@@ -71,7 +80,7 @@ services:
       - /tmp:size=128m,mode=1777,exec
 
   gateway:
-    image: ghcr.io/grayhex/mgo-gateway:${MGO_VERSION:-${JGO_VERSION:-latest}}
+    image: ghcr.io/grayhex/mgo-gateway:${MGO_VERSION:-latest}
     restart: unless-stopped
     depends_on:
       app:
@@ -79,17 +88,23 @@ services:
     ports:
       # To change the port directly, replace the complete value with "8090:8080".
       # MGO_BIND=127.0.0.1 confines access to the host (for HTTPS reverse proxy).
-      - "${MGO_BIND:-${JGO_BIND:-0.0.0.0}}:${MGO_PORT:-${JGO_PORT:-8080}}:8080"
+      - "${MGO_BIND:-0.0.0.0}:${MGO_PORT:-8080}:8080"
+      - "${MGO_BIND:-0.0.0.0}:${MGO_HTTPS_PORT:-8443}:8443"
+    environment:
+      MGO_HTTPS_PORT: ${MGO_HTTPS_PORT:-8443}
+      MGO_TLS_SAN: ${MGO_TLS_SAN:-DNS:localhost,IP:127.0.0.1}
+    volumes:
+      - ${MGO_TLS_CERTS:-mgo-tls}:/certs
     networks: [internal, edge]
     read_only: true
     cap_drop: [ALL]
     cap_add: [CHOWN, SETUID, SETGID, NET_BIND_SERVICE]
-    tmpfs: [/var/cache/nginx, /var/run, /tmp]
+    tmpfs: [/var/cache/nginx, /var/run, /tmp, /etc/nginx/conf.d]
 
   # Symbian S60 / N-Gage through EKA2L1. Nothing proprietary is in the image: you add your own firmware in MGO.
   # Only the app can reach it (network `symbian` has no route out), so a game cannot reach the internet or your LAN.
   mgo-symbian:
-    image: ghcr.io/grayhex/mgo-symbian:${MGO_SYMBIAN_VERSION:-${JGO_SYMBIAN_VERSION:-edge}}
+    image: ghcr.io/grayhex/mgo-symbian:${MGO_SYMBIAN_VERSION:-edge}
     restart: unless-stopped
     init: false # the image has its own init (tini)
     environment:
@@ -99,7 +114,7 @@ services:
       MAX_INSTANCE_SECONDS: ${SYMBIAN_MAX_INSTANCE_SECONDS:-7200}
     volumes:
       # firmware (the emulator's base directory), per-game saves, the device list: keep it, it holds your firmware
-      - jgo-symbian-data:/data
+      - mgo-symbian-data:/data
       - symbian-auth:/symbian-auth
       # Optional inbox: firmware too big for the browser / your reverse proxy. Put the archive in this folder on the host and
       # install it from Settings -> Symbian -> "Firmware from a folder". Read-only: MGO never changes or deletes these files.
@@ -126,7 +141,8 @@ networks:
     internal: true
 
 volumes:
-  jgo-data:
-  jgo-auth:
-  jgo-symbian-data:
+  mgo-tls:
+  mgo-data:
+  mgo-auth:
+  mgo-symbian-data:
   symbian-auth:

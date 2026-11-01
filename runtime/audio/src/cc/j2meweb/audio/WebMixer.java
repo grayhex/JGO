@@ -10,7 +10,7 @@ import javax.sound.sampled.Mixer;
 import javax.sound.sampled.SourceDataLine;
 
 final class WebMixer implements Mixer {
-	static final Mixer.Info INFO = new Mixer.Info("J2ME Web Audio", "j2me-web", "Headless software mixer feeding the web player", "1.0") {
+	static final Mixer.Info INFO = new Mixer.Info("MGO Audio", "j2me-web", "Headless software mixer feeding the web player", "1.0") {
 	};
 	private static final Line.Info CLIP = new DataLine.Info(Clip.class, null, -1);
 	private static final Line.Info SDL = new DataLine.Info(SourceDataLine.class, null, -1);

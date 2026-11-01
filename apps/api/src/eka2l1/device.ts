@@ -1,4 +1,4 @@
-import type { Platform } from '@j2me-web/protocol';
+import type { Platform } from '@mgo/protocol';
 
 export interface InstalledDevice { code: string; manufacturer: string; model: string }
 export type DeviceDefaults = Partial<Record<'symbian' | 'ngage' | 'ngage2', string>>;

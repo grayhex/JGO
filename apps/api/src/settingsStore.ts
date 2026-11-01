@@ -1,6 +1,6 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { isPhoneId, KEY_LAYOUTS, PHONE_PROFILES, type LayoutId, type PublicSettings, type SetupStatus } from '@j2me-web/protocol';
+import { isPhoneId, skinSupportsPlatform, KEY_LAYOUTS, PHONE_PROFILES, type LayoutId, type PublicSettings, type SetupStatus } from '@mgo/protocol';
 import type { Config } from './config.js';
 import { UploadError } from './jar.js';
 
@@ -34,6 +34,8 @@ export function envServerDefaults(cfg: Config): PublicSettings['server'] {
 export function defaultSettings(server: PublicSettings['server']): PublicSettings {
   return {
     libraryPath: null,
+    libraryPaths: { j2me: null, ngage: null, symbian: null },
+    nativePhones: {},
     autoScan: false,
     autoMetadata: true,
     phone: { skinId: 'nokia-n95', view: 'full', device: null, layout: 'nokia', width: 240, height: 320, heapMb: 256 },
@@ -73,13 +75,35 @@ function noExtra(o: Record<string, unknown>, allowed: string[], name: string): v
  */
 export function mergeSettings(base: PublicSettings, patch: unknown): PublicSettings {
   const p = obj(patch, 'settings');
-  noExtra(p, ['libraryPath', 'autoScan', 'autoMetadata', 'phone', 'audio', 'controls', 'server'], 'settings');
+  noExtra(p, ['libraryPath', 'libraryPaths', 'nativePhones', 'autoScan', 'autoMetadata', 'phone', 'audio', 'controls', 'server'], 'settings');
   const out: PublicSettings = JSON.parse(JSON.stringify(base));
   if ('libraryPath' in p) {
     const v = p.libraryPath;
     if (v === null || v === '') out.libraryPath = null;
     else if (typeof v !== 'string' || v.length > 1024 || v.includes('\0') || !path.isAbsolute(v)) bad('libraryPath must be an absolute path or null');
     else out.libraryPath = path.normalize(v).replace(/\/+$/, '') || '/';
+  }
+  if ('libraryPaths' in p) {
+    const paths = obj(p.libraryPaths, 'libraryPaths');
+    noExtra(paths, ['j2me', 'ngage', 'symbian'], 'libraryPaths');
+    out.libraryPaths ??= { j2me: null, ngage: null, symbian: null };
+    for (const kind of ['j2me', 'ngage', 'symbian'] as const) if (kind in paths) {
+      const v = paths[kind];
+      if (v === null || v === '') out.libraryPaths[kind] = null;
+      else if (typeof v !== 'string' || v.length > 1024 || v.includes('\0') || !path.isAbsolute(v)) bad('libraryPaths must contain absolute paths or null');
+      else out.libraryPaths[kind] = path.normalize(v);
+    }
+  }
+  if ('nativePhones' in p) {
+    const phones = obj(p.nativePhones, 'nativePhones');
+    noExtra(phones, ['symbian', 'ngage', 'ngage2'], 'nativePhones');
+    out.nativePhones ??= {};
+    for (const platform of ['symbian', 'ngage', 'ngage2'] as const) if (platform in phones) {
+      const skin = phones[platform];
+      if (skin === null) { delete out.nativePhones[platform]; continue; }
+      if (!isPhoneId(skin) || !skinSupportsPlatform(skin, platform)) bad(`nativePhones.${platform} must support that platform`);
+      out.nativePhones[platform] = skin;
+    }
   }
   if ('autoScan' in p) out.autoScan = bool(p.autoScan, 'autoScan');
   if ('autoMetadata' in p) out.autoMetadata = bool(p.autoMetadata, 'autoMetadata');
@@ -212,6 +236,8 @@ export class SettingsStore {
     // a stored section may predate a newer field: fill the gaps from the defaults
     return {
       libraryPath: typeof s.libraryPath === 'string' ? s.libraryPath : d.libraryPath,
+      libraryPaths: { ...d.libraryPaths!, ...(s.libraryPaths ?? {}) },
+      nativePhones: { ...d.nativePhones, ...(s.nativePhones ?? {}) },
       autoScan: s.autoScan ?? d.autoScan,
       autoMetadata: s.autoMetadata ?? d.autoMetadata,
       phone: { ...d.phone, ...(s.phone ?? {}) },
@@ -223,7 +249,7 @@ export class SettingsStore {
 
   update(patch: unknown): PublicSettings {
     const next = mergeSettings(this.get(), patch);
-    // only values that differ from the environment defaults are pinned: editing /etc/jgo/jgo.env keeps working for the rest
+    // only values that differ from the environment defaults are pinned: editing /etc/mgo/mgo.env keeps working for the rest
     const overrides: Partial<PublicSettings['server']> = {};
     for (const k of Object.keys(next.server) as (keyof PublicSettings['server'])[]) {
       if (next.server[k] !== this.envDefaults[k]) (overrides as Record<string, unknown>)[k] = next.server[k];
@@ -231,7 +257,7 @@ export class SettingsStore {
     // keep what was saved sparse: only values somebody set are stored, the rest keep following the defaults
     const stored: Record<string, unknown> = { ...this.data.settings, server: overrides };
     const p = patch as Record<string, unknown>;
-    for (const k of ['libraryPath', 'autoScan', 'autoMetadata'] as const) if (k in p) stored[k] = next[k];
+    for (const k of ['libraryPath', 'libraryPaths', 'nativePhones', 'autoScan', 'autoMetadata'] as const) if (k in p) stored[k] = next[k];
     for (const sec of ['phone', 'audio', 'controls'] as const) {
       if (!(sec in p)) continue;
       const cur = (stored[sec] ?? {}) as Record<string, unknown>;

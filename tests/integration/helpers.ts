@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildApp, type App } from '../../apps/api/src/server.ts';
 import { loadConfig, type Config } from '../../apps/api/src/config.ts';
-import { decodeFrameHeader, WS_BIN_FRAME, type ServerEvent } from '@j2me-web/protocol';
+import { decodeFrameHeader, WS_BIN_FRAME, type ServerEvent } from '@mgo/protocol';
 
 export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 export const fixtures = path.join(root, 'tests/fixtures/testmidlet/build');

@@ -1,25 +1,25 @@
 [Unit]
-Description=JGO - web player for Java ME games (API, web UI and KEmulator sessions)
-Documentation=https://github.com/grayhex/JGO/blob/main/docs/PROXMOX.md
-After=network.target jgo-xvfb.service
-Requires=jgo-xvfb.service
-JoinsNamespaceOf=jgo-xvfb.service
+Description=MGO - web player for Java ME games (API, web UI and KEmulator sessions)
+Documentation=https://github.com/grayhex/MGO/blob/main/docs/PROXMOX.md
+After=network.target mgo-xvfb.service
+Requires=mgo-xvfb.service
+JoinsNamespaceOf=mgo-xvfb.service
 
 [Service]
 Type=simple
-User=jgo
-Group=jgo
-WorkingDirectory=/opt/jgo
-EnvironmentFile=/etc/jgo/jgo.env
+User=mgo
+Group=mgo
+WorkingDirectory=/opt/mgo
+EnvironmentFile=/etc/mgo/mgo.env
 ExecStartPre=/usr/bin/timeout 15 /bin/sh -c 'until [ -S /tmp/.X11-unix/X99 ]; do sleep 0.2; done'
-ExecStart=/usr/bin/node /opt/jgo/app/apps/api/dist/server.js
+ExecStart=/usr/bin/node /opt/mgo/app/apps/api/dist/server.js
 KillMode=mixed
 TimeoutStopSec=30
 Restart=on-failure
 RestartSec=3
-StateDirectory=jgo
+StateDirectory=mgo
 StateDirectoryMode=0700
-RuntimeDirectory=jgo
+RuntimeDirectory=mgo
 RuntimeDirectoryMode=0700
 
 # --- sandbox: the JAR is untrusted code and so is the file parser that reads it ---
@@ -27,8 +27,8 @@ PrivateTmp=yes
 PrivateDevices=yes
 ProtectSystem=strict
 ProtectHome=yes
-ReadWritePaths=/var/lib/jgo
-NoExecPaths=/var/lib/jgo
+ReadWritePaths=/var/lib/mgo
+NoExecPaths=/var/lib/mgo
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectKernelLogs=yes

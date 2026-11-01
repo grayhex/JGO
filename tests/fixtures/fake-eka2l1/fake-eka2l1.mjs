@@ -118,11 +118,14 @@ const server = http.createServer(async (req, res) => {
     if (app.modes?.includes('fonterror')) appendFileSync(logFile, `E /src/src/emu/services/src/fbs/adapter/freetype_font_adapter.cpp:137 [Service.Fbs]: FreeType failed to query face count from memory, error: unknown file format\n`);
     if (app.modes?.includes('launch_fail')) { session = { state: 'launch_failed', uid: p[2], screenVisible: false }; appendFileSync(logFile, `E /src/src/emu/kernel/src/process.cpp:1 [Kernel]: unable to spawn process for ${app.name}\n`); return error(res, 422, 'launch_failed', 'app launch failed'); }
     session = { state: 'launching', uid: p[2], screenVisible: false };
-    setTimeout(() => {
+    const finishLaunch = () => {
+      // E2E can hold startup until a viewer has connected in `starting` state.
+      if (process.env.FAKE_LAUNCH_GATE && !existsSync(process.env.FAKE_LAUNCH_GATE)) { setTimeout(finishLaunch, 25); return; }
       if (app.modes?.includes('crash')) { session = { state: 'crashed', uid: p[2], name: app.name, screenVisible: false, lastExit: { uid: p[2], fatal: app.arg ?? 'KERN-EXEC/3' } }; appendFileSync(logFile, `E /src/src/emu/kernel/src/thread.cpp:1 [Kernel]: panic ${app.arg ?? 'KERN-EXEC/3'}\n`); return; }
       if (app.modes?.includes('exit')) { session = { state: 'exited', uid: p[2], name: app.name, screenVisible: false, lastExit: { uid: p[2], fatal: null } }; return; }
       session = { state: 'running', uid: p[2], name: app.name, screenVisible: !app.modes?.includes('no_screen') };
-    }, 200);
+    };
+    setTimeout(finishLaunch, 200);
     return json(res, 200, session);
   }
   if (is('v1', 'session') && req.method === 'GET') return json(res, 200, session);

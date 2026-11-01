@@ -1,5 +1,5 @@
 import { getServerSettings } from '../serverSettings';
-import { PHONE_SKIN_IDS } from '@j2me-web/protocol';
+import { PHONE_SKIN_IDS } from '@mgo/protocol';
 import { useEffect, useState } from 'react';
 import { ACTIONS, type Action } from '../input';
 import { parseHitboxSvg } from './hitboxes';

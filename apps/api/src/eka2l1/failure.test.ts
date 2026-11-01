@@ -48,7 +48,7 @@ describe('classifyLog and hintsFor', () => {
 describe('a Symbian start that fails says exactly why (agent + fake EKA2L1)', () => {
   let proc: ChildProcess, data: string, agent: AgentClient;
   before(async () => {
-    data = mkdtempSync(path.join(tmpdir(), 'jgo-fail-'));
+    data = mkdtempSync(path.join(tmpdir(), 'mgo-fail-'));
     const port = await free();
     const base = `http://127.0.0.1:${port}`;
     proc = spawn(process.execPath, [path.join(root, 'symbian/agent/agent.mjs')], { env: { PATH: process.env.PATH ?? '', AGENT_TOKEN: TOKEN, AGENT_PORT: String(port), AGENT_HOST: '127.0.0.1', CONTROL_PORT: String(await free()), DATA_DIR: data, EKA2L1_BIN: path.join(root, 'tests/fixtures/fake-eka2l1/fake-eka2l1.mjs'), AUDIO_CMD: `${process.execPath} ${path.join(root, 'tests/fixtures/fake-eka2l1/pcm.mjs')}` }, stdio: 'ignore' });

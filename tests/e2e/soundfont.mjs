@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright';
 
-const dir = mkdtempSync(path.join(tmpdir(), 'jgo-sf-e2e-'));
+const dir = mkdtempSync(path.join(tmpdir(), 'mgo-sf-e2e-'));
 const port = 20900 + Math.floor(Math.random() * 300);
 const base = `http://127.0.0.1:${port}`;
 const server = spawn('node', ['apps/api/dist/server.js'], { env: { ...process.env, PORT: String(port), DATA_DIR: dir, HOST: '127.0.0.1', LOG_LEVEL: 'warn' }, stdio: ['ignore', 'inherit', 'inherit'] });
@@ -22,7 +22,7 @@ try {
   const p = await browser.newPage({ viewport: { width: 1280, height: 1000 } });
   const errors = [];
   p.on('pageerror', (e) => errors.push(e.message));
-  await p.goto(base + '/settings');
+  await p.goto(base + '/settings#sound');
   await p.getByText('MIDI SoundFont', { exact: true }).waitFor();
   await p.getByText('Built-in bank', { exact: true }).waitFor();
 

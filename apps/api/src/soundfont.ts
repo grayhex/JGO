@@ -2,7 +2,7 @@ import { createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, rmS
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import type { Readable } from 'node:stream';
-import type { SoundfontInfo } from '@j2me-web/protocol';
+import type { SoundfontInfo } from '@mgo/protocol';
 import { UploadError } from './jar.js';
 
 /** The biggest SoundFont accepted. General-purpose banks are 30-150 MB; the file is streamed to disk, not buffered. */

@@ -3,12 +3,12 @@ import { existsSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { Library } from './library.js';
-import { ScanManager } from './scanner.js';
+import { nativeDefaults, ScanManager } from './scanner.js';
 import { SettingsStore } from './settingsStore.js';
 import { makeJar, put, testConfig, tmpDir } from './dev/testing.js';
 
 function setup(extra: { quotaMb?: number } = {}) {
-  const root = tmpDir('jgo-lib-');
+  const root = tmpDir('mgo-lib-');
   const cfg = testConfig({ roots: [root] });
   if (extra.quotaMb) cfg.libraryQuotaBytes = extra.quotaMb * 1024 * 1024;
   const store = new SettingsStore(cfg.dataDir, cfg, {});
@@ -183,7 +183,7 @@ describe('library scan', () => {
   });
 
   it('the old database layout is migrated in place without touching existing rows', async () => {
-    const dir = tmpDir('jgo-old-');
+    const dir = tmpDir('mgo-old-');
     const { DatabaseSync } = await import('node:sqlite');
     const db = new DatabaseSync(path.join(dir, 'library.sqlite'));
     db.exec(`CREATE TABLE games (id TEXT PRIMARY KEY, sha256 TEXT NOT NULL UNIQUE, name TEXT NOT NULL, vendor TEXT NOT NULL, version TEXT NOT NULL, group_key TEXT NOT NULL, midlets_json TEXT NOT NULL, class_version INTEGER NOT NULL, size_bytes INTEGER NOT NULL, has_icon INTEGER NOT NULL, has_jad INTEGER NOT NULL, favorite INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, last_played_at TEXT, settings_json TEXT NOT NULL, warnings_json TEXT NOT NULL);
@@ -203,7 +203,7 @@ describe('library scan', () => {
     await t.run();
     const groupKey = t.library.list()[0]!.groupKey;
     t.library.classes.setManual(groupKey, { primaryGenre: 'Racing' });
-    const other = tmpDir('jgo-lib2-');
+    const other = tmpDir('mgo-lib2-');
     t.cfg.libraryRoots.push(other);
     put(other, 'new/Puzzle.jar', makeJar('Puzzle'));
     t.store.update({ libraryPath: other });
@@ -211,4 +211,48 @@ describe('library scan', () => {
     assert.deepEqual(t.library.list().map((g) => g.name).sort(), ['Puzzle', 'Racer'], 'the old game is still there');
     assert.equal(t.library.list().find((g) => g.name === 'Racer')!.classification?.primaryGenre, 'Racing');
   });
+});
+
+it('scans three independent platform folders, imports N-Gage cards only from their folder, and protects an empty mount', async () => {
+  const t = setup();
+  try {
+    const java = path.join(t.root, 'java'), ngage = path.join(t.root, 'ngage'), sis = path.join(t.root, 'sis');
+    put(java, 'Game.jar', makeJar('Java Game'));
+    put(java, 'not-a-card.zip', Buffer.from('PK\x03\x04 unrelated zip'));
+    put(ngage, 'Game.zip', Buffer.from('PK\x03\x04 card fixture'));
+    put(ngage, 'Game.n-gage', Buffer.from('second generation fixture'));
+    put(ngage, 'ignore.jar', makeJar('Wrong folder'));
+    put(sis, 'Game.sisx', Buffer.from('sis fixture'));
+    t.store.update({ libraryPath: null, libraryPaths: { j2me: java, ngage, symbian: sis }, nativePhones: { ngage: 'nokia-n-gage-qd' } });
+    const first = await t.run();
+    assert.equal(first.state, 'done', first.error ?? ''); assert.equal(first.added, 4);
+    const games = t.library.list();
+    assert.deepEqual(games.map(g => g.platform ?? 'j2me').sort(), ['j2me','ngage','ngage2','symbian']);
+    assert.equal(games.find(g => g.platform === 'ngage')?.settings.skinId, 'nokia-n-gage-qd');
+    const native = games.find(g => g.platform === 'symbian')!;
+    assert.ok(t.library.sourcesOf(native.id)[0]!.rel_path.startsWith('symbian/'));
+    const javaGame = games.find(g => !g.platform || g.platform === 'j2me')!;
+    rmSync(path.join(java, 'Game.jar')); rmSync(path.join(java, 'not-a-card.zip'));
+    const second = await t.run(); assert.equal(second.added, 0);
+    assert.equal(t.library.get(javaGame.id)!.sourceMissing, undefined, 'an empty mount is not evidence that the game was deleted');
+    assert.equal(t.library.list().length, 4);
+    rmSync(java, { recursive: true });
+    const third = await t.run(); assert.equal(third.state, 'done');
+    assert.ok(third.errors.some(e => e.code === 'library_unavailable'));
+    assert.equal(t.library.get(javaGame.id)!.sourceMissing, undefined, 'an unavailable Java mount does not block or damage the other platform scans');
+  } finally { t.library.close(); rmSync(t.root, { recursive: true, force: true }); }
+});
+
+it('native defaults bind the selected model and preserve an installed N95 8GB identity', () => {
+  const t = setup();
+  try {
+    t.store.update({ nativePhones: { ngage: 'nokia-n-gage-qd', symbian: 'nokia-n95' } });
+    const qd = nativeDefaults(t.store.get(), 'ngage');
+    assert.equal(qd.emulatedDeviceId, 'eka2l1-ngage-qd'); assert.equal(qd.symbianDevice, 'RH-29');
+    const status = { firmware: { devices: [{ code: 'RM-320' }] } } as import('@mgo/protocol').SymbianStatus;
+    const n95 = nativeDefaults(t.store.get(), 'symbian', status);
+    assert.equal(n95.emulatedDeviceId, 'eka2l1-n95-8gb'); assert.equal(n95.symbianDevice, 'RM-320');
+    const game = t.library.addPackage(Buffer.from('synthetic'), 'new.sisx', 'symbian', 100000, { defaults: n95 }).game;
+    assert.equal(game.settings.symbianDevice, 'RM-320'); assert.equal(game.settings.skinId, 'nokia-n95');
+  } finally { t.library.close(); rmSync(t.root, { recursive: true, force: true }); }
 });

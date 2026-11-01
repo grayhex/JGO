@@ -10,7 +10,7 @@ import javax.microedition.midlet.MIDlet;
 import javax.microedition.rms.RecordStore;
 
 /**
- * Free test MIDlet for the J2ME Web project (CC0 / public domain).
+ * Free test MIDlet for the MGO project (CC0 / public domain).
  * Draws colour reference blocks (to verify framebuffer channel order), a bouncing
  * square, a frame counter, the last key code, and a persistent RMS launch counter.
  */

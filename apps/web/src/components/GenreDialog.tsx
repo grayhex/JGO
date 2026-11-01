@@ -1,5 +1,5 @@
 import { t as translateUI } from '../i18n';
-import { GENRES, type GameMeta, type Genre } from '@j2me-web/protocol';
+import { GENRES, type GameMeta, type Genre } from '@mgo/protocol';
 import { useState } from 'react';
 import { api } from '../api';
 import type { Toast } from '../App';

@@ -2,7 +2,7 @@
 // Finds out whether a large upload can reach MGO through YOUR network path (browser -> reverse proxy / tunnel -> MGO gateway -> app),
 // before you send a real firmware. It sends N megabytes of zeros to POST /api/symbian/upload-probe, which counts and discards them.
 //
-//   node tools/symbian/check-upload.mjs https://jgo.example.com --mb 600 --token <AUTH_TOKEN>
+//   node tools/symbian/check-upload.mjs https://mgo.example.com --mb 600 --token <AUTH_TOKEN>
 //   node tools/symbian/check-upload.mjs http://nas.local:8080 --mb 2100
 //
 // Exit code 0: all bytes arrived. Otherwise the message says which kind of hop refused (see docs/SYMBIAN.md, "Upload limits").
@@ -12,10 +12,10 @@ const args = process.argv.slice(2);
 const base = (args.find((a) => /^https?:\/\//.test(a)) ?? '').replace(/\/+$/, '');
 const opt = (name, d) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : d; };
 const mb = Number(opt('--mb', '100'));
-const token = opt('--token', process.env.JGO_TOKEN ?? '');
+const token = opt('--token', process.env.MGO_TOKEN ?? '');
 if (!base || !(mb > 0)) { console.error('usage: check-upload.mjs <http(s)://host:port> [--mb 100] [--token T]'); process.exit(2); }
 
-const boundary = '----jgoprobe' + Math.random().toString(16).slice(2);
+const boundary = '----mgoprobe' + Math.random().toString(16).slice(2);
 const head = Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="probe.bin"\r\nContent-Type: application/octet-stream\r\n\r\n`);
 const tail = Buffer.from(`\r\n--${boundary}--\r\n`);
 const total = Math.round(mb * 1048576);

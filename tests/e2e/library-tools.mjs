@@ -10,14 +10,14 @@ import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
 
 const { makeJar } = await import(pathToFileURL(path.join(process.cwd(), 'apps/api/src/dev/testing.ts')).href);
-const dir = mkdtempSync(path.join(tmpdir(), 'jgo-lt-'));
-const lib = mkdtempSync(path.join(tmpdir(), 'jgo-lt-lib-'));
+const dir = mkdtempSync(path.join(tmpdir(), 'mgo-lt-'));
+const lib = mkdtempSync(path.join(tmpdir(), 'mgo-lt-lib-'));
 const put = (rel, jar) => { mkdirSync(path.dirname(path.join(lib, rel)), { recursive: true }); writeFileSync(path.join(lib, rel), jar); };
-put('JGO-Top500/Racing/Turbo.jar', makeJar('Turbo Rally **MASYAKA**', { vendor: 'ACME' }));
-put('JGO-Top500/Puzzle/Blocks.jar', makeJar('BlocksOfColorAndShape', { vendor: 'ACME' }));
-put('JGO-Top500/Other/Mystery.jar', makeJar('Mystery', { vendor: 'ACME' }));
-put('JGO-Top500/Action/Gone One.jar', makeJar('Gone One', { vendor: 'ACME' }));
-put('JGO-Top500/Action/Gone Two.jar', makeJar('Gone Two -zub-', { vendor: 'ACME' }));
+put('MGO-Top500/Racing/Turbo.jar', makeJar('Turbo Rally **MASYAKA**', { vendor: 'ACME' }));
+put('MGO-Top500/Puzzle/Blocks.jar', makeJar('BlocksOfColorAndShape', { vendor: 'ACME' }));
+put('MGO-Top500/Other/Mystery.jar', makeJar('Mystery', { vendor: 'ACME' }));
+put('MGO-Top500/Action/Gone One.jar', makeJar('Gone One', { vendor: 'ACME' }));
+put('MGO-Top500/Action/Gone Two.jar', makeJar('Gone Two -zub-', { vendor: 'ACME' }));
 const port = 22600 + Math.floor(Math.random() * 90);
 const base = `http://127.0.0.1:${port}`;
 const server = spawn('node', ['apps/api/dist/server.js'], { env: { ...process.env, PORT: String(port), DATA_DIR: dir, HOST: '127.0.0.1', LOG_LEVEL: 'warn', LIBRARY_ROOTS: lib }, stdio: ['ignore', 'inherit', 'inherit'] });
@@ -66,8 +66,8 @@ try {
   console.log('✔ sorting and the status filter work');
 
   // ---- the files of two games disappear ----
-  rmSync(path.join(lib, 'JGO-Top500/Action/Gone One.jar'));
-  rmSync(path.join(lib, 'JGO-Top500/Action/Gone Two.jar'));
+  rmSync(path.join(lib, 'MGO-Top500/Action/Gone One.jar'));
+  rmSync(path.join(lib, 'MGO-Top500/Action/Gone Two.jar'));
   await post('/api/library/scan', { mode: 'update' });
   await wait(async () => (await games()).filter((g) => g.sourceMissing).length === 2, 'two games lost their files');
   await p.reload();

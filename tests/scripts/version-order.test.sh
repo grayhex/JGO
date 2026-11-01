@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# `jgo update` must order versions like semver: a beta is older than its release (plain `sort -V` gets that wrong).
+# `mgo update` must order versions like semver: a beta is older than its release (plain `sort -V` gets that wrong).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 # shellcheck disable=SC1090
-source <(sed -n '/^version_gt()/,/^}/p' packaging/bin/jgo)
+source <(sed -n '/^version_gt()/,/^}/p' packaging/bin/mgo)
 fail=0
 check() { # check <a> <b> <gt|le>
   local got=le

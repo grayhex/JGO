@@ -18,8 +18,8 @@ mkdirSync(outDir, { recursive: true });
 
 const TOKEN = 'e2e-token-0123456789';
 const KEY = 'moby_e2ekey_0001';
-const dataDir = mkdtempSync(path.join(tmpdir(), 'jgo-setup-data-'));
-const libDir = mkdtempSync(path.join(tmpdir(), 'jgo-setup-lib-'));
+const dataDir = mkdtempSync(path.join(tmpdir(), 'mgo-setup-data-'));
+const libDir = mkdtempSync(path.join(tmpdir(), 'mgo-setup-lib-'));
 const put = (rel, bytes) => { const p = path.join(libDir, rel); mkdirSync(path.dirname(p), { recursive: true }); writeFileSync(p, bytes); };
 put('Racing/Racer.jar', makeJar('Racer', { vendor: 'ACME' }));
 put('Backup/Racer copy.jar', makeJar('Racer', { vendor: 'ACME' }));
@@ -156,6 +156,7 @@ try {
 
   // ---- Settings page
   await page.getByRole('link', { name: 'Settings' }).first().click();
+  await page.getByRole('tab', { name: 'Game library', exact: true }).click();
   await page.waitForSelector('#library');
   const sections = await page.locator('.settings-section').evaluateAll((e) => e.map((x) => x.id));
   ok('Settings has system, library, MobyGames, phone, sound, server', ['system', 'library', 'mobygames', 'phone', 'sound', 'server'].every((s) => sections.includes(s)), sections.join(','));
@@ -163,12 +164,14 @@ try {
   const rep = await page.locator('#library [data-testid=scan-report]').innerText();
   ok('the last import report lists duplicates and versions', /Duplicates\s*1/.test(rep) && /Other versions/.test(rep), rep.replace(/\n/g, ' ').slice(0, 160));
   ok('the saved library folder is shown', (await page.locator('#library').innerText()).includes(libDir));
+  await page.getByRole('tab', { name: 'Server', exact: true }).click();
   await page.locator('#server input[type=number]').first().fill('2');
   await page.locator('#server').getByRole('button', { name: 'Save' }).click();
   await page.waitForSelector('text=Server settings saved');
   const s1 = await (await fetch(base + '/api/settings', { headers: { authorization: `Bearer ${TOKEN}` } })).json();
   ok('a server setting is saved from the UI and applied', s1.settings.server.maxSessions === 2);
   ok('the key never appears in the settings response', !JSON.stringify(s1).includes(KEY) && s1.secrets.mobygames.configured === true);
+  await page.getByRole('tab', { name: 'Game library', exact: true }).click();
   await page.locator('#library').scrollIntoViewIfNeeded();
   await page.screenshot({ path: path.join(outDir, 'setup-08-settings.png') });
   const health = await (await fetch(base + '/api/health')).json();
@@ -182,6 +185,7 @@ try {
   ok('the wizard can be run again and skipped', (await page.getByRole('dialog', { name: 'Set up MGO' }).count()) === 0);
 
   // ---- delete the MobyGames data: games stay
+  await page.getByRole('tab', { name: 'Game metadata', exact: true }).click();
   await page.locator('#mobygames').getByRole('button', { name: /Delete all MobyGames data/ }).waitFor();
   page.once('dialog', (d) => void d.accept());
   await page.locator('#mobygames').getByRole('button', { name: /Delete all MobyGames data/ }).click();

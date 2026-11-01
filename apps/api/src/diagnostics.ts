@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
-import type { SessionStatus } from '@j2me-web/protocol';
+import type { SessionStatus } from '@mgo/protocol';
 
 /** The emulator's JVM is the process started with `-bridge <this session's bridge directory>`. */
 export function findJvmPid(bridgeDir: string): number | null {

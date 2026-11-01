@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { EMULATED_DEVICES, GAME_PLATFORM_LABELS, PACKAGE_FORMAT_LABEL, emulatedDevice, type GameMeta, type NativePhonePlan, type SymbianStatus } from '@j2me-web/protocol';
+import { EMULATED_DEVICES, GAME_PLATFORM_LABELS, PACKAGE_FORMAT_LABEL, emulatedDevice, type GameMeta, type NativePhonePlan, type SymbianStatus } from '@mgo/protocol';
 import { api } from '../api';
 import { t } from '../i18n';
 import { navigate } from '../router';
@@ -12,10 +12,10 @@ const NEEDS_FIRMWARE = new Set(['symbian_unavailable', 'no_firmware', 'device_mi
  * What a Symbian / N-Gage game needs to say to its player: whether it can start and on which firmware. Nothing about the service
  * itself (versions, counts, steps); that lives in Settings → Symbian and in the diagnostics.
  */
-export function NativeTestingPanel({ game, data, error, running, onChanged, onRefresh, toast }: {
+export function NativeTestingPanel({ game, data, error, running, starting, onChanged, onRefresh, toast }: {
   game: GameMeta; data: { plan: NativePhonePlan; status: SymbianStatus } | null; error: string | null;
   running: boolean; starting?: boolean; onChanged: (game: GameMeta) => void; onRefresh: () => void;
-  onSkin?: (id: import('@j2me-web/protocol').PhoneSkinId) => void; toast: (kind: 'info' | 'error', text: string) => void;
+  onSkin?: (id: import('@mgo/protocol').PhoneSkinId) => void; toast: (kind: 'info' | 'error', text: string) => void;
 }) {
   const [saving, setSaving] = useState(false);
   const platform = game.platform ?? 'symbian';
@@ -29,13 +29,14 @@ export function NativeTestingPanel({ game, data, error, running, onChanged, onRe
     catch (e) { toast('error', (e as Error).message); }
     finally { setSaving(false); }
   };
-  const ready = !!plan?.ready;
+  const owned = (running || starting) && plan?.code === 'symbian_busy';
+  const ready = !!plan?.ready || !!owned;
   return <Panel icon="cpu" title={t('Symbian emulator')} right={<span className="badge mock" title={t('Experimental: not every game works')}>{t('experimental')}</span>}>
     <p className="muted small">{GAME_PLATFORM_LABELS[platform]}{game.packageFormat && game.packageFormat !== 'unknown' && platform === 'symbian' ? ` · ${t(PACKAGE_FORMAT_LABEL[game.packageFormat])}` : ''}</p>
     <div className={`note ${ready ? 'ok' : 'warn'}`} role="status" data-testid="native-readiness" data-ready={ready ? '1' : '0'}>
       {error ? t('Cannot check the Symbian service. Try again in a moment.')
         : !data ? t('Checking…')
-          : ready ? <>{t('Runs on')} <strong data-testid="resolved-firmware" data-code={plan!.firmwareCode ?? ''}>{plan!.firmwareCode ? nameOf(plan!.firmwareCode) : ''}</strong>{profile ? <span className="muted"> · {profile.os}</span> : null}</>
+          : ready ? <>{t(starting ? 'Starting on' : 'Runs on')} <strong data-testid="resolved-firmware" data-code={plan!.firmwareCode ?? ''}>{plan!.firmwareCode ? nameOf(plan!.firmwareCode) : ''}</strong>{profile ? <span className="muted"> · {profile.os}</span> : null}</>
             : t(plan!.message)}
     </div>
     {plan && plan.warnings.map(w => <p key={w} className="note warn">{t(w)}</p>)}

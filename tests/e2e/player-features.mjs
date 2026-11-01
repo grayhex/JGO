@@ -5,7 +5,7 @@ import { mkdtempSync,readFileSync,rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright';
-const root=process.cwd(),dir=mkdtempSync(path.join(tmpdir(),'jgo-features-')),port=19800+Math.floor(Math.random()*300),base=`http://127.0.0.1:${port}`;
+const root=process.cwd(),dir=mkdtempSync(path.join(tmpdir(),'mgo-features-')),port=19800+Math.floor(Math.random()*300),base=`http://127.0.0.1:${port}`;
 const server=spawn('node',['apps/api/dist/server.js'],{env:{...process.env,PORT:String(port),DATA_DIR:dir,HOST:'127.0.0.1',LOG_LEVEL:'warn'},stdio:['ignore','inherit','inherit']});
 let browser;
 const wait=async(fn)=>{for(let i=0;i<150;i++){try{if(await fn())return;}catch{}await new Promise(r=>setTimeout(r,100));}throw Error('readiness timeout');};
@@ -18,7 +18,7 @@ await fetch(base + '/api/setup/skip', { method: 'POST' }); // the first-run wiza
  const p=await browser.newPage({viewport:{width:1440,height:1000}});const errors=[];p.on('pageerror',e=>errors.push(e.message));
  await p.addInitScript(()=>{window.padButtons=[];Object.defineProperty(navigator,'getGamepads',{value:()=>[{index:0,id:'Simulated Xbox standard',connected:true,mapping:'standard',timestamp:performance.now(),axes:[0,0],buttons:Array.from({length:17},(_,i)=>({pressed:window.padButtons.includes(i),value:window.padButtons.includes(i)?1:0}))}]});});
  // the phones are chosen on /phones (the player has no picker): a click sets the phone of the game opened last
- const choosePhone=async(re)=>{await p.getByRole('link',{name:'Game',exact:true}).waitFor();await p.getByRole('link',{name:'Phones'}).click();await p.getByRole('button',{name:re}).click();await p.waitForURL('**/play/'+game.id,{waitUntil:'commit'});};
+ const choosePhone=async(re)=>{await p.getByTestId('current-game').waitFor();await p.getByRole('link',{name:'Phones'}).click();await p.getByRole('button',{name:re}).click();await p.waitForURL('**/play/'+game.id,{waitUntil:'commit'});};
  await p.goto(base+'/play/'+game.id);
  await choosePhone(/6100/);
  await p.waitForFunction(()=>document.querySelector('[aria-label="Device preset"]').value==='128x128-common-full-screen');

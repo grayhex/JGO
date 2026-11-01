@@ -32,8 +32,24 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: node tests/scripts/production.mjs
+      - name: Staged MGO release packaging
+        run: node --test tests/scripts/release-prune.test.mjs
       - name: Unit tests (JAR parser, device presets, analyzer, skin geometry and hitbox parsing)
         run: npm test
+
+  https:
+    name: HTTPS gateway (TLS, redirect, WebSocket, streamed upload)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: docker build -f runtime/Dockerfile --target gateway -t mgo-gateway:verify .
+      - run: docker pull node:22-alpine
+      - run: node tests/scripts/https-smoke.mjs
 
   phone-skins:
     name: Phone skins (asset validation)
@@ -151,7 +167,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get install -y --no-install-recommends shellcheck >/dev/null
-      - run: shellcheck -S warning packaging/bin/jgo packaging/build-release.sh packaging/devscripts/*.sh ct/jgo.sh install/jgo-install.sh tests/lxc/run.sh tools/proxmox/*.sh -e SC1090,SC1091,SC2154,SC2034
+      - run: shellcheck -S warning packaging/bin/mgo packaging/build-release.sh packaging/devscripts/*.sh ct/mgo.sh install/mgo-install.sh tests/lxc/run.sh tools/proxmox/*.sh -e SC1090,SC1091,SC2154,SC2034
       - name: Rules of community-scripts/DevScripts that can be checked mechanically
         run: packaging/devscripts/lint.sh
       - name: The exported pull-request files pass the same lint
@@ -236,7 +252,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
-      JGO_TOKEN: ci-token-0123456789abcdef
+      MGO_TOKEN: ci-token-0123456789abcdef
+      CURL_CA_BUNDLE: ${{ github.workspace }}/work/ci-ca.crt
+      NODE_EXTRA_CA_CERTS: ${{ github.workspace }}/work/ci-ca.crt
+      BASE: https://localhost:8443
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -251,10 +270,13 @@ jobs:
           docker compose config --format json | python3 -c 'import json,sys; c=json.load(sys.stdin); assert set(c["services"]) == {"app", "gateway", "mgo-symbian"}; assert all("build" not in s for s in c["services"].values()); assert all(s.get("image", "").startswith("ghcr.io/grayhex/mgo") for s in c["services"].values())'
       - name: Build and start the stack
         # mgo-symbian compiles EKA2L1 (30-60 min): it is built by symbian.yml, not here
-        run: docker compose -f compose.yaml -f compose.build.yaml up -d --build app gateway
+        run: |
+          docker compose -f compose.yaml -f compose.build.yaml up -d --build app gateway
+          mkdir -p work
+          for i in $(seq 1 60); do docker compose cp gateway:/certs/server.crt work/ci-ca.crt && break; sleep 1; done
       - name: Wait for health
         run: |
-          for i in $(seq 1 60); do curl -fsS localhost:8080/api/health | grep -q '"ok":true' && exit 0; sleep 2; done
+          for i in $(seq 1 60); do curl -fsS https://localhost:8443/api/health | grep -q '"ok":true' && exit 0; sleep 2; done
           docker compose logs app; exit 1
       - name: Build fixtures against the emulator jar from the image
         run: |
@@ -264,49 +286,53 @@ jobs:
           bash tests/fixtures/testmidlet3d/build.sh runtime/build/kemulator/KEmulator.jar
           bash tests/fixtures/labgames/build.sh runtime/build/kemulator/KEmulator.jar
       - name: Container smoke (2D + audio, M3G on llvmpipe)
-        run: TOKEN=ci-token-0123456789abcdef node tests/e2e/container-smoke.mjs
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          TOKEN=ci-token-0123456789abcdef node tests/e2e/container-smoke.mjs
       - name: Hardening is in effect
         run: |
           docker compose exec -T app sh -c 'test "$(id -u)" = 10001 && ! touch /x 2>/dev/null && grep -q "CapEff:.0000000000000000" /proc/self/status'
           ! docker compose exec -T app node -e "require('net').connect(80,'1.1.1.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"
       - name: The web UI wants the token
         run: |
-          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080/api/games)" = 401
-          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer ci-token-0123456789abcdef' localhost:8080/api/games)" = 200
-      - name: One-file Compose accepts missing .env / JGO_TOKEN
+          test "$(curl -s -o /dev/null -w '%{http_code}' https://localhost:8443/api/games)" = 401
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer ci-token-0123456789abcdef' https://localhost:8443/api/games)" = 200
+      - name: One-file Compose accepts missing .env / MGO_TOKEN
         run: |
           test ! -f .env
-          env -u JGO_TOKEN docker compose config --format json | python3 -c 'import json,sys; c=json.load(sys.stdin); assert c["services"]["app"]["environment"]["AUTH_TOKEN"] == ""'
+          env -u MGO_TOKEN docker compose config --format json | python3 -c 'import json,sys; c=json.load(sys.stdin); assert c["services"]["app"]["environment"]["AUTH_TOKEN"] == ""'
       - name: First-boot token provisioning and persistence
         run: node --test tests/scripts/docker-auth.test.cjs
       - name: NAS Compose keeps auth in a Docker-managed volume
         run: |
-          docker compose config --format json | python3 -c 'import json,sys; c=json.load(sys.stdin); s=c["services"]["app"]; assert s["environment"]["JGO_AUTH_DIR"] == "/jgo-auth"; assert any(m["target"] == "/jgo-auth" and m["type"] == "volume" for m in s["volumes"]); assert s["environment"]["SYMBIAN_AGENT_TOKEN_FILE"] == "/symbian-auth/agent-token"; y=c["services"]["mgo-symbian"]; assert y["environment"]["AGENT_TOKEN_FILE"] == "/symbian-auth/agent-token"; assert set(y["networks"]) == {"symbian"}; assert c["networks"]["symbian"]["internal"] is True'
+          docker compose config --format json | python3 -c 'import json,sys; c=json.load(sys.stdin); s=c["services"]["app"]; assert s["environment"]["MGO_AUTH_DIR"] == "/mgo-auth"; assert any(m["target"] == "/mgo-auth" and m["type"] == "volume" for m in s["volumes"]); assert s["environment"]["SYMBIAN_AGENT_TOKEN_FILE"] == "/symbian-auth/agent-token"; y=c["services"]["mgo-symbian"]; assert y["environment"]["AGENT_TOKEN_FILE"] == "/symbian-auth/agent-token"; assert set(y["networks"]) == {"symbian"}; assert c["networks"]["symbian"]["internal"] is True'
       - name: NAS style - a folder owned by another user (PUID/PGID), restart keeps the data
         run: |
           docker compose down -v
-          sudo mkdir -p /srv/jgo-nas/data && sudo chown 1026:100 /srv/jgo-nas/data
-          export JGO_DATA=/srv/jgo-nas/data PUID=1026 PGID=100
+          sudo mkdir -p /srv/mgo-nas/data && sudo chown 1026:100 /srv/mgo-nas/data
+          export MGO_DATA=/srv/mgo-nas/data PUID=1026 PGID=100
           docker compose up -d --no-build app gateway
-          for i in $(seq 1 60); do curl -fsS localhost:8080/api/health | grep -q '"ok":true' && break; sleep 2; done
-          curl -fsS localhost:8080/api/health | grep -q '"ok":true'
-          curl -fsS -H 'Authorization: Bearer ci-token-0123456789abcdef' -F "jar=@tests/fixtures/testmidlet/build/kemtest.jar" localhost:8080/api/games | grep -q '"game"'
+          for i in $(seq 1 60); do docker compose cp gateway:/certs/server.crt work/ci-ca.crt && break; sleep 1; done
+          for i in $(seq 1 60); do curl -fsS https://localhost:8443/api/health | grep -q '"ok":true' && break; sleep 2; done
+          curl -fsS https://localhost:8443/api/health | grep -q '"ok":true'
+          curl -fsS -H 'Authorization: Bearer ci-token-0123456789abcdef' -F "jar=@tests/fixtures/testmidlet/build/kemtest.jar" https://localhost:8443/api/games | grep -q '"game"'
           docker compose exec -T app sh -c 'test "$(id -u)" = 1026'
           docker compose restart app
-          for i in $(seq 1 60); do curl -fsS localhost:8080/api/health | grep -q '"ok":true' && break; sleep 2; done
-          test "$(curl -fsS -H 'Authorization: Bearer ci-token-0123456789abcdef' localhost:8080/api/games | grep -o '"sha256"' | wc -l)" = 1
-          sudo test -n "$(sudo ls /srv/jgo-nas/data)"
-      - name: Boot without JGO_TOKEN, verify auth and persist after restart
+          for i in $(seq 1 60); do curl -fsS https://localhost:8443/api/health | grep -q '"ok":true' && break; sleep 2; done
+          test "$(curl -fsS -H 'Authorization: Bearer ci-token-0123456789abcdef' https://localhost:8443/api/games | grep -o '"sha256"' | wc -l)" = 1
+          sudo test -n "$(sudo ls /srv/mgo-nas/data)"
+      - name: Boot without MGO_TOKEN, verify auth and persist after restart
         run: |
           docker compose down -v
-          env -u JGO_TOKEN docker compose up -d --no-build app gateway
-          for i in $(seq 1 60); do curl -fsS localhost:8080/api/health | grep -q '"ok":true' && break; sleep 2; done
-          secret="$(docker compose exec -T app cat /jgo-auth/.jgo-auth-token)"
+          env -u MGO_TOKEN docker compose up -d --no-build app gateway
+          for i in $(seq 1 60); do docker compose cp gateway:/certs/server.crt work/ci-ca.crt && break; sleep 1; done
+          for i in $(seq 1 60); do curl -fsS https://localhost:8443/api/health | grep -q '"ok":true' && break; sleep 2; done
+          secret="$(docker compose exec -T app cat /mgo-auth/.mgo-auth-token)"
           test "${#secret}" -eq 64
-          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080/api/games)" = 401
-          test "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $secret" localhost:8080/api/games)" = 200
+          test "$(curl -s -o /dev/null -w '%{http_code}' https://localhost:8443/api/games)" = 401
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $secret" https://localhost:8443/api/games)" = 200
           docker compose restart app
-          for i in $(seq 1 60); do curl -fsS localhost:8080/api/health | grep -q '"ok":true' && break; sleep 2; done
-          test "$secret" = "$(docker compose exec -T app cat /jgo-auth/.jgo-auth-token)"
+          for i in $(seq 1 60); do curl -fsS https://localhost:8443/api/health | grep -q '"ok":true' && break; sleep 2; done
+          test "$secret" = "$(docker compose exec -T app cat /mgo-auth/.mgo-auth-token)"
       - if: always()
         run: docker compose down -v

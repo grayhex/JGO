@@ -10,7 +10,7 @@ import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
 
 const { makeJar } = await import(pathToFileURL(path.join(process.cwd(), 'apps/api/src/dev/testing.ts')).href);
-const dir = mkdtempSync(path.join(tmpdir(), 'jgo-gen-'));
+const dir = mkdtempSync(path.join(tmpdir(), 'mgo-gen-'));
 const port = 22400 + Math.floor(Math.random() * 90);
 const base = `http://127.0.0.1:${port}`;
 const server = spawn('node', ['apps/api/dist/server.js'], { env: { ...process.env, PORT: String(port), DATA_DIR: dir, HOST: '127.0.0.1', LOG_LEVEL: 'warn' }, stdio: ['ignore', 'inherit', 'inherit'] });
@@ -44,7 +44,7 @@ try {
   // ---- Settings: preview shows what would happen and changes nothing; confirm writes ----
   // the curator's own format, with the paths of its collection: they must stay in the browser
   const item = (jar, over) => ({ rank: 1, title_key: 'x', genre_confidence: 'manual', source_relative: 'Gameloft (Nokia N81)\\Secret Path.jar', file: 'Secret Path.jar', resolution: '', vendor: 'ACME', version: '1', sha256: sha(jar), ...over });
-  const catalog = { schema: 'jgo-curator-manifest-v1', generated_by: 'J2ME Curator', report_source_root: '\\\\192.168.1.5\\Games', target: 500, items: [
+  const catalog = { schema: 'mgo-curator-manifest-v1', generated_by: 'J2ME Curator', report_source_root: '\\\\192.168.1.5\\Games', target: 500, items: [
     item(jars.Turbo, { title: 'Turbo Race', genre: 'Racing' }),
     item(jars.Blocks, { title: 'Blocks', genre: 'Puzzle' }),
     item(jars.Evil, { title: '<img src=x onerror=alert(1)>', genre: 'Action' }),
@@ -54,7 +54,7 @@ try {
   const sent = [];
   p.on('request', (r) => { if (r.url().includes('/api/library/catalog/')) sent.push(r.postData() ?? ''); });
   await p.goto(base + '/settings#library');
-  await p.getByTestId('catalog-file').setInputFiles({ name: 'jgo_catalog.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(catalog)) });
+  await p.getByTestId('catalog-file').setInputFiles({ name: 'mgo_catalog.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(catalog)) });
   const rep = p.getByTestId('catalog-report');
   await rep.waitFor();
   assert.ok(sent.length > 0 && sent.every((b) => !/Secret Path|192\.168|source_relative/.test(b)), 'no file paths were sent to the server');

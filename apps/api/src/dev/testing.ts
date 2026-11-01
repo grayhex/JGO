@@ -12,7 +12,7 @@ export function makeJar(name: string, opts: { vendor?: string; version?: string;
   return zipSync({ 'META-INF/MANIFEST.MF': strToU8(manifest), 'a/Game.class': cls });
 }
 
-export function tmpDir(prefix = 'jgo-test-'): string {
+export function tmpDir(prefix = 'mgo-test-'): string {
   return mkdtempSync(path.join(tmpdir(), prefix));
 }
 
@@ -24,7 +24,7 @@ export function put(root: string, rel: string, data: Uint8Array | string): strin
 }
 
 export function testConfig(over: Partial<Config> & { roots?: string[] } = {}): Config {
-  const data = over.dataDir ?? tmpDir('jgo-data-');
+  const data = over.dataDir ?? tmpDir('mgo-data-');
   const { roots, ...rest } = over;
   return { ...loadConfig({ DATA_DIR: data, HOST: '127.0.0.1', LOG_LEVEL: 'silent', LIBRARY_ROOTS: (roots ?? []).join(' ') } as NodeJS.ProcessEnv), ...rest, dataDir: data };
 }

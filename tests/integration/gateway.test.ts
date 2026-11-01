@@ -41,16 +41,16 @@ describe('gateway (nginx) and large uploads', { skip: nginxBin ? false : 'nginx 
     const dir = path.join(tmp, name);
     mkdirSync(dir, { recursive: true });
     const proxy = proxyConf.replace('http://app:8080', `http://127.0.0.1:${appPort}`);
-    const proxyFile = path.join(dir, 'jgo-proxy.conf');
+    const proxyFile = path.join(dir, 'mgo-proxy.conf');
     writeFileSync(proxyFile, proxy);
-    const server = serverConf.replace('listen 8080;', `listen 127.0.0.1:${port};`).replaceAll('/etc/nginx/jgo-proxy.conf', proxyFile);
+    const server = serverConf.replace('listen 8080;', `listen 127.0.0.1:${port};`).replaceAll('/etc/nginx/mgo-proxy.conf', proxyFile);
     const main = `${process.getuid?.() === 0 ? 'user root;\n' : ''}daemon off;\nworker_processes 1;\npid ${dir}/nginx.pid;\nerror_log ${dir}/error.log warn;\nevents { worker_connections 64; }\nhttp {\n  access_log off;\n  client_body_temp_path ${dir}/body;\n  proxy_temp_path ${dir}/proxy;\n  fastcgi_temp_path ${dir}/fcgi;\n  uwsgi_temp_path ${dir}/uwsgi;\n  scgi_temp_path ${dir}/scgi;\n${server}\n}\n`;
     writeFileSync(path.join(dir, 'nginx.conf'), main);
     return spawn(nginxBin!, ['-c', path.join(dir, 'nginx.conf'), '-p', dir], { stdio: 'ignore' });
   }
 
   before(async () => {
-    tmp = mkdtempSync(path.join(tmpdir(), 'jgo-gw-'));
+    tmp = mkdtempSync(path.join(tmpdir(), 'mgo-gw-'));
     agentData = path.join(tmp, 'agent');
     const agentPort = await free();
     agent = spawn(process.execPath, [AGENT], { env: { PATH: process.env.PATH ?? '', AGENT_TOKEN: 'gateway-token-0123456789', AGENT_PORT: String(agentPort), AGENT_HOST: '127.0.0.1', CONTROL_PORT: String(await free()), DATA_DIR: agentData, EKA2L1_BIN: FAKE }, stdio: 'ignore' });
@@ -58,7 +58,7 @@ describe('gateway (nginx) and large uploads', { skip: nginxBin ? false : 'nginx 
     env = await startApp({ SYMBIAN_AGENT_URL: `http://127.0.0.1:${agentPort}`, SYMBIAN_AGENT_TOKEN: 'gateway-token-0123456789' });
     const appPort = Number(new URL(env.base).port);
     const conf = readFileSync(path.join(root, 'infrastructure/local/nginx.conf'), 'utf8');
-    const proxy = readFileSync(path.join(root, 'infrastructure/local/jgo-proxy.conf'), 'utf8');
+    const proxy = readFileSync(path.join(root, 'infrastructure/local/mgo-proxy.conf'), 'utf8');
     const mapLine = conf.slice(conf.indexOf('map $http_upgrade'));
     // the shipped configuration
     const port = await free();
@@ -67,7 +67,7 @@ describe('gateway (nginx) and large uploads', { skip: nginxBin ? false : 'nginx 
     bodyTemp = path.join(tmp, 'new', 'body');
     // the old one: a single global 40m, request buffering on (what shipped before) - the control that proves the test can fail
     const oldPort = await free();
-    const old = `server {\n  listen 8080;\n  client_max_body_size 40m;\n  location / { include /etc/nginx/jgo-proxy.conf; }\n}\n${mapLine}`;
+    const old = `server {\n  listen 8080;\n  client_max_body_size 40m;\n  location / { include /etc/nginx/mgo-proxy.conf; }\n}\n${mapLine}`;
     ngxOld = startNginx('old', oldPort, appPort, old, proxy.replace('proxy_request_buffering off;', ''));
     gwOld = `http://127.0.0.1:${oldPort}`;
     for (const u of [gw, gwOld]) await waitFor(async () => { try { return (await fetch(`${u}/api/health`)).ok; } catch { return false; } }, 'nginx ' + u, 10000);
@@ -113,7 +113,7 @@ describe('gateway (nginx) and large uploads', { skip: nginxBin ? false : 'nginx 
   it('MGO\'s own limits still apply behind the gateway (a JSON 413 from the app, not a hang)', async () => {
     const small = await startApp({ MAX_FIRMWARE_MB: '50' });
     const port = await free();
-    const n = startNginx('lim', port, Number(new URL(small.base).port), readFileSync(path.join(root, 'infrastructure/local/nginx.conf'), 'utf8'), readFileSync(path.join(root, 'infrastructure/local/jgo-proxy.conf'), 'utf8'));
+    const n = startNginx('lim', port, Number(new URL(small.base).port), readFileSync(path.join(root, 'infrastructure/local/nginx.conf'), 'utf8'), readFileSync(path.join(root, 'infrastructure/local/mgo-proxy.conf'), 'utf8'));
     try {
       await waitFor(async () => { try { return (await fetch(`http://127.0.0.1:${port}/api/health`)).ok; } catch { return false; } }, 'nginx', 10000);
       const r = await post(`http://127.0.0.1:${port}/api/symbian/upload-probe`, 60 * MB, 'p.bin');

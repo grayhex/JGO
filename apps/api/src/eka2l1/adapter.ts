@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { createReadStream, statSync } from 'node:fs';
 import { deflateRawSync } from 'node:zlib';
-import type { Platform } from '@j2me-web/protocol';
+import type { Platform } from '@mgo/protocol';
 import type { AdapterEvents, AdapterState, ExitInfo, FrameMsg } from '../kemulator/adapter.js';
 import type { AdapterStatus, EmulatorAdapter } from '../emulator.js';
 import { AgentClient, AgentError } from './agentClient.js';
@@ -9,7 +9,7 @@ import { ekaKeyName } from './keymap.js';
 import { decodePng } from './png.js';
 import { DeviceChoiceError, pickDevice } from './device.js';
 import { classifyLog, FailureRecorder, hintsFor } from './failure.js';
-import { EMULATED_DEVICES, type StartFailure, type StartFailureCause } from '@j2me-web/protocol';
+import { EMULATED_DEVICES, type StartFailure, type StartFailureCause } from '@mgo/protocol';
 
 export interface Eka2l1Options {
   agent: AgentClient;
@@ -297,8 +297,10 @@ export class Eka2l1Adapter extends EventEmitter<AdapterEvents> implements Emulat
   }
 
   private async audioLoop(): Promise<void> {
+    let bytes = 0;
     try {
-      for await (const chunk of this.o.agent.audio(this.abort.signal)) this.emit('audio', chunk);
+      for await (const chunk of this.o.agent.audio(this.abort.signal)) { bytes += chunk.length; this.emit('audio', chunk); }
+      if (!this.abort.signal.aborted) this.warnOnce('audio', `sound capture ended after ${bytes} bytes; inspect PulseAudio in Settings → System`);
     } catch (e) {
       if (!this.abort.signal.aborted) this.warnOnce('audio', `no sound: ${(e as Error).message}`);
     }
