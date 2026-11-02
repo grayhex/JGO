@@ -252,7 +252,10 @@ try {
   await page.waitForFunction(() => { const c = document.querySelector('.skin-canvas'); if (!c) return false; const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; for (let i = 0; i < d.length; i += 4) if (d[i] === 255 && d[i + 1] === 255 && d[i + 2] === 0) return false; return true; }, null, { timeout: 6000 });
   await page.mouse.up();
   ok('changing the model releases a held key', true);
-  const geo2 = await page.evaluate(() => { const cv = document.querySelector('canvas'); const c = cv.getBoundingClientRect(); const l = document.querySelector('[data-testid=skin-lcd]').getBoundingClientRect(); return { ratio: c.width / c.height, fw: cv.width / cv.height, inLcd: c.left >= l.left - 1 && c.right <= l.right + 1 && c.top >= l.top - 1 && c.bottom <= l.bottom + 1, lcdRatio: l.width / l.height }; });
+  const measureK750 = () => page.evaluate(() => { const cv = document.querySelector('canvas'); const c = cv.getBoundingClientRect(); const l = document.querySelector('[data-testid=skin-lcd]').getBoundingClientRect(); return { ratio: c.width / c.height, fw: cv.width / cv.height, inLcd: c.left >= l.left - 1 && c.right <= l.right + 1 && c.top >= l.top - 1 && c.bottom <= l.bottom + 1, lcdRatio: l.width / l.height }; });
+  // the skin image decides the LCD box: measure again until the new phone has been laid out (a fresh model is not at its final size the instant its element exists)
+  let geo2 = await measureK750();
+  for (let n = 0; n < 50 && !(Math.abs(geo2.ratio / geo2.fw - 1) < 0.01 && geo2.inLcd && Math.abs(geo2.lcdRatio - 176 / 220) < 0.02); n++) { await page.waitForTimeout(100); geo2 = await measureK750(); }
   ok('the 240×320 game on the 176×220 K750i window is letterboxed, not stretched', Math.abs(geo2.ratio / geo2.fw - 1) < 0.01 && geo2.inLcd && Math.abs(geo2.lcdRatio - 176 / 220) < 0.02, JSON.stringify(geo2));
   ok('the picture is still the same running session', (await (await fetch(base + '/api/sessions')).json()).filter((s) => s.state === 'running').length === 1);
   await page.screenshot({ path: path.join(outDir, 'skin-07-player-k750i.png') });
