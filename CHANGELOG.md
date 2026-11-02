@@ -6,6 +6,7 @@ Formatted after [Keep a Changelog](https://keepachangelog.com/); versions follow
 ## [Unreleased]
 
 ### Fixed
+- The library now refreshes itself when the MobyGames lookup finishes (covers, genres and the "review" mark used to appear only after a manual reload; it made the setup e2e test depend on timing).
 - **N-Gage games were not recognised** from the All About Symbian directory. The matcher compared whole normalised titles, so any dump-style file name (`Asphalt Urban GT (E)`, `Tony Hawk's Pro Skater (Europe)`, `Ghost Recon - Jungle Storm`) stayed unrecognised, and everything depended on the server reaching the site (the app container has no internet; a failed request left nothing and no reason). Now the list of the 64 released games ships with MGO, so a game is recognised and gets its genre offline; titles are matched ignoring region/version tags, the word N-Gage, Roman numerals and a missing brand (never guessing between two candidates, a sequel never replaces the first game); redirects are followed only to the fixed catalog pages; one failing game page no longer stops the others; *Settings → Game metadata* shows "N of M recognised", the unrecognised names and the reason covers are missing.
 
 ### Changed
