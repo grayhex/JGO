@@ -132,3 +132,19 @@ input[type='range'] { width: 100%; accent-color: var(--primary); height: 20px; }
 /* a button inside a panel never grows past it: long labels wrap */
 .panel-body > .btn, .panel-body > .btn-row > .btn { max-width: 100%; min-width: 0; }
 .btn.wrap { white-space: normal; height: auto; min-height: 40px; padding-block: 8px; line-height: 1.25; text-align: center; }
+
+/* Platform tags and fact chips: a small drawing and a word, in the colour of the platform */
+.ptag { --plat: var(--primary); display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px 2px 7px; border-radius: var(--r-pill); border: 1px solid color-mix(in srgb, var(--plat) 45%, transparent); background: color-mix(in srgb, var(--plat) 14%, transparent); color: var(--plat); font-size: 0.75rem; font-weight: 700; line-height: 1.25rem; white-space: nowrap; flex: none; }
+.ptag.sm { padding: 0 8px 0 6px; font-size: 0.6875rem; line-height: 1.125rem; }
+.ptag .pglyph { flex: none; }
+.ptag.bare { border-color: transparent; background: transparent; padding-left: 2px; padding-right: 2px; }
+.ptag[data-platform=j2me], .lib-glyph[data-platform=j2me] { --plat: #ff9f43; }
+.ptag[data-platform=symbian], .lib-glyph[data-platform=symbian] { --plat: #5aa7ff; }
+.ptag[data-platform=ngage], .lib-glyph[data-platform=ngage] { --plat: #d8e84c; }
+.ptag[data-platform=ngage2], .lib-glyph[data-platform=ngage2] { --plat: #ff6fae; }
+.ichip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px 2px 7px; border-radius: var(--r-pill); border: 1px solid var(--outline-strong); background: var(--surface-soft); color: var(--fg); font-size: 0.75rem; line-height: 1.25rem; font-weight: 600; }
+.ichip .icon-svg { width: 14px; height: 14px; flex: none; color: var(--muted); }
+.ichip.ok { color: var(--success); border-color: color-mix(in srgb, var(--success) 45%, transparent); background: color-mix(in srgb, var(--success) 12%, transparent); }
+.ichip.ok .icon-svg { color: var(--success); }
+.ichip.warn { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 45%, transparent); background: color-mix(in srgb, var(--warning) 10%, transparent); }
+.ichip.warn .icon-svg { color: var(--warning); }

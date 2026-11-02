@@ -55,11 +55,19 @@ await fetch(base + '/api/setup/skip', { method: 'POST' }); // the first-run wiza
  assert.equal((await sessions()).find(s=>s.state==='running').id,running);
  await p.keyboard.press('Escape');await p.waitForFunction(()=>!document.querySelector('.lights-out'));
  await p.keyboard.press('Alt+KeyL');await p.locator('.lights-out').waitFor();
- await p.getByRole('button',{name:'Exit Lights Out'}).click();
+ // one Options button: exit, fullscreen and the keypad are in its menu
+ assert.equal(await p.locator('.lights-hud button.lights-opts').count(),1);
+ await p.getByTestId('lights-options').click();
+ await p.getByRole('menuitem',{name:'Exit Lights Out'}).click();
  await p.keyboard.press('Alt+KeyL');await p.locator('.lights-out').waitFor();
- await p.getByRole('button',{name:'Fullscreen',exact:true}).click();
+ await p.getByTestId('lights-options').click();
+ await p.getByRole('menuitem',{name:'Fullscreen'}).click();
  await p.waitForFunction(()=>!!document.fullscreenElement);
- await p.getByRole('button',{name:'Exit Lights Out'}).click();
+ // in fullscreen the button still sits in the top-right corner of the screen
+ const corner=await p.getByTestId('lights-options').evaluate(e=>{const r=e.getBoundingClientRect();return {right:innerWidth-r.right,top:r.top};});
+ assert.ok(corner.right>=8&&corner.right<=24&&corner.top>=8&&corner.top<=24,'Options sits in the corner: '+JSON.stringify(corner));
+ await p.getByTestId('lights-options').click();
+ await p.getByRole('menuitem',{name:'Exit Lights Out'}).click();
  await p.evaluate(()=>document.exitFullscreen());
  // Simulated button 0 must reach InputController and the real game.
  await p.evaluate(()=>window.padButtons=[0]);
@@ -75,7 +83,7 @@ await fetch(base + '/api/setup/skip', { method: 'POST' }); // the first-run wiza
  console.log('PASS: automatic profile, pending restart, Advanced persistence, unchanged LCD/Canvas/session in Lights Out, Escape/Alt+L, keyboard, simulated gamepad + rebind/save.');
  // Mobile layout, persisted presentation only; does not start/restart the game.
  await p.setViewportSize({width:390,height:844});await p.keyboard.press('Alt+KeyL');await p.locator('.lights-out').waitFor();
- assert.ok(await p.getByRole('button',{name:'Exit Lights Out'}).isVisible());
+ assert.ok(await p.getByTestId('lights-options').isVisible());
  assert.equal((await sessions()).find(s=>s.state==='running').id,running);
  console.log('PASS: mobile exit remains visible.');
 } finally {await browser?.close();server.kill('SIGTERM');await new Promise(r=>server.once('exit',r));rmSync(dir,{recursive:true,force:true});}

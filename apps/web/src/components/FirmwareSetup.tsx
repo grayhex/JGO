@@ -6,7 +6,7 @@ import { useServerSettings } from '../serverSettings';
 import { useCatalog } from '../skin/registry';
 import { FirmwareAdd, FirmwareJobStatus, useFirmwareJob } from './FirmwareAdd';
 import { Icon } from './Icon';
-import { PlatformIcon } from './PlatformIcon';
+import { PlatformTag } from './PlatformTag';
 import { currentPhones, PHONE_ROLES } from './MyPhones';
 
 type Toaster = (kind: 'info' | 'error', text: string) => void;
@@ -61,9 +61,9 @@ export function FirmwareSetup({ toast }: { toast: Toaster }) {
       {rows.map((row) => (
         <section className={`fw-row card-pad${row.installed ? ' done' : ''}`} key={row.role.platform} data-testid={`fw-${row.role.platform}`}>
           <header>
-            <PlatformIcon platform={row.role.platform} size={36} />
+            <PlatformTag platform={row.role.platform} />
             <div>
-              <strong>{translateUI(row.role.title)} — {name(row.skin)}</strong>
+              <strong>{name(row.skin)}</strong>
               <div className="muted small">{row.device && row.device.engine === 'eka2l1' ? `${row.device.name} · ${translateUI('firmware')} ${row.code} · ${row.device.os}` : translateUI('No phone chosen for this kind of games.')}</div>
             </div>
             {row.code && <span className={`badge ${row.installed ? 'prod' : 'mock'}`}>{translateUI(row.installed ? 'Firmware installed' : 'Firmware needed')}</span>}

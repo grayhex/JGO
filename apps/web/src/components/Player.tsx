@@ -84,10 +84,12 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   const [advanced, setAdvanced] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [padMenu, setPadMenu] = useState(false);
+  const padMenuOpen = useRef(false); padMenuOpen.current = padMenu;
   const [padState, setPadState] = useState<PadState>({controllers:[],pressed:[]});
   const gamepad = useRef<GamepadPoller | null>(null);
   const [lights, setLights] = useState(() => { try { return localStorage.getItem('j2me-web.lights.v1') === 'true'; } catch { return false; } });
   const [awake, setAwake] = useState(true);
+  const [hudMenu, setHudMenu] = useState(false);
   const [touchControls, setTouchControls] = useState(false);
   const wakeTimer = useRef<ReturnType<typeof setTimeout>>();
   useEffect(()=>()=>clearTimeout(wakeTimer.current),[]);
@@ -289,7 +291,8 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
     const gp = new GamepadPoller(input, setPad, loadPadProfile(gameId));
     gamepad.current = gp;
     let previous = '';
-    gp.onState = (s) => { const serialized=JSON.stringify(s);if(serialized!==previous){previous=serialized;setPadState(s);} };
+    // the pressed buttons are shown on the on-screen keypad (it follows every input source); the state is only needed while the mapping dialog is open
+    gp.onState = (s) => { if (!padMenuOpen.current) return; const serialized=JSON.stringify(s);if(serialized!==previous){previous=serialized;setPadState(s);} };
     gp.onUi = (action) => uiRef.current(action);
     if (controlSettings().gamepad) gp.start();
     return () => {
@@ -530,7 +533,18 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
   return (
     <div className={`player-grid ${lightsActive ? 'lights-out' : ''} ${awake ? 'hud-awake' : ''} ${touchControls ? 'touch-controls' : ''}`} onPointerMove={wake} onPointerDown={wake}>
       <section className={`card stage-card ${view === 'screen' ? 'is-screen' : ''}`} ref={card} aria-label={translateUI("Phone")}>
-        {lightsActive && <div className="lights-hud"><button className="btn" onClick={()=>setLights(false)} aria-label={translateUI("Exit Lights Out")}>{translateUI("☀ Exit · Esc")}</button><button className="btn transient" onClick={fullscreen}>{translateUI("Fullscreen")}</button><button className="btn transient" onClick={()=>setTouchControls(v=>!v)}>{translateUI("Touch controls")}</button></div>}
+        {lightsActive && (
+          <div className="lights-hud">
+            <button className="btn lights-opts" aria-haspopup="menu" aria-expanded={hudMenu} onClick={() => setHudMenu((v) => !v)} data-testid="lights-options"><Icon name="sliders" /> {translateUI("Options")}</button>
+            {hudMenu && (
+              <div className="lights-menu" role="menu" aria-label={translateUI("Options")}>
+                <button className="btn" role="menuitem" onClick={() => { setHudMenu(false); setLights(false); }} aria-label={translateUI("Exit Lights Out")}><Icon name="sun" /> {translateUI("Exit Lights Out")} <kbd>Esc</kbd></button>
+                <button className="btn" role="menuitem" onClick={() => { setHudMenu(false); fullscreen(); }}><Icon name="fullscreen" /> {translateUI("Fullscreen")}</button>
+                <button className="btn" role="menuitemcheckbox" aria-checked={touchControls} onClick={() => setTouchControls((v) => !v)}><Icon name="keypad" /> {translateUI("On-screen keypad")} <span className="menu-state">{translateUI(touchControls ? 'on' : 'off')}</span></button>
+              </div>
+            )}
+          </div>
+        )}
         <div className="stage-bar">
           <div className="stage-left">
             <button className="btn ghost sm" onClick={leave}><Icon name="back" /> {translateUI("Library")}</button>
@@ -675,7 +689,6 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
         <Panel icon="gamepad" title={translateUI("Controls")}>
           <button className="btn wrap" title={translateUI("Gamepad settings / UI navigation")} aria-label={translateUI("Gamepad settings / UI navigation")} onClick={()=>{input.releaseAll();setPadMenu(v=>!v);}}><Icon name="gamepad" /> {translateUI("Gamepad settings")}</button>
           {padMenu && <GamepadSettings gameId={gameId} poller={gamepad.current} state={padState} />}
-          {!!padState.pressed.length && <div className="note">{translateUI("Held:")} {padState.pressed.join(', ')}</div>}
           <Switch checked={external} disabled={keypadRequired} onChange={setShowKeypad}>{translateUI("On-screen keypad")}</Switch>
           <div className="btn-row"><button className="btn sm" onClick={() => setKeymap(true)}>{translateUI("Remap keyboard")}</button><Hint text={`${translateUI("Arrows · Enter = OK · Q/W = soft keys · 0–9 · X = * · Z = #.")} ${translateUI(skin?.config.input?.kind === 'touchscreen' ? 'Touch the display; use the keypad below for games that need buttons.' : view === 'full' ? 'Click or touch the phone’s keys; several at once work.' : 'In the Screen view the keys are below the picture.')}${pad ? ` Gamepad: ${pad.slice(0, 28)}.` : ''}`} /></div>
         </Panel>

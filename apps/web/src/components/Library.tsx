@@ -11,7 +11,7 @@ import { splitPlayTime } from '../playTime';
 import { compareGroups, matchesStatus, SORT_KEYS, STATUS_FILTERS, totalPlaySeconds, type SortKey, type StatusFilter } from '../libraryView';
 import { GameSettingsDialog } from './GameSettingsDialog';
 import { Icon } from './Icon';
-import { PlatformIcon } from './PlatformIcon';
+import { PlatformTag } from './PlatformTag';
 import { Seg } from './ui';
 
 type Filter = 'all' | 'favorites' | 'recent';
@@ -43,7 +43,7 @@ function Cover({ g }: { g: GameMeta }) {
   const hue = 170 + (parseInt(g.groupKey.slice(0, 4), 16) % 46); // teal to blue: the palette has one signal colour, cyan
   return (
     <div className={`cover ${art ? 'art' : ''}`} style={{ ['--hue' as string]: hue }}>
-      {art ? <img src={g.ngageInfo?.hasCover ? `/api/games/${g.id}/ngage-cover` : api.coverUrl(g.id)} alt="" loading="lazy" onError={() => setBroken(true)} /> : g.hasIcon && !broken ? <img src={api.iconUrl(g.id)} alt="" onError={() => setBroken(true)} /> : <PlatformIcon platform={g.platform ?? 'j2me'} size={96} className="cover-platform" />}
+      {art ? <img src={g.ngageInfo?.hasCover ? `/api/games/${g.id}/ngage-cover` : api.coverUrl(g.id)} alt="" loading="lazy" onError={() => setBroken(true)} /> : g.hasIcon && !broken ? <img src={api.iconUrl(g.id)} alt="" onError={() => setBroken(true)} /> : <span className="initials">{g.name.slice(0, 2).toUpperCase()}</span>}
     </div>
   );
 }
@@ -214,7 +214,7 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
         <input className="input lib-search" type="search" placeholder={translateUI("Search games or vendors")} value={query} onChange={(e) => onQuery(e.target.value)} aria-label={translateUI("Search")} data-testid="search" />
         <div className="plat-filter" role="group" aria-label={translateUI('Game platform')} data-testid="platform-filter">
           <button type="button" className={platform === 'all' ? 'on' : ''} aria-pressed={platform === 'all'} onClick={() => choosePlatform('all')}>{translateUI('All')}</button>
-          {GAME_PLATFORMS.map(p => <button type="button" key={p} className={platform === p ? 'on' : ''} aria-pressed={platform === p} onClick={() => choosePlatform(platform === p ? 'all' : p)} data-platform={p} title={GAME_PLATFORM_LABELS[p]}><PlatformIcon platform={p} variant="banner" size={22} /></button>)}
+          {GAME_PLATFORMS.map(p => <button type="button" key={p} className={platform === p ? 'on' : ''} aria-pressed={platform === p} onClick={() => choosePlatform(platform === p ? 'all' : p)} data-platform={p} title={GAME_PLATFORM_LABELS[p]}><PlatformTag platform={p} size="sm" className="bare" /></button>)}
         </div>
         <select className="select compact" value={genre} onChange={(e) => setGenre(e.target.value as GenreFilter)} aria-label={translateUI('Filter by genre')} data-testid="genre-filter">
           <option value="all">{translateUI('All genres')} ({genreCounts.total})</option>
@@ -276,7 +276,7 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
           );
           const flags = (
             <>
-              <span className="platform-badge" data-testid="platform-badge" data-platform={sel.platform ?? 'j2me'}><PlatformIcon platform={sel.platform ?? 'j2me'} variant="banner" size={22} /></span>
+              <span className="platform-badge" data-testid="platform-badge" data-platform={sel.platform ?? 'j2me'}><PlatformTag platform={sel.platform ?? 'j2me'} size="sm" /></span>
               {sel.platform === 'symbian' && sel.packageFormat && sel.packageFormat !== 'unknown' && <span className="badge plain" data-testid="package-generation" title={translateUI(PACKAGE_FORMAT_LABEL[sel.packageFormat])}>{sel.packageFormat === 'sis-legacy' ? 'S60 ≤2nd' : 'S60 3rd+'}</span>}
               {sel.warnings.length > 0 && <span className="badge mock" title={translateUI(sel.warnings.join('\n'))}>!</span>}
               {sel.sourceMissing && <span className="badge plain" title={translateUI("The file is no longer in the library folder; the game stays here with its saves")}>{translateUI("file gone")}</span>}

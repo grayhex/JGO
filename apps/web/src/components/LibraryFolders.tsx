@@ -5,7 +5,7 @@ import { api, type BrowseResult, type LibraryKind } from '../api';
 import { setServerSettings, useServerSettings } from '../serverSettings';
 import { Icon } from './Icon';
 import { Modal } from './Modal';
-import { PlatformIcon } from './PlatformIcon';
+import { PlatformGlyph } from './PlatformTag';
 
 type Toaster = (kind: 'info' | 'error', text: string) => void;
 
@@ -176,7 +176,7 @@ export function LibraryFolders({ toast, onChanged, wizard = false }: { toast: To
       <div className="lib-rows" role="list">
         {LIBRARY_KINDS.map((k) => (
           <div className={`lib-row ${paths[k.kind] ? 'set' : ''}`} role="listitem" key={k.kind} data-kind={k.kind}>
-            <PlatformIcon platform={k.platform} size={44} />
+            <span className="lib-glyph" data-platform={k.platform}><PlatformGlyph platform={k.platform} size={24} /></span>
             <div className="lib-main">
               <div className="lib-title"><strong>{k.title}</strong><span className="muted small">{k.files}</span></div>
               {paths[k.kind]

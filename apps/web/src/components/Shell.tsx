@@ -4,7 +4,7 @@ import { t as translateUI } from '../i18n';
 import type { GameMeta, HealthStatus, SymbianStatus } from '@mgo/protocol';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Icon, type IconName } from './Icon';
-import { PlatformIcon } from './PlatformIcon';
+import { PlatformTag } from './PlatformTag';
 import { Seg } from './ui';
 import { useLastGame } from '../lastGame';
 
@@ -67,8 +67,8 @@ export function Shell({ path, go, health, symbian, title, subtitle, children }: 
           <div className="nav-title">{translateUI("Workspace")}</div>
           {item('/', 'library', 'Library', path === '/')}
           {lastGame && <Link to={`/play/${lastGame.id}`} onNavigate={go} data-testid="current-game" className={`nav-item current-game ${inPlayer ? 'active' : ''}`} title={lastGame.name} aria-label={translateUI('Current game: {name}', { name: lastGame.name })}>
-            {loadedGame?.ngageInfo?.hasCover ? <img src={`/api/games/${lastGame.id}/ngage-cover`} alt="" /> : loadedGame?.info?.hasCover ? <img src={api.coverUrl(lastGame.id)} alt="" /> : <Icon name="play" />}
-            <span className="nav-label"><small>{translateUI('Current game')}</small><strong>{lastGame.name}</strong><small><PlatformIcon platform={loadedGame?.platform ?? 'j2me'} size={14} className="inline" /></small></span>
+            <Icon name="play" />
+            <span className="nav-label"><small>{translateUI('Current game')}</small><strong>{lastGame.name}</strong><small><PlatformTag platform={loadedGame?.platform ?? 'j2me'} size="sm" className="bare" /></small></span>
           </Link>}
           {item('/phones', 'phone', 'Phones', path === '/phones')}
           {item('/settings', 'sliders', 'Settings', path === '/settings')}

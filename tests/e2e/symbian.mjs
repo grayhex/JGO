@@ -67,7 +67,10 @@ try {
   await card.getByRole('heading', { name: 'Nokia N70' }).waitFor();
   assert.match(await card.innerText(), /Symbian 8\.1a/);
   assert.ok(await card.locator('.sym-thumb img').count() === 1, 'a picture of the phone');
-  assert.ok(await card.locator('img.platform-icon').count() >= 1, 'what it runs is shown as pictures');
+  assert.ok(await card.locator('.ptag').count() >= 1, 'what it runs is shown as tags');
+  await card.locator('.sym-thumb img').evaluate((img) => img.decode().catch(() => undefined));
+  const fits = await card.evaluate((c) => { const box = c.getBoundingClientRect(), img = c.querySelector('.sym-thumb img').getBoundingClientRect(); return img.top >= box.top - 1 && img.bottom <= box.bottom + 1 && img.left >= box.left - 1 && img.right <= box.right + 1; });
+  assert.ok(fits, 'the phone picture stays inside its device card');
   // one installed device: every platform it can run is offered it automatically, those it cannot run say so
   const defaults = panel.getByTestId('defaults');
   assert.equal(await defaults.locator('select').count(), 3);

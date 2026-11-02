@@ -4,7 +4,8 @@ import type { Toast } from '../App';
 import { api } from '../api';
 import { t as translateUI } from '../i18n';
 import { getLastGame } from '../lastGame';
-import { PlatformIcon } from '../components/PlatformIcon';
+import { InfoChip, PlatformTag } from '../components/PlatformTag';
+import { Icon } from '../components/Icon';
 import { navigate } from '../router';
 import { PhoneSkin } from '../skin/PhoneSkin';
 import { useCatalog } from '../skin/registry';
@@ -69,18 +70,19 @@ function PhoneCard({ skin, frame, current, disabled, onPick, catalog, fit, mine 
         <PhoneSkin skin={thumbnail} view="full" frame={size} canvasRef={(el) => { canvas.current = el; }} interactive={false} integer={false} />
       </div>
       <h2>{c.manufacturer} {c.model}</h2>
-      <p>{c.screen.width} × {c.screen.height}</p>
-      <p className="chips phone-platforms">{platforms.map(p => <span key={p} className={`plat-chip${fit.native === p ? ' on' : ''}`} data-platform={p}><PlatformIcon platform={p} size={28} /></span>)}{mine && <span className="chip on my-phone" data-testid={`my-${c.id}`}>★ {translateUI('My phone')}</span>}</p>
+      <div className="phone-facts">
+        <InfoChip icon={<Icon name="device" />} title={translateUI('Screen size of the phone')}>{c.screen.width} × {c.screen.height}</InfoChip>
+        {mine && <InfoChip icon={<Icon name="star" />} tone="ok" testId={`my-${c.id}`}>{translateUI('My phone')}</InfoChip>}
+      </div>
+      <div className="phone-platforms">{platforms.map(p => <span key={p} className={fit.native === p ? 'fit-on' : ''}><PlatformTag platform={p} size="sm" /></span>)}</div>
       {fw.devices.length > 0 && (
-        <p className={`phone-firmware ${fw.loaded.length ? 'loaded' : 'missing'}`} data-testid={`phone-firmware-${c.id}`} data-loaded={fw.loaded.length ? '1' : '0'}
+        <InfoChip icon={<Icon name={fw.loaded.length ? 'check' : 'alert'} />} tone={fw.loaded.length ? 'ok' : 'warn'} testId={`phone-firmware-${c.id}`} dataset={{ 'data-loaded': fw.loaded.length ? '1' : '0' }}
           title={translateUI(fw.loaded.length ? 'The firmware for this phone is installed in the Symbian service, so its games can run here.' : 'No firmware for this phone is installed. Add it in Settings → Symbian; the picture alone cannot run Symbian games.')}>
-          <span className="dot" aria-hidden />{fw.loaded.length
+          {fw.loaded.length
             ? `${translateUI('Firmware loaded')} · ${fw.loaded.map(d => d.firmware.product).join(', ')}`
             : `${translateUI('Firmware not loaded')} · ${fw.devices.map(d => d.firmware.product).join(', ')}`}
-        </p>
+        </InfoChip>
       )}
-
-
     </button>
   );
 }

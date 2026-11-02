@@ -4,7 +4,7 @@ import { EMULATED_DEVICES, GAME_PLATFORM_LABELS, PHONE_COMPATIBILITY, type Emula
 import { api } from '../api';
 import { FirmwareAdd, FirmwareJobStatus, useFirmwareJob } from './FirmwareAdd';
 import { Icon } from './Icon';
-import { PlatformIcon } from './PlatformIcon';
+import { PlatformTag } from './PlatformTag';
 import { Hint } from './ui';
 
 type Toaster = (kind: 'info' | 'error', text: string) => void;
@@ -102,7 +102,7 @@ export function SymbianPanel({ toast }: { toast: Toaster }) {
                     <p className="muted small">{cat ? cat.os : translateUI('Not in the MGO phone catalog: MGO cannot tell which games it runs.')}</p>
                     <div className="chips">
                       <span className="chip"><code>{d.code}</code></span>
-                      {cat && cat.platforms.map(p => <span key={p} className="chip icon-chip"><PlatformIcon platform={p} size={20} /></span>)}
+                      {cat && cat.platforms.map(p => <PlatformTag key={p} platform={p} size="sm" />)}
                       {defaultsOf.map(pl => <span key={pl} className="chip on" title={translateUI('This device is the default for this kind of game')}>★ {PLATFORM_HELP[pl].title.split(' (')[0]}</span>)}
                     </div>
                   </div>
