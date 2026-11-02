@@ -11,7 +11,7 @@ Java ME работает в [KEmulator nnmod](https://github.com/shinovon/KEmula
 
 [English](README.en.md) · Русский
 
-<img src="docs/img/player.png" alt="Плеер MGO: игра в телефоне Nokia N95" width="760">
+<img src="docs/img/main.png" alt="Плеер MGO: игра в телефоне Nokia N95" width="760">
 
 </div>
 
@@ -34,10 +34,9 @@ Java ME работает в [KEmulator nnmod](https://github.com/shinovon/KEmula
 - **Безопасность:** игра — недоверенный код: отдельный пользователь, изоляция контейнера, лимиты ресурсов, нет доступа к сети.
 
 <div align="center">
-<img src="docs/img/library.png" alt="Библиотека: плитки с жанрами и временем в игре" width="760">
-<img src="docs/img/library-list.png" alt="Библиотека: список-таблица" width="760">
-<img src="docs/img/phones.png" alt="Пятнадцать телефонов на выбор" width="760">
+<img src="docs/img/lib.png" alt="Библиотека: плитки с жанрами и временем в игре" width="760"> <img src="docs/img/phones.png" alt="Пятнадцать телефонов на выбор" width="760">
 </div>
+
 
 ## Быстрый старт
 
