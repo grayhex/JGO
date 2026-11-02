@@ -81,3 +81,8 @@
 .phone-pick .ichip, .phone-pick .ptag { width: 136px; justify-content: center; }
 .phone-pick .phone-facts, .phone-pick .phone-platforms { flex-direction: column; gap: 4px; }
 .phone-pick .phone-platforms { min-height: 0; }
+/* compact cards: a slightly smaller picture, tighter chips (a card stays under ~330 px with three platforms and a firmware chip) */
+.phone-pick .phone-pick-skin { height: 120px; }
+.phone-pick .phone-facts, .phone-pick .phone-platforms { gap: 3px; }
+.phone-pick .ichip, .phone-pick .ptag { height: 20px; line-height: 18px; }
+.phone-preview.phone-pick { gap: 4px; }
