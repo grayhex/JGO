@@ -137,9 +137,12 @@ export function registerAdminRoutes(app: FastifyInstance, c: AdminContext): void
   app.post<{ Body: { path?: unknown } }>('/api/library/check', async (req): Promise<LibraryCheck> => checkLibraryDir(cfg, str(req.body?.path, 'path')));
 
   app.get('/api/library/scan', async () => ({ running: scan.isRunning(), report: scan.current() }));
-  app.post<{ Body: { mode?: string } }>('/api/library/scan', async (req, reply) => {
+  app.post<{ Body: { mode?: string; kinds?: unknown } }>('/api/library/scan', async (req, reply) => {
     const mode = req.body?.mode === 'full' ? 'full' : 'update';
-    return reply.code(202).send({ running: true, report: scan.start(mode) });
+    const k = req.body?.kinds;
+    const kinds = Array.isArray(k) ? [...new Set(k)] : undefined;
+    if (kinds && (!kinds.length || kinds.some(x => x !== 'j2me' && x !== 'ngage' && x !== 'symbian'))) throw new UploadError('bad_request', '"kinds" must list j2me, ngage and/or symbian', 400);
+    return reply.code(202).send({ running: true, report: scan.start(mode, kinds as ('j2me' | 'ngage' | 'symbian')[] | undefined) });
   });
   app.delete('/api/library/scan', async () => ({ cancelled: scan.cancel() }));
 

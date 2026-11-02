@@ -66,21 +66,28 @@ try{
   await p.screenshot({path:'test-results/mgo-settings-system.png',fullPage:true,animations:'disabled'});
   await p.getByRole('tab',{name:'Game library',exact:true}).click();
   for(const [kind,label] of [['j2me','java'],['ngage','ngage'],['symbian','sis']]){
-    const pane = p.locator('.source-folder').filter({ has: p.locator(`input[aria-label="Library folder (${kind})"]`) });
-    if (!(await pane.getAttribute('open') !== null)) await pane.locator('summary').click();
-    const field=p.getByRole('textbox',{name:`Library folder (${kind})`,exact:true});await field.fill(path.join(dir,label));
-    await field.locator('xpath=ancestor::details').getByRole('button',{name:'Use this folder',exact:true}).click();
+    await p.getByTestId(`choose-${kind}`).click();
+    const picker=p.getByRole('dialog',{name:/Folder for/});
+    await picker.getByTestId('folder-check').waitFor();
+    // the picker starts at the shared folder: open the sub-folder of this kind
+    await picker.locator('.folder',{hasText:new RegExp(`^\\s*${label}$`)}).click();
+    await wait(async()=>/\/(java|ngage|sis)$/.test(await picker.locator('.crumb-path').innerText()),'sub-folder opened');
+    await picker.getByTestId('folder-use').click();
+    await picker.waitFor({state:'detached'});
   }
   await wait(async()=>{const s=await(await fetch(base+'/api/settings')).json();return Object.values(s.settings.libraryPaths).filter(Boolean).length===3;},'independent library paths');
-  await p.getByRole('tab',{name:'Default phone',exact:true}).click();
+  await p.getByRole('tab',{name:'My phones',exact:true}).click();
+  await p.getByRole('tab', { name: 'My phones', exact: true }).waitFor();
+  await p.locator('summary',{hasText:'Screen size, key layout'}).click();
   const resolution = p.getByLabel('Resolution', { exact: true });
   const originalResolution = await resolution.inputValue();
   await resolution.selectOption('176x208');
   await p.getByRole('tab', { name: 'System', exact: true }).click();
-  await p.getByRole('tab', { name: 'Default phone', exact: true }).click();
+  await p.getByRole('tab', { name: 'My phones', exact: true }).click();
   assert.equal(await resolution.inputValue(), '176x208', 'switching tabs preserves an unsaved phone draft');
   await resolution.selectOption(originalResolution);
-  await p.getByLabel('Default phone (ngage)',{exact:true}).selectOption('nokia-n-gage-qd');
+  await p.getByTestId('phone-nokia-n-gage-qd').click();
+  await p.getByTestId('default-phone-ngage').selectOption('nokia-n-gage-qd');
   await wait(async()=>{const s=await(await fetch(base+'/api/settings')).json();return s.settings.nativePhones.ngage==='nokia-n-gage-qd';},'native default phone');
   await p.getByRole('tab',{name:'System',exact:true}).click();
   await p.getByRole('tab',{name:'System',exact:true}).press('ArrowRight');
@@ -96,6 +103,7 @@ try{
   assert.equal(ngage.settings.symbianDevice,'RH-29','native default pins the chosen QD firmware');
   await wait(async()=>{const g=await(await fetch(base+'/api/games/'+ngage.id)).json();return g.ngageInfo?.hasCover&&g.classification?.primaryGenre==='Strategy';},'AAS metadata and cover');
   await p.setViewportSize({width:1440,height:1000});await p.goto(base+'/');
+  await p.getByRole('radio',{name:'Tiles'}).click(); // the attribution line belongs to the tile; the list is the default view
   const tile=p.locator('.game-card').filter({hasText:'Pathway to Glory'});await tile.waitFor();
   await tile.locator('.cover.art img').waitFor();assert.ok((await tile.innerText()).includes('All About Symbian'));
   assert.ok((await tile.innerText()).includes('Bluetooth (2 players)'));

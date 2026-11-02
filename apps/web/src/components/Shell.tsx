@@ -4,6 +4,7 @@ import { t as translateUI } from '../i18n';
 import type { GameMeta, HealthStatus, SymbianStatus } from '@mgo/protocol';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Icon, type IconName } from './Icon';
+import { PlatformIcon } from './PlatformIcon';
 import { Seg } from './ui';
 import { useLastGame } from '../lastGame';
 
@@ -58,15 +59,16 @@ export function Shell({ path, go, health, symbian, title, subtitle, children }: 
     <div className={`app ${collapsed ? 'shell-collapsed' : ''} ${drawer ? 'shell-drawer' : ''}`}>
       <aside className="sidebar glass" aria-label={translateUI("Main navigation")}>
         <Link to="/" onNavigate={go} className="brand" aria-label={translateUI("MGO home")}>
-          <span className="brand-mark" aria-hidden><svg viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5" /><path d="M10 6.5h4v5h-4zM10.5 17h3" /></svg></span>
-          <span className="brand-text">{translateUI("MGO")}</span>
+          <img className="brand-logo" src="/graphics/brand/logo-sidebar.svg" alt="" width={210} height={48} />
+          <img className="brand-mark-img" src="/graphics/brand/mark.svg" alt="" width={32} height={32} />
+          <span className="brand-text sr-only">{translateUI("MGO")}</span>
         </Link>
         <nav className="nav">
           <div className="nav-title">{translateUI("Workspace")}</div>
           {item('/', 'library', 'Library', path === '/')}
           {lastGame && <Link to={`/play/${lastGame.id}`} onNavigate={go} data-testid="current-game" className={`nav-item current-game ${inPlayer ? 'active' : ''}`} title={lastGame.name} aria-label={translateUI('Current game: {name}', { name: lastGame.name })}>
             {loadedGame?.ngageInfo?.hasCover ? <img src={`/api/games/${lastGame.id}/ngage-cover`} alt="" /> : loadedGame?.info?.hasCover ? <img src={api.coverUrl(lastGame.id)} alt="" /> : <Icon name="play" />}
-            <span className="nav-label"><small>{translateUI('Current game')}</small><strong>{lastGame.name}</strong><small>{loadedGame?.platform === 'ngage' ? 'N-Gage' : loadedGame?.platform === 'symbian' ? 'Symbian' : loadedGame?.platform === 'ngage2' ? 'N-Gage 2' : 'Java ME'}</small></span>
+            <span className="nav-label"><small>{translateUI('Current game')}</small><strong>{lastGame.name}</strong><small><PlatformIcon platform={loadedGame?.platform ?? 'j2me'} size={14} className="inline" /></small></span>
           </Link>}
           {item('/phones', 'phone', 'Phones', path === '/phones')}
           {item('/settings', 'sliders', 'Settings', path === '/settings')}

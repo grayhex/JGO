@@ -80,9 +80,6 @@
 .settings-tabs { position: static; gap: 4px; border-bottom: 1px solid var(--outline); padding-bottom: 10px; }
 .settings-tabs button { display: inline-flex; align-items: center; gap: 6px; padding: 10px 14px; background: transparent; color: var(--muted); border: 1px solid transparent; border-radius: var(--r-md); font: inherit; cursor: pointer; }
 .settings-tabs button[aria-selected=true] { color: var(--primary); background: var(--surface-elevated); border-color: var(--outline); }
-.library-sources, .platform-defaults { display: grid; gap: 16px; }
-.source-folder { padding: 16px; border: 1px solid var(--outline); border-radius: var(--r-md); }
-.source-folder summary { cursor: pointer; font-weight: 650; margin-bottom: 14px; }
 .catalog-source { padding: 20px; border: 1px solid var(--outline); border-radius: var(--r-md); margin-bottom: 20px; }
 .system-dashboard { display: grid; gap: 20px; }
 .system-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
@@ -101,15 +98,57 @@
 .system-session { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 12px; border: 1px solid var(--outline); border-radius: 10px; font-size: .8rem; }
 @media(max-width: 800px) { .system-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); } .system-engines { grid-template-columns: 1fr; } }
 @media(max-width: 480px) { .settings-tabs { display: grid; grid-template-columns: 1fr 1fr; } .settings-tabs button { padding: 9px; font-size: .8rem; } }
-.library-sources { grid-template-columns: minmax(0,1fr); }
-.library-sources > *, .source-folder .stack, .source-folder .root-list, .source-folder .root { min-width: 0; max-width: 100%; }
-.source-folder .root code { min-width: 0; }
-.source-folder .note code { overflow-wrap: anywhere; }
-@media(max-width: 600px) { .source-folder { padding: 12px; } .source-folder .root { flex-wrap: wrap; } .source-folder .root .badge { font-size: .65rem; } }
 
 .settings .page-head { flex-wrap: nowrap; margin-bottom: 0; align-items: center; }
 .settings .page-head > div { min-width: 0; }
 .settings .page-head .btn { flex-shrink: 0; }
-.source-folder summary small { display: block; color: var(--muted); font-size: .72rem; margin-top: 4px; font-weight: normal; overflow-wrap: anywhere; }
-.source-folder:not([open]) summary { margin-bottom: 0; }
 @media(max-width: 600px) { .settings .page-head { flex-wrap: wrap; } }
+
+/* Game library: three folders, one row each */
+.lib-rows { display: grid; gap: 10px; }
+.lib-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 12px 14px; border: 1px solid var(--outline); border-radius: var(--r-md); background: var(--surface-soft); }
+.lib-row.set { border-color: var(--outline-strong); }
+.lib-main { display: grid; gap: 2px; min-width: 0; }
+.lib-title { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.lib-path { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8125rem; color: var(--primary-warm); }
+.lib-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.lib-actions .btn { padding: 6px 12px; }
+.lib-footer { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.danger-text { color: var(--danger); }
+.scan-summary { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--outline); border-radius: var(--r-md); background: var(--surface-soft); }
+.lib-more { border-top: 1px solid var(--outline); padding-top: 12px; }
+.lib-more > summary { color: var(--muted); }
+.platform-icon { display: block; flex: none; }
+.platform-icon.cover { border-radius: 10px; object-fit: cover; }
+.platform-icon.banner { width: auto; object-fit: contain; }
+.folder-picker .crumbs { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.folder-picker .crumb-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.folder-list.pick { max-height: 260px; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.folder-list.pick .folder { display: flex; align-items: center; gap: 8px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-list.pick .folder .icon-svg { width: 16px; height: 16px; color: var(--primary); flex: none; }
+.modal-actions .danger-text { margin-right: auto; }
+@media (max-width: 640px) {
+  .lib-row { grid-template-columns: auto minmax(0, 1fr); }
+  .lib-actions { grid-column: 1 / -1; justify-content: flex-start; }
+}
+
+/* My phones: pick from the catalog */
+.phone-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; }
+.phone-card { position: relative; display: grid; grid-template-rows: 96px auto auto auto; justify-items: center; align-content: start; gap: 4px; padding: 10px 8px; text-align: center; color: inherit; border: 1px solid var(--outline); border-radius: var(--r-md); background: var(--surface-soft); cursor: pointer; font: inherit; }
+.phone-card:hover { border-color: var(--primary-warm); }
+.phone-card.on { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-tint-strong); background: var(--primary-tint); }
+.phone-card > img { height: 96px; width: auto; max-width: 100%; object-fit: contain; }
+.phone-card strong { font-size: 0.8125rem; line-height: 1.2; }
+.phone-platforms { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
+.phone-platforms .platform-icon.cover { border-radius: 5px; }
+.phone-tick { position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border-radius: 50%; background: var(--primary); color: var(--on-primary); display: grid; place-items: center; font-size: 0.75rem; font-weight: 800; }
+.role-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.role-title { display: inline-flex; align-items: center; gap: 8px; }
+.fw-row { display: grid; gap: 10px; border: 1px solid var(--outline); border-radius: var(--r-md); background: var(--surface-soft); }
+.fw-row.done { border-color: var(--success); }
+.fw-row header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+.fw-add.compact h3 { display: none; }
+@media (max-width: 640px) { .fw-row header { grid-template-columns: auto minmax(0, 1fr); } .fw-row header .badge { grid-column: 1 / -1; justify-self: start; } }
+.state-art { width: min(300px, 70%); height: auto; justify-self: center; opacity: 0.95; }
+/* these two are one column even on wide screens */
+.settings-section > .stack.lib-folders, .settings-section > .stack.my-phones, .settings-section .stack.fw-setup { grid-template-columns: minmax(0, 1fr); }

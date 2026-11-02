@@ -74,20 +74,38 @@ try {
   await page.screenshot({ path: path.join(outDir, 'setup-01-welcome.png') });
   await dialog.getByRole('button', { name: 'Start' }).click();
 
-  // library step: an outside path is refused, the real one works
-  await dialog.locator('input[aria-label="Library folder"]').fill('/etc');
-  await dialog.getByRole('button', { name: 'Check access' }).click();
-  await dialog.locator('.note.err').waitFor();
-  ok('a folder outside the allowed locations is refused', /Cannot use this folder/.test(await dialog.locator('.note.err').innerText()));
-  ok('... and cannot be saved', await dialog.getByRole('button', { name: 'Use this folder' }).isDisabled());
-  await dialog.locator('.root', { hasText: libDir }).click();
-  await dialog.getByRole('button', { name: 'Check access' }).click();
-  await dialog.locator('.note.info', { hasText: 'Readable' }).waitFor();
-  ok('the library folder is checked: readable, with the number of JARs', /5 JAR/.test(await dialog.locator('.note.info').innerText()), (await dialog.locator('.note.info').innerText()).replace(/\n/g, ' '));
+  // library step: the folder is picked from what the server shares (nothing to type); an outside path is refused by the API
+  const outside = await (await fetch(base + '/api/library/check', { method: 'POST', headers: { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' }, body: JSON.stringify({ path: '/etc' }) })).json();
+  ok('a folder outside the allowed locations is refused', outside.ok === false && outside.problems.length > 0);
+  ok('the wizard shows three rows: Java ME, N-Gage, Symbian', (await dialog.locator('[data-testid=library-folders] .lib-row').count()) === 3);
+  await dialog.getByTestId('choose-j2me').click();
+  const picker = page.getByRole('dialog', { name: /Folder for Java ME games/ });
+  await picker.getByTestId('folder-check').waitFor();
+  ok('the picker opens the shared folder and counts what is inside', /5\s+JAR/.test(await picker.getByTestId('folder-check').innerText()), (await picker.getByTestId('folder-check').innerText()).replace(/\n/g, ' '));
   await page.screenshot({ path: path.join(outDir, 'setup-02-library.png') });
-  await dialog.getByRole('button', { name: 'Use this folder' }).click();
-  await dialog.locator('text=Current folder').waitFor();
+  await picker.getByTestId('folder-use').click();
+  await dialog.locator('.lib-row[data-kind=j2me] .lib-path').waitFor();
+  ok('the chosen folder is shown on its row', (await dialog.locator('.lib-row[data-kind=j2me] .lib-path').innerText()).includes(libDir));
   await dialog.getByRole('button', { name: 'Next' }).click();
+
+  // phones step: at least one phone for Java ME, Symbian and N-Gage before it goes on
+  await dialog.getByTestId('my-phones').waitFor();
+  ok('the wizard waits for a phone of every kind', (await dialog.getByTestId('phones-missing').count()) === 1 && await dialog.getByTestId('wizard-next').isDisabled());
+  await dialog.getByTestId('phone-nokia-n-gage-classic').click();
+  await dialog.getByTestId('phone-nokia-e71').click();
+  await dialog.getByTestId('phones-missing').waitFor({ state: 'detached' });
+  ok('... and continues once N-Gage, Symbian and Java ME phones are chosen', !(await dialog.getByTestId('wizard-next').isDisabled()));
+  await dialog.getByTestId('default-phone-j2me').selectOption('nokia-e71');
+  await page.waitForFunction(async (t) => (await (await fetch('/api/settings', { headers: { authorization: `Bearer ${t}` } })).json()).settings.phone.skinId === 'nokia-e71', TOKEN);
+  const chosen = (await (await fetch(base + '/api/settings', { headers: { authorization: `Bearer ${TOKEN}` } })).json()).settings;
+  ok('the phones are saved: my phones, the Java default, the N-Gage phone', chosen.myPhones.includes('nokia-e71') && chosen.myPhones.includes('nokia-n-gage-classic') && chosen.phone.skinId === 'nokia-e71' && chosen.nativePhones.ngage === 'nokia-n-gage-classic');
+  await page.screenshot({ path: path.join(outDir, 'setup-02b-phones.png') });
+  await dialog.getByTestId('wizard-next').click();
+
+  // firmware step: without the Symbian service it says so and can be skipped
+  await dialog.getByTestId('fw-unavailable').waitFor();
+  ok('without the Symbian service the firmware step explains it and can be skipped', true);
+  await dialog.getByRole('button', { name: 'Next / skip' }).click();
 
   // MobyGames step
   await dialog.locator('input[aria-label="MobyGames API key"]').fill(KEY);
@@ -100,14 +118,9 @@ try {
   await page.screenshot({ path: path.join(outDir, 'setup-03-mobygames.png') });
   await dialog.getByRole('button', { name: 'Next' }).click();
 
-  // phone, sound, server
-  await dialog.locator('.skin-opt', { hasText: 'E71' }).click();
-  await dialog.locator('text=Changes are saved automatically').first().waitFor();
-  await page.waitForTimeout(900);
-  await dialog.getByRole('button', { name: 'Next' }).click();
+  // sound
   await dialog.locator('input[aria-label="Volume"]').fill('35');
   await page.waitForTimeout(900);
-  await dialog.getByRole('button', { name: 'Next' }).click();
   await dialog.getByRole('button', { name: 'Next' }).click();
   await dialog.locator('.wizard-body[data-step=done]').waitFor();
   await page.screenshot({ path: path.join(outDir, 'setup-04-done.png') });
@@ -162,7 +175,7 @@ try {
   ok('Settings has system, library, MobyGames, phone, sound, server', ['system', 'library', 'mobygames', 'phone', 'sound', 'server'].every((s) => sections.includes(s)), sections.join(','));
   await page.waitForSelector('#library [data-testid=scan-report]');
   const rep = await page.locator('#library [data-testid=scan-report]').innerText();
-  ok('the last import report lists duplicates and versions', /Duplicates\s*1/.test(rep) && /Other versions/.test(rep), rep.replace(/\n/g, ' ').slice(0, 160));
+  ok('the last import report lists new games and duplicates', /New: \d/.test(rep) && /Duplicates: 1/.test(rep), rep.replace(/\n/g, ' ').slice(0, 160));
   ok('the saved library folder is shown', (await page.locator('#library').innerText()).includes(libDir));
   await page.getByRole('tab', { name: 'Server', exact: true }).click();
   await page.locator('#server input[type=number]').first().fill('2');

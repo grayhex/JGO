@@ -51,20 +51,24 @@ try {
   await p.goto(base + '/');
   await p.locator('.game-card').first().waitFor();
   assert.equal(await p.locator('.game-card').count(), 4);
-  assert.deepEqual((await p.getByTestId('platform-badge').allInnerTexts()).map((t) => t.toLowerCase()).sort(), ['n-gage', 'n-gage 2.0', 's60']);
-  assert.deepEqual(await p.getByTestId('platform-filter').locator('option').allInnerTexts(), ['All platforms', 'Java ME', 'Symbian S60 / Symbian³', 'N-Gage', 'N-Gage 2.0']);
-  for (const [value, badge] of [['j2me', null], ['symbian', 'S60'], ['ngage', 'N-Gage'], ['ngage2', 'N-Gage 2.0']]) {
-    await p.getByTestId('platform-filter').selectOption(value);
+  // platforms are pictures (the kit's plates), not words: the picture carries its name for screen readers and as a tooltip
+  const badgePlatforms = async () => (await p.getByTestId('platform-badge').evaluateAll((els) => els.map((e) => e.getAttribute('data-platform')))).sort();
+  assert.deepEqual(await badgePlatforms(), ['j2me', 'ngage', 'ngage2', 'symbian']);
+  assert.equal(await p.getByTestId('platform-badge').locator('img.banner').count(), 4);
+  assert.deepEqual(await p.getByTestId('platform-badge').locator('img').evaluateAll((els) => els.map((e) => e.getAttribute('alt')).sort()), ['Java ME', 'N-Gage', 'N-Gage 2.0', 'Symbian S60 / Symbian³']);
+  assert.deepEqual(await p.getByTestId('platform-filter').locator('button').evaluateAll((els) => els.map((e) => e.getAttribute('data-platform') ?? 'all')), ['all', 'j2me', 'symbian', 'ngage', 'ngage2']);
+  assert.equal(await p.locator('.lib-grid').getAttribute('data-view'), 'list', 'the list is the default view');
+  for (const value of ['j2me', 'symbian', 'ngage', 'ngage2']) {
+    await p.getByTestId('platform-filter').locator(`button[data-platform="${value}"]`).click();
     assert.equal(await p.locator('.game-card').count(), 1, `one ${value} game`);
-    if (badge) assert.equal((await p.getByTestId('platform-badge').innerText()).toLowerCase(), badge.toLowerCase());
-    else assert.equal(await p.getByTestId('platform-badge').count(), 0, 'a Java game has no EKA2L1 badge');
+    assert.deepEqual(await badgePlatforms(), [value]);
   }
-  await p.getByTestId('platform-filter').selectOption('symbian');
+  await p.getByTestId('platform-filter').locator('button[data-platform="symbian"]').click();
   await p.reload();
   await p.locator('.game-card').first().waitFor();
-  assert.equal(await p.getByTestId('platform-filter').inputValue(), 'symbian', 'the filter survives a reload');
+  assert.equal(await p.getByTestId('platform-filter').locator('button[aria-pressed="true"]').getAttribute('data-platform'), 'symbian', 'the filter survives a reload');
   assert.equal(await p.locator('.game-card').count(), 1);
-  await p.getByTestId('platform-filter').selectOption('all');
+  await p.getByTestId('platform-filter').getByRole('button', { name: 'All', exact: true }).click();
   assert.equal(await p.locator('.game-card').count(), 4);
   console.log('✔ four cards with their platform badges; the platform filter selects one each and survives a reload');
 

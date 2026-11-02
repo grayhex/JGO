@@ -4,6 +4,7 @@ import type { Toast } from '../App';
 import { api } from '../api';
 import { t as translateUI } from '../i18n';
 import { getLastGame } from '../lastGame';
+import { PlatformIcon } from '../components/PlatformIcon';
 import { navigate } from '../router';
 import { PhoneSkin } from '../skin/PhoneSkin';
 import { useCatalog } from '../skin/registry';
@@ -45,7 +46,7 @@ function nativeFirmware(id: PhoneSkinId, catalog: PhoneCatalog | null) {
   return { devices, loaded };
 }
 
-function PhoneCard({ skin, frame, current, disabled, onPick, catalog, fit }: { skin: NonNullable<ReturnType<typeof useCatalog>['skins']>[number]; frame: ImageData | null; current: boolean; disabled: boolean; onPick: () => void; catalog: PhoneCatalog | null; fit: Fit }) {
+function PhoneCard({ skin, frame, current, disabled, onPick, catalog, fit, mine }: { skin: NonNullable<ReturnType<typeof useCatalog>['skins']>[number]; frame: ImageData | null; current: boolean; disabled: boolean; onPick: () => void; catalog: PhoneCatalog | null; fit: Fit; mine?: boolean }) {
   const { config: c } = skin;
   const thumbnail = useMemo(() => ({ ...skin, config: { ...c, views: { ...c.views, full: { ...c.views.full, body: c.assets.preview ?? c.views.full.body } } } }), [skin]);
   const canvas = useRef<HTMLCanvasElement | null>(null);
@@ -69,7 +70,7 @@ function PhoneCard({ skin, frame, current, disabled, onPick, catalog, fit }: { s
       </div>
       <h2>{c.manufacturer} {c.model}</h2>
       <p>{c.screen.width} × {c.screen.height}</p>
-      <p className="chips phone-platforms">{platforms.map(p => <span key={p} className={`chip${fit.native === p ? ' on' : ''}`}>{({ j2me: 'Java ME', symbian: 'Symbian', ngage: 'N-Gage', ngage2: 'N-Gage 2' })[p]}</span>)}</p>
+      <p className="chips phone-platforms">{platforms.map(p => <span key={p} className={`plat-chip${fit.native === p ? ' on' : ''}`} data-platform={p}><PlatformIcon platform={p} size={28} /></span>)}{mine && <span className="chip on my-phone" data-testid={`my-${c.id}`}>★ {translateUI('My phone')}</span>}</p>
       {fw.devices.length > 0 && (
         <p className={`phone-firmware ${fw.loaded.length ? 'loaded' : 'missing'}`} data-testid={`phone-firmware-${c.id}`} data-loaded={fw.loaded.length ? '1' : '0'}
           title={translateUI(fw.loaded.length ? 'The firmware for this phone is installed in the Symbian service, so its games can run here.' : 'No firmware for this phone is installed. Add it in Settings → Symbian; the picture alone cannot run Symbian games.')}>
@@ -93,6 +94,8 @@ export function PhonesPage({ toast }: { toast: (k: Toast['kind'], t: string) => 
   const [game, setGame] = useState<GameMeta | null>(null);
   const [devices, setDevices] = useState<DevicePreset[]>([]);
   const [defaultSkin, setDefaultSkin] = useState<string | null>(null);
+  const [myPhones, setMyPhones] = useState<string[] | null>(null);
+  const [onlyMine, setOnlyMine] = useState(true);
   const [busy, setBusy] = useState(false);
   const [catalog, setCatalog] = useState<PhoneCatalog | null>(null);
   const [gamesLoaded, setGamesLoaded] = useState(false); // until then it is not known whose phone a click changes
@@ -102,7 +105,7 @@ export function PhonesPage({ toast }: { toast: (k: Toast['kind'], t: string) => 
     api.games().then((gs) => setGame(gs.find((g) => g.id === id) ?? null), () => undefined).finally(() => setGamesLoaded(true));
     api.devices().then((d) => setDevices(d.presets), () => undefined);
     api.phones().then(setCatalog, () => undefined);
-    api.settings().then((s) => setDefaultSkin(s.settings.phone.skinId), () => undefined);
+    api.settings().then((s) => { setDefaultSkin(s.settings.phone.skinId); setMyPhones(s.settings.myPhones ?? null); }, () => undefined);
   }, []);
   const frame = useGameFrame(game?.id ?? null);
 
@@ -146,9 +149,12 @@ export function PhonesPage({ toast }: { toast: (k: Toast['kind'], t: string) => 
           : translateUI('Choose a phone for “{game}”. Its screen and controls will be used for this Java ME game.', { game: game.name })
         : translateUI('Choose the default phone for new Java ME games. Defaults for other platforms are in Settings.')}</p>
       {error && <p role="alert">{error}</p>}
+      {myPhones && myPhones.length > 0 && (
+        <label className="switch-line phones-filter"><input type="checkbox" checked={onlyMine} onChange={(e) => setOnlyMine(e.target.checked)} data-testid="only-mine" /><span>{translateUI('Show only my phones')} ({myPhones.length}) · <a href="/settings#phone" onClick={(e) => { e.preventDefault(); navigate('/settings#phone'); }}>{translateUI('change')}</a></span></label>
+      )}
       <div className="phones-models">
-        {skins?.map((s) => (
-          <PhoneCard key={s.config.id} skin={s} frame={frame} current={current === s.config.id} catalog={catalog}
+        {skins?.filter((s) => !(onlyMine && myPhones && myPhones.length && !myPhones.includes(s.config.id) && s.config.id !== current)).map((s) => (
+          <PhoneCard key={s.config.id} mine={!!myPhones?.includes(s.config.id)} skin={s} frame={frame} current={current === s.config.id} catalog={catalog}
             fit={{ native: nativePlatform, compatible: !nativePlatform || (isPhoneId(s.config.id) && skinSupportsPlatform(s.config.id, nativePlatform, game?.packageFormat)) }}
             disabled={busy || !gamesLoaded || (nativePlatform ? !isPhoneId(s.config.id) || !skinSupportsPlatform(s.config.id, nativePlatform, game?.packageFormat) : devices.length === 0)} onPick={() => void choose(s.config.id)} />
         ))}

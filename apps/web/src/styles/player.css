@@ -112,3 +112,6 @@ textarea.text-editor-field { resize: vertical; min-height: 84px; }
 .btn.icon.on { color: var(--primary); border-color: var(--primary-warm); background: var(--primary-tint); }
 button.chip-link { cursor: pointer; font: inherit; font-size: 0.75rem; color: inherit; }
 button.chip-link:hover { border-color: var(--primary-warm); }
+.native-platform { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.phone-tip { display: grid; gap: 8px; }
+.phone-tip p { margin: 0; }

@@ -55,7 +55,7 @@ export class ScanManager {
   }
 
   /** Starts a scan in the background; resolves the returned report object as it progresses. */
-  start(mode: 'update' | 'full'): ScanReport {
+  start(mode: 'update' | 'full', kinds?: readonly ('j2me' | 'ngage' | 'symbian')[]): ScanReport {
     if (this.running) throw new UploadError('scan_running', 'A scan is already running', 409);
     const settings = this.hooks.settings();
     const roots: { real: string; prefix: string; kind: string | null }[] = [];
@@ -65,10 +65,12 @@ export class ScanManager {
       if (!hit) { unavailable.push(dir); return; }
       roots.push({ real: hit.real, kind, prefix: kind ? `${kind}/${createHash('sha256').update(hit.real).digest('hex').slice(0, 8)}/` : '' });
     };
-    if (settings.libraryPath) add(settings.libraryPath, null);
-    for (const kind of ['j2me', 'ngage', 'symbian'] as const) if (settings.libraryPaths?.[kind]) add(settings.libraryPaths[kind]!, kind);
+    const wanted = (kind: 'j2me' | 'ngage' | 'symbian') => !kinds || kinds.includes(kind);
+    // the older single folder takes everything it holds; it is part of a scan of "all" and of Java ME
+    if (settings.libraryPath && wanted('j2me') && (!kinds || kinds.length === 3 || !settings.libraryPaths?.j2me)) add(settings.libraryPath, null);
+    for (const kind of ['j2me', 'ngage', 'symbian'] as const) if (wanted(kind) && settings.libraryPaths?.[kind]) add(settings.libraryPaths[kind]!, kind);
     if (!roots.length && unavailable.length) throw new UploadError('library_unavailable', 'The configured library directories are missing or outside the allowed locations', 400);
-    if (!roots.length) throw new UploadError('no_library', 'No library directory is configured (Settings > Library)', 400);
+    if (!roots.length) throw new UploadError('no_library', kinds && kinds.length < 3 ? 'No folder is chosen for this kind of games (Settings > Game library)' : 'No library directory is configured (Settings > Game library)', 400);
     const r: ScanReport = {
       id: newId(6), mode, state: 'running', root: roots.map(r => r.real).join(' · '), startedAt: new Date().toISOString(), finishedAt: null,
       filesSeen: 0, jars: 0, added: 0, updated: 0, unchanged: 0, duplicates: 0, newVersions: 0, missing: 0, skipped: 0,

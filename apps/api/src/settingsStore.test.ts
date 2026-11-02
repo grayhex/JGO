@@ -119,3 +119,18 @@ describe('settings store', () => {
     assert.deepEqual([...SKIN_IDS].sort(), shipped);
   });
 });
+
+describe('my phones', () => {
+  it('is null until chosen, keeps catalog order without duplicates, and rejects what is not a phone', () => {
+    const cfg = testConfig();
+    const s = new SettingsStore(cfg.dataDir, cfg, {});
+    assert.equal(s.get().myPhones, null);
+    s.update({ myPhones: ['nokia-n95', 'nokia-n-gage-classic', 'nokia-n95'] });
+    const again = new SettingsStore(cfg.dataDir, testConfig({ dataDir: cfg.dataDir }), {});
+    assert.deepEqual(again.get().myPhones, SKIN_IDS.filter((id) => ['nokia-n95', 'nokia-n-gage-classic'].includes(id)));
+    for (const bad of [{ myPhones: ['../etc'] }, { myPhones: 'nokia-n95' }, { myPhones: [1] }]) assert.throws(() => s.update(bad), /myPhones/, JSON.stringify(bad));
+    s.update({ myPhones: null });
+    assert.equal(s.get().myPhones, null, 'null returns to "every phone is offered"');
+  });
+});
+

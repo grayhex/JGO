@@ -40,6 +40,7 @@ export interface JarAnalysisView {
 }
 
 export interface SetupState { status: 'pending' | 'completed' | 'skipped'; completedAt: string | null; legacy: boolean; needsWizard: boolean; libraryConfigured: boolean; mobygamesConfigured: boolean; games: number }
+export type LibraryKind = 'j2me' | 'ngage' | 'symbian';
 export interface BrowseResult { path: string | null; parent: string | null; dirs: { name: string; path: string }[]; truncated: boolean }
 export type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K] };
 
@@ -62,8 +63,8 @@ export const api = {
     fd.append('file', file, file.name);
     return req<{ game: GameMeta; duplicate: boolean }>('/api/games', { method: 'POST', body: fd });
   },
-  ngageCatalog: () => req<{ running: boolean; entries: number; matched: number; updatedAt: string | null; error: string | null }>('/api/catalog/ngage'),
-  ngageCatalogRefresh: () => req<{ running: boolean; entries: number; matched: number; updatedAt: string | null; error: string | null }>('/api/catalog/ngage/refresh', { method: 'POST' }),
+  ngageCatalog: () => req<{ running: boolean; entries: number; matched: number; unmatched: string[]; updatedAt: string | null; error: string | null; source: 'live' | 'snapshot'; snapshotDate: string; covers: number }>('/api/catalog/ngage'),
+  ngageCatalogRefresh: () => req<{ running: boolean; entries: number; matched: number; unmatched: string[]; updatedAt: string | null; error: string | null; source: 'live' | 'snapshot'; snapshotDate: string; covers: number }>('/api/catalog/ngage/refresh', { method: 'POST' }),
   symbianStatus: () => req<SymbianStatus>('/api/symbian/status'),
   /** One firmware file; the answer names it for symbianInstall. */
   symbianUpload: (slot: 'rom' | 'rpkg' | 'archive' | 'vpl' | 'fpsx', file: File, options?: { progress: (percent: number) => void; signal: AbortSignal; bundle?: string }) => {
@@ -143,7 +144,7 @@ export const api = {
   libBrowse: (path: string | null) => req<BrowseResult>(`/api/library/browse${path ? `?path=${encodeURIComponent(path)}` : ''}`),
   libCheck: (path: string) => req<LibraryCheck>('/api/library/check', jsonInit('POST', { path })),
   scan: () => req<{ running: boolean; report: ScanReport | null }>('/api/library/scan'),
-  scanStart: (mode: 'update' | 'full') => req<{ running: boolean; report: ScanReport }>('/api/library/scan', jsonInit('POST', { mode })),
+  scanStart: (mode: 'update' | 'full', kinds?: LibraryKind[]) => req<{ running: boolean; report: ScanReport }>('/api/library/scan', jsonInit('POST', { mode, ...(kinds ? { kinds } : {}) })),
   scanCancel: () => req<{ cancelled: boolean }>('/api/library/scan', { method: 'DELETE' }),
 
   // genres
@@ -155,7 +156,7 @@ export const api = {
 
   setTitle: (groupKey: string, title: string | null) => req<{ title: string | null }>(`/api/library/groups/${groupKey}/title`, jsonInit('PUT', { title })),
   genresFromFolders: () => req<{ assigned: number; unchanged: number; skipped: number }>('/api/library/genres/from-folders', { method: 'POST' }),
-  cleanup: (what: 'missing' | 'all', deleteSaves: boolean, confirm?: string) => req<{ removed: number; skipped: number; deletedSaves: boolean }>('/api/library/cleanup', jsonInit('POST', { what, deleteSaves, ...(confirm ? { confirm } : {}) })),
+  cleanup: (what: 'missing' | 'all' | 'kind', deleteSaves: boolean, confirm?: string, kind?: LibraryKind) => req<{ removed: number; skipped: number; deletedSaves: boolean }>('/api/library/cleanup', jsonInit('POST', { what, deleteSaves, ...(confirm ? { confirm } : {}), ...(kind ? { kind } : {}) })),
 
   // MobyGames metadata
   metaJob: () => req<{ job: MetadataJob; stats: { matched: number; ambiguous: number; unmatched: number; bytes: number }; review: number }>('/api/metadata/job'),

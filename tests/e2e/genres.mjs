@@ -37,7 +37,7 @@ try {
   // ---- before any catalog: no chips, every card says the genre is not confirmed ----
   await p.goto(base + '/');
   await p.locator('.game-card').first().waitFor();
-  assert.equal(await p.getByTestId('genre-bar').count(), 0);
+  assert.deepEqual(await p.getByTestId('genre-filter').locator('option').allInnerTexts(), ['All genres (4)', 'No genre (4)'], 'only "All genres" and "No genre" before any genre is known');
   assert.equal(await p.getByTestId('genre-badge').filter({ hasText: 'Genre not confirmed' }).count(), 4);
   console.log('✔ without genres the cards offer to choose one');
 
@@ -54,6 +54,7 @@ try {
   const sent = [];
   p.on('request', (r) => { if (r.url().includes('/api/library/catalog/')) sent.push(r.postData() ?? ''); });
   await p.goto(base + '/settings#library');
+  await p.locator('summary', { hasText: 'More:' }).click();
   await p.getByTestId('catalog-file').setInputFiles({ name: 'mgo_catalog.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(catalog)) });
   const rep = p.getByTestId('catalog-report');
   await rep.waitFor();
@@ -72,22 +73,22 @@ try {
 
   // ---- the library: chips with counts, a filter, badges; markup in a title stays text ----
   await p.goto(base + '/');
-  await p.getByTestId('genre-bar').waitFor();
-  const bar = await p.getByTestId('genre-bar').innerText();
-  assert.match(bar, /Racing\s*1/);
-  assert.match(bar, /No genre\s*1/);
-  await p.getByTestId('genre-bar').getByRole('button', { name: /^Racing/ }).click();
+  await p.getByTestId('genre-filter').waitFor();
+  const bar = (await p.getByTestId('genre-filter').locator('option').allInnerTexts()).join(' | ');
+  assert.match(bar, /Racing \(1\)/);
+  assert.match(bar, /No genre \(1\)/);
+  await p.getByTestId('genre-filter').selectOption({ label: 'Racing (1)' });
   assert.deepEqual(await p.locator('.game-card h3').allInnerTexts(), ['Turbo Race']);
-  await p.getByTestId('genre-bar').getByRole('button', { name: /^No genre/ }).click();
+  await p.getByTestId('genre-filter').selectOption('unclassified');
   assert.deepEqual(await p.locator('.game-card h3').allInnerTexts(), ['Mystery']);
   await p.reload();
   await p.locator('.game-card').first().waitFor();
   assert.equal(await p.locator('.game-card').count(), 1, 'the chosen genre is remembered');
-  await p.getByTestId('genre-bar').getByRole('button', { name: /^All genres/ }).click();
+  await p.getByTestId('genre-filter').selectOption('all');
   assert.equal(await p.locator('.game-card').count(), 4);
   assert.equal(await p.locator('.game-card h3', { hasText: '<img src=x onerror=alert(1)>' }).count(), 1, 'shown as text');
   assert.equal(await p.locator('.game-card img[src="x"]').count(), 0);
-  console.log('✔ chips with counts filter the library:', bar.replace(/\n/g, ' '));
+  console.log('✔ the genre drop-down with counts filters the library:', bar);
 
   // ---- change a genre by hand; a second import must not touch it ----
   await p.locator('.game-card', { hasText: 'Turbo Race' }).getByTestId('genre-badge').click();

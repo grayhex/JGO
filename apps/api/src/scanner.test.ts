@@ -256,3 +256,39 @@ it('native defaults bind the selected model and preserve an installed N95 8GB id
     assert.equal(game.settings.symbianDevice, 'RM-320'); assert.equal(game.settings.skinId, 'nokia-n95');
   } finally { t.library.close(); rmSync(t.root, { recursive: true, force: true }); }
 });
+
+it('scans only the folders of the chosen kinds, and the library can be cleared per kind', async () => {
+  const t = setup();
+  try {
+    const java = path.join(t.root, 'java'), ngage = path.join(t.root, 'ngage'), sis = path.join(t.root, 'sis');
+    put(java, 'Game.jar', makeJar('Java Game'));
+    put(ngage, 'Card.zip', Buffer.from('PK\x03\x04 card fixture'));
+    put(ngage, 'Two.n-gage', Buffer.from('second generation fixture'));
+    put(sis, 'Game.sisx', Buffer.from('sis fixture'));
+    t.store.update({ libraryPath: null, libraryPaths: { j2me: java, ngage, symbian: sis } });
+    const only = t.scan.start('update', ['ngage']); await t.scan.idle();
+    assert.equal(only.state, 'done', only.error ?? ''); assert.equal(only.added, 2, 'only the N-Gage folder was read');
+    assert.deepEqual(t.library.list().map((g) => g.platform).sort(), ['ngage', 'ngage2']);
+    assert.deepEqual(t.library.idsOfKind('ngage').length, 2, 'N-Gage means 1.0 cards and 2.0 packages');
+    assert.equal(t.library.idsOfKind('j2me').length, 0);
+    const rest = t.scan.start('update', ['j2me', 'symbian']); await t.scan.idle();
+    assert.equal(rest.added, 2); assert.equal(t.library.list().length, 4);
+    assert.equal(t.library.idsOfKind('symbian').length, 1);
+    for (const id of t.library.idsOfKind('ngage')) t.library.remove(id);
+    assert.deepEqual(t.library.list().map((g) => g.platform ?? 'j2me').sort(), ['j2me', 'symbian'], 'clearing N-Gage leaves the other kinds');
+    const again = t.scan.start('update', ['ngage']); await t.scan.idle();
+    assert.equal(again.added, 2, 'a new scan brings the cleared games back');
+  } finally { t.library.close(); rmSync(t.root, { recursive: true, force: true }); }
+});
+
+it('the older single folder is part of "all" and of Java ME, never of a scan of other kinds', async () => {
+  const t = setup();
+  try {
+    put(t.root, 'Old.jar', makeJar('Old Game'));
+    // t.store.libraryPath is the root (set by setup)
+    assert.throws(() => t.scan.start('update', ['ngage']), (e: { code?: string }) => e.code === 'no_library', 'a scan of N-Gage alone does not read the older folder');
+    assert.equal(t.library.list().length, 0);
+    await t.run();
+    assert.equal(t.library.list().length, 1);
+  } finally { t.library.close(); rmSync(t.root, { recursive: true, force: true }); }
+});

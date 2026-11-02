@@ -3,7 +3,7 @@ import { NativeTestingPanel } from './NativeTestingPanel';
 import { StartFailureCard } from './StartFailureCard';
 import { t as translateUI } from '../i18n';
 import { useDeveloperMode } from '../developer';
-import { isPhoneId, resolvePhone, PHONE_COMPATIBILITY, skinSupportsPlatform } from '@mgo/protocol';
+import { isPhoneId, resolvePhone, EMULATED_DEVICES, PHONE_COMPATIBILITY, skinSupportsPlatform } from '@mgo/protocol';
 import { TextEditor } from './TextEditor';
 import { RecordingPanel } from './RecordingPanel';
 import { getLastGame, setLastGame } from '../lastGame';
@@ -14,7 +14,7 @@ import { Recorder, Replayer } from '../recording';
 import { downloadBlob, fileSafe, framePng } from '../snapshot';
 import { GamepadPoller, loadPadProfile, type PadAction, type PadState } from '../gamepad';
 import { GamepadSettings } from './GamepadSettings';
-import { KEY_LAYOUTS, SCREEN_PRESETS, type DevicePreset, type EmulationTweaks, type GameMeta, type HealthStatus, type LayoutId, type ServerEvent, type SessionState, type SessionStatus } from '@mgo/protocol';
+import { KEY_LAYOUTS, SCREEN_PRESETS, type PhoneCatalog, type DevicePreset, type EmulationTweaks, type GameMeta, type HealthStatus, type LayoutId, type ServerEvent, type SessionState, type SessionStatus } from '@mgo/protocol';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError, type JarAnalysisView } from '../api';
 import type { Toast } from '../App';
@@ -30,7 +30,8 @@ import { KeyMapDialog } from './KeyMapDialog';
 import { Keypad } from './Keypad';
 import { Modal } from './Modal';
 import { Hint, Meter, Panel, Seg, Spark, Switch } from './ui';
-import { audioSettings, buzz, controlSettings } from '../serverSettings';
+import { audioSettings, buzz, controlSettings, getServerSettings } from '../serverSettings';
+import { betterPhone, type PhoneOption } from '../betterPhone';
 import { nextRotation, unrotatePoint, type Rotation } from '../skin/geometry';
 import { useRotation } from '../skin/rotation';
 
@@ -149,7 +150,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
         const g = (await api.games()).find((x) => x.id === gameId);
         if (!g) { toast('error', 'Game not found'); if (getLastGame()?.id === gameId) setLastGame(null); onExit(); return; }
         if (dead) return;
-        setGame(g); setLastGame({ id: g.id, name: g.name }); setLayout(g.settings.layout); setRes({ width: g.settings.width, height: g.settings.height }); setDevice(g.settings.device ?? ''); setHeapMb(g.settings.heapMb); setTweaks(g.settings.emulation ?? {}); setAdvanced(g.settings.profileMode === 'advanced'); if (g.settings.skinId && isSkinId(g.settings.skinId)) setPrefs({skinId:g.settings.skinId}); setLoaded(true);
+        setGame(g); setLastGame({ id: g.id, name: g.name }); setLayout(g.settings.layout); setRes({ width: g.settings.width, height: g.settings.height }); setDevice(g.settings.device ?? ''); setHeapMb(g.settings.heapMb); setTweaks(g.settings.emulation ?? {}); setAdvanced(g.settings.profileMode === 'advanced'); if (g.settings.skinId && isSkinId(g.settings.skinId)) setPrefs({skinId:g.settings.skinId}); else if ((g.platform ?? 'j2me') === 'j2me') { const d = getServerSettings()?.settings.phone.skinId; if (isSkinId(d)) setPrefs({ skinId: d }); } setLoaded(true);
         const running = (await api.sessions()).find((s) => s.gameId === gameId && (s.state === 'running' || s.state === 'starting'));
         if (running && !dead) attach(running);
       } catch (e) { toast('error', (e as Error).message); }
@@ -476,6 +477,25 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
       api.patchGame(game.id, { settings: { skinId: shown } }).then(setGame, e => toast('error', (e as Error).message));
     }
   }, [game?.id, game?.settings.skinId, j2me, native.data?.plan.skinId, native.data?.plan.deviceId, prefs.skinId]);
+  // "On another phone this game looks better": only a reminder with a one-click switch, never an automatic change of a phone that works.
+  const [phoneCatalog, setPhoneCatalog] = useState<PhoneCatalog | null>(null);
+  useEffect(() => { if (game && !j2me) api.phones().then(setPhoneCatalog, () => undefined); }, [game?.id, j2me, native.data?.plan.firmwareCode]);
+  const [tipHidden, setTipHidden] = useState<string | null>(null);
+  const suggestion = useMemo(() => {
+    if (!game || !skins) return null;
+    const mine = getServerSettings()?.settings.myPhones;
+    const options: PhoneOption[] = skins.filter((k) => !mine?.length || mine.includes(k.config.id as never) || k.config.id === prefs.skinId).map((k) => ({ id: k.config.id, label: `${k.config.manufacturer} ${k.config.model}`, width: k.config.screen.width, height: k.config.screen.height }));
+    const hint = analysis?.analysis.screenHints[0];
+    const rec = analysis?.recommendedDevice ? devices.find((d) => d.id === analysis.recommendedDevice) : undefined;
+    const wanted = hint ? { width: hint.width, height: hint.height } : rec ? { width: rec.width, height: rec.height } : null;
+    const hasFirmware = (id: string) => EMULATED_DEVICES.some((d) => d.engine === 'eka2l1' && PHONE_COMPATIBILITY[id as keyof typeof PHONE_COMPATIBILITY]?.includes(d.id) && d.platforms.includes(game.platform ?? 'j2me') && phoneCatalog?.availability.find((a) => a.deviceId === d.id)?.available);
+    return betterPhone({ platform: game.platform ?? 'j2me', packageFormat: game.packageFormat, current: prefs.skinId, options, wanted, hasFirmware });
+  }, [game, skins, prefs.skinId, analysis, devices, phoneCatalog]);
+  const switchPhone = async (id: string) => {
+    if (!game || !isSkinId(id)) return;
+    setPrefs({ skinId: id });
+    if (!j2me) { try { setGame(await api.patchGame(game.id, { settings: { skinId: id } })); native.refresh(); } catch (e) { toast('error', (e as Error).message); } }
+  };
   const running = state === 'running' || state === 'starting' || state === 'stopping';
   // A game that names the screen it was made for (manifest or JAD) is set up for it once, without asking.
   const hintApplied = useRef<string | null>(null);
@@ -501,7 +521,7 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
       {game && <h2>{game.name}</h2>}
       {state === 'failed' && <p className="error">{translateUI("The emulator stopped unexpectedly. See the log.")}</p>}
       {game && game.classVersion >= 49 ? <p className="error">{translateUI("Java 5+ class files are not supported.")}</p> : (
-        <button className="btn primary" disabled={!canStart} onClick={start}><Icon name="play" /> {translateUI(busy ? 'Starting…' : state === 'idle' ? 'Start' : 'Start again')}</button>
+        <button className="btn primary" disabled={!canStart} onClick={start}><img className="act-icon" src="/graphics/actions/play-icon-on-cyan.svg" alt="" width={20} height={20} /> {translateUI(busy ? 'Starting…' : state === 'idle' ? 'Start' : 'Start again')}</button>
       )}
       {j2me && health?.ok === false && <p className="error">{translateUI("Emulator runtime is not ready.")}</p>}
     </>
@@ -565,9 +585,9 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
         <Panel icon="play" title={translateUI("Session")} right={<span className={`badge ${STATE_BADGE[state] ?? ''}`}>{translateUI(state === 'idle' ? 'stopped' : state)}</span>}>
           <div className="btn-row">
             {!running
-              ? <button className="btn primary grow" disabled={!canStart} onClick={start}><Icon name="play" /> {translateUI("Start")}</button>
-              : <button className="btn danger grow" onClick={stop} disabled={(busy && j2me) || state === 'stopping'} title={translateUI("Stop requests a safe MIDlet shutdown. An unresponsive game may be forcibly closed after 8 seconds; unsaved in-game progress can be lost. Save inside the game first.")}><Icon name="stop" /> {translateUI("Stop")}</button>}
-            {running && <button className="btn" disabled={busy || state === 'stopping' || (!j2me && !native.data?.plan.ready && native.data?.plan.code !== 'symbian_busy')} onClick={async () => { if (await stop()) setTimeout(start, 400); }}><Icon name="restart" /> {translateUI("Restart")}</button>}
+              ? <button className="btn primary grow" disabled={!canStart} onClick={start}><img className="act-icon" src="/graphics/actions/play-icon-on-cyan.svg" alt="" width={20} height={20} /> {translateUI("Start")}</button>
+              : <button className="btn danger grow" onClick={stop} disabled={(busy && j2me) || state === 'stopping'} title={translateUI("Stop requests a safe MIDlet shutdown. An unresponsive game may be forcibly closed after 8 seconds; unsaved in-game progress can be lost. Save inside the game first.")}><img className="act-icon" src="/graphics/actions/stop-icon.svg" alt="" width={20} height={20} /> {translateUI("Stop")}</button>}
+            {running && <button className="btn" disabled={busy || state === 'stopping' || (!j2me && !native.data?.plan.ready && native.data?.plan.code !== 'symbian_busy')} onClick={async () => { if (await stop()) setTimeout(start, 400); }}><img className="act-icon" src="/graphics/actions/restart-icon.svg" alt="" width={20} height={20} /> {translateUI("Restart")}</button>}
           </div>
           {running && j2me && <div className="field"><span className="label-caps">{translateUI("Game speed")}</span>
             <Seg<string> label={translateUI("Game speed")} value={String(speed)} onChange={(v) => send({ t: 'speed', modifier: Number(v) })}
@@ -577,6 +597,20 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
           {session && <button className="btn ghost sm" onClick={() => api.diagnostics(session.id).then((b) => downloadBlob(b, `mgo-diagnostics-${fileSafe(game?.name ?? 'game')}.txt`), (e) => toast('error', (e as Error).message))} title={translateUI("A text report with the settings, the emulator log and the JVM state: attach it to a bug report")} data-testid="diagnostics">{translateUI("Download diagnostics")}</button>}
           {state === 'failed' && <div className="note err">{translateUI("The emulator stopped unexpectedly. The log below has the details.")}</div>}
           {j2me && health?.ok === false && <div className="note warn">{translateUI("The emulator runtime is not ready on this server.")}</div>}
+        </Panel>
+        {suggestion && tipHidden !== `${game?.id}:${suggestion.id}` && (
+          <div className="note info phone-tip" role="status" data-testid="phone-suggestion">
+            <p>{translateUI('This game runs on your current phone. On {phone} ({w}×{h}) the picture is better.', { phone: suggestion.label, w: suggestion.width, h: suggestion.height })}</p>
+            <div className="btn-row"><button className="btn sm primary" type="button" onClick={() => void switchPhone(suggestion.id)} data-testid="phone-suggestion-switch">{translateUI('Switch to {phone}', { phone: suggestion.label })}</button><button className="btn sm ghost" type="button" onClick={() => setTipHidden(`${game?.id}:${suggestion.id}`)}>{translateUI('Not now')}</button></div>
+          </div>
+        )}
+        <Panel icon="volume" title={translateUI("Audio")} open={false}>
+          <label className="field"><span className="label-caps">{translateUI("Volume")}</span><input type="range" min={0} max={100} value={vol} onChange={(e) => setVol(Number(e.target.value))} aria-label={translateUI("Volume")} /></label>
+          <Switch checked={muted} onChange={setMuted}>{translateUI("Mute")}</Switch>
+          {audioInfo.state !== 'running' && running && <div className="note">{translateUI("Sound is waiting for a click or key press (browser autoplay policy).")}</div>}
+          <p className="hint" data-testid="audio-status" data-audio-state={audioInfo.state} data-audio-rms={audioInfo.rms.toFixed(4)}>
+            {translateUI(audioInfo.state === 'running' ? `output ${audioInfo.rms > 0.0005 ? 'active' : 'idle'} · level ${(audioInfo.rms * 100).toFixed(1)}% · buffer ${audioInfo.buffered} ms` : `audio ${audioInfo.state}`)}
+          </p>
         </Panel>
 
         {!j2me && failure && <StartFailureCard failure={failure.failure} sessionId={failure.sessionId} />}
@@ -654,14 +688,6 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
           <GameFilesPanel gameId={gameId} toast={toast} refreshKey={state} />
         </Panel>}
 
-        <Panel icon="volume" title={translateUI("Audio")} open={false}>
-          <label className="field"><span className="label-caps">{translateUI("Volume")}</span><input type="range" min={0} max={100} value={vol} onChange={(e) => setVol(Number(e.target.value))} aria-label={translateUI("Volume")} /></label>
-          <Switch checked={muted} onChange={setMuted}>{translateUI("Mute")}</Switch>
-          {audioInfo.state !== 'running' && running && <div className="note">{translateUI("Sound is waiting for a click or key press (browser autoplay policy).")}</div>}
-          <p className="hint" data-testid="audio-status" data-audio-state={audioInfo.state} data-audio-rms={audioInfo.rms.toFixed(4)}>
-            {translateUI(audioInfo.state === 'running' ? `output ${audioInfo.rms > 0.0005 ? 'active' : 'idle'} · level ${(audioInfo.rms * 100).toFixed(1)}% · buffer ${audioInfo.buffered} ms` : `audio ${audioInfo.state}`)}
-          </p>
-        </Panel>
 
         {developer && <Panel icon="pulse" title={translateUI("Telemetry")}>
           <div className="metric"><div className="metric-head"><span className="label-caps">{translateUI("Display FPS")}</span><span className="metric-value">{client.fps.toFixed(1)}</span></div><Spark values={fpsHist} label={translateUI("Display frames per second")} /></div>

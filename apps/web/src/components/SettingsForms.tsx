@@ -1,5 +1,5 @@
 import { t as translateUI } from '../i18n';
-import { EMULATED_DEVICES, GAME_PLATFORM_LABELS, profilesForSkin, PHONE_SKIN_IDS, KEY_LAYOUTS, SCREEN_PRESETS, type DevicePreset, type LayoutId, type PublicSettings, type SettingsResponse, type SystemStatus } from '@mgo/protocol';
+import { KEY_LAYOUTS, SCREEN_PRESETS, type DevicePreset, type LayoutId, type PublicSettings, type SettingsResponse, type SystemStatus } from '@mgo/protocol';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { setServerSettings, useServerSettings } from '../serverSettings';
@@ -203,17 +203,4 @@ export function SystemChecks({ status, onReload }: { status: SystemStatus | null
       {onReload && <button className="btn sm" type="button" onClick={onReload}><Icon name="restart" /> {translateUI("Check again")}</button>}
     </div>
   );
-}
-
-export function NativePhoneDefaults({ toast }: { toast: Toaster }) {
-  const server = useServerSettings();
-  return <div className="platform-defaults">{(['ngage', 'ngage2', 'symbian'] as const).map(platform => <label className="field" key={platform}>
-    <span className="label-caps">{GAME_PLATFORM_LABELS[platform]}</span>
-    <select className="select" aria-label={`Default phone (${platform})`} value={server?.settings.nativePhones?.[platform] ?? ''} onChange={e => {
-      void api.patchSettings({ nativePhones: { [platform]: e.target.value || null } }).then(setServerSettings, e => toast('error', e.message));
-    }}>
-      <option value="">{translateUI('Automatic — match installed firmware')}</option>
-      {PHONE_SKIN_IDS.filter(id => profilesForSkin(id, platform).length).map(id => <option key={id} value={id}>{EMULATED_DEVICES.find(d => profilesForSkin(id, platform).some(p => p.id === d.id))?.name ?? id}</option>)}
-    </select>
-  </label>)}</div>;
 }

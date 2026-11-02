@@ -1,6 +1,6 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { isPhoneId, skinSupportsPlatform, KEY_LAYOUTS, PHONE_PROFILES, type LayoutId, type PublicSettings, type SetupStatus } from '@mgo/protocol';
+import { isPhoneId, PHONE_SKIN_IDS, skinSupportsPlatform, KEY_LAYOUTS, PHONE_PROFILES, type LayoutId, type PublicSettings, type SetupStatus } from '@mgo/protocol';
 import type { Config } from './config.js';
 import { UploadError } from './jar.js';
 
@@ -36,6 +36,7 @@ export function defaultSettings(server: PublicSettings['server']): PublicSetting
     libraryPath: null,
     libraryPaths: { j2me: null, ngage: null, symbian: null },
     nativePhones: {},
+    myPhones: null,
     autoScan: false,
     autoMetadata: true,
     phone: { skinId: 'nokia-n95', view: 'full', device: null, layout: 'nokia', width: 240, height: 320, heapMb: 256 },
@@ -75,7 +76,7 @@ function noExtra(o: Record<string, unknown>, allowed: string[], name: string): v
  */
 export function mergeSettings(base: PublicSettings, patch: unknown): PublicSettings {
   const p = obj(patch, 'settings');
-  noExtra(p, ['libraryPath', 'libraryPaths', 'nativePhones', 'autoScan', 'autoMetadata', 'phone', 'audio', 'controls', 'server'], 'settings');
+  noExtra(p, ['libraryPath', 'libraryPaths', 'nativePhones', 'myPhones', 'autoScan', 'autoMetadata', 'phone', 'audio', 'controls', 'server'], 'settings');
   const out: PublicSettings = JSON.parse(JSON.stringify(base));
   if ('libraryPath' in p) {
     const v = p.libraryPath;
@@ -104,6 +105,12 @@ export function mergeSettings(base: PublicSettings, patch: unknown): PublicSetti
       if (!isPhoneId(skin) || !skinSupportsPlatform(skin, platform)) bad(`nativePhones.${platform} must support that platform`);
       out.nativePhones[platform] = skin;
     }
+  }
+  if ('myPhones' in p) {
+    const list = p.myPhones;
+    if (list === null) out.myPhones = null;
+    else if (!Array.isArray(list) || list.length > SKIN_IDS.length || !list.every(isPhoneId)) bad(`myPhones must be null or a list of phones from the catalog`);
+    else out.myPhones = PHONE_SKIN_IDS.filter((id) => list.includes(id)); // catalog order, no duplicates
   }
   if ('autoScan' in p) out.autoScan = bool(p.autoScan, 'autoScan');
   if ('autoMetadata' in p) out.autoMetadata = bool(p.autoMetadata, 'autoMetadata');
@@ -238,6 +245,7 @@ export class SettingsStore {
       libraryPath: typeof s.libraryPath === 'string' ? s.libraryPath : d.libraryPath,
       libraryPaths: { ...d.libraryPaths!, ...(s.libraryPaths ?? {}) },
       nativePhones: { ...d.nativePhones, ...(s.nativePhones ?? {}) },
+      myPhones: Array.isArray(s.myPhones) ? s.myPhones : null,
       autoScan: s.autoScan ?? d.autoScan,
       autoMetadata: s.autoMetadata ?? d.autoMetadata,
       phone: { ...d.phone, ...(s.phone ?? {}) },
@@ -257,7 +265,7 @@ export class SettingsStore {
     // keep what was saved sparse: only values somebody set are stored, the rest keep following the defaults
     const stored: Record<string, unknown> = { ...this.data.settings, server: overrides };
     const p = patch as Record<string, unknown>;
-    for (const k of ['libraryPath', 'libraryPaths', 'nativePhones', 'autoScan', 'autoMetadata'] as const) if (k in p) stored[k] = next[k];
+    for (const k of ['libraryPath', 'libraryPaths', 'nativePhones', 'myPhones', 'autoScan', 'autoMetadata'] as const) if (k in p) stored[k] = next[k];
     for (const sec of ['phone', 'audio', 'controls'] as const) {
       if (!(sec in p)) continue;
       const cur = (stored[sec] ?? {}) as Record<string, unknown>;

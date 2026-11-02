@@ -49,9 +49,9 @@ try {
   await p.locator('.game-card').first().waitFor();
   const titles = async () => p.locator('.game-card h3').allInnerTexts();
   assert.deepEqual(await titles(), ['Blocks Of Color And Shape', 'Gone One', 'Gone Two', 'Mystery', 'Turbo Rally']);
-  const bar = await p.getByTestId('genre-bar').innerText();
-  assert.match(bar, /Racing\s*1/);
-  assert.match(bar, /Action\s*2/);
+  const bar = (await p.getByTestId('genre-filter').locator('option').allInnerTexts()).join(' | ');
+  assert.match(bar, /Racing \(1\)/);
+  assert.match(bar, /Action \(2\)/);
   assert.equal(await p.getByTestId('playtime').first().innerText(), '0', 'a game never started shows 0, not a sentence');
 
   // ---- sorting and the status filter ----
@@ -77,6 +77,7 @@ try {
   await p.getByTestId('status-filter').selectOption('all');
 
   await p.goto(base + '/settings#library');
+  await p.locator('summary', { hasText: 'More:' }).click();
   await p.getByTestId('cleanup-panel').waitFor();
   await wait(async () => /\(2\)/.test(await p.getByTestId('cleanup-missing').innerText()), 'the number of games with missing files');
   await p.getByTestId('cleanup-missing').click();

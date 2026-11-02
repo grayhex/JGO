@@ -2,8 +2,6 @@ import { t as translateUI } from '../i18n';
 import { GENRES, PACKAGE_FORMAT_LABEL, GAME_PLATFORMS, GAME_PLATFORM_LABELS, isGamePlatform, type GamePlatform, type GameMeta, type HealthStatus, type ScanReport } from '@mgo/protocol';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../api';
-
-const PLATFORM_LABEL: Record<string, string> = { j2me: 'Java', symbian: 'S60', ngage: 'N-Gage', ngage2: 'N-Gage 2.0' };
 import type { Toast } from '../App';
 import { navigate } from '../router';
 import { useServerSettings } from '../serverSettings';
@@ -13,6 +11,7 @@ import { splitPlayTime } from '../playTime';
 import { compareGroups, matchesStatus, SORT_KEYS, STATUS_FILTERS, totalPlaySeconds, type SortKey, type StatusFilter } from '../libraryView';
 import { GameSettingsDialog } from './GameSettingsDialog';
 import { Icon } from './Icon';
+import { PlatformIcon } from './PlatformIcon';
 import { Seg } from './ui';
 
 type Filter = 'all' | 'favorites' | 'recent';
@@ -26,8 +25,9 @@ const STATUS_LABEL: Record<StatusFilter, string> = { all: 'Any status', unplayed
 const GENRE_KEY = 'j2me-web.library.genre';
 const loadGenre = (): GenreFilter => { try { const v = localStorage.getItem(GENRE_KEY); return v === 'unclassified' || (GENRES as readonly string[]).includes(v ?? '') ? (v as GenreFilter) : 'all'; } catch { return 'all'; } };
 type View = 'tiles' | 'list';
-const VIEW_KEY = 'j2me-web.library.view';
-const loadView = (): View => { try { return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'tiles'; } catch { return 'tiles'; } };
+// the list is the default; tiles are an option (the older key held a choice made when tiles were the default)
+const VIEW_KEY = 'mgo.library.view.v2';
+const loadView = (): View => { try { return localStorage.getItem(VIEW_KEY) === 'tiles' ? 'tiles' : 'list'; } catch { return 'list'; } };
 
 /** "2 h 05 min", "35 min", "< 1 min"; nothing before the first launch. */
 function playTime(seconds: number): string | null {
@@ -43,7 +43,7 @@ function Cover({ g }: { g: GameMeta }) {
   const hue = 170 + (parseInt(g.groupKey.slice(0, 4), 16) % 46); // teal to blue: the palette has one signal colour, cyan
   return (
     <div className={`cover ${art ? 'art' : ''}`} style={{ ['--hue' as string]: hue }}>
-      {art ? <img src={g.ngageInfo?.hasCover ? `/api/games/${g.id}/ngage-cover` : api.coverUrl(g.id)} alt="" loading="lazy" onError={() => setBroken(true)} /> : g.hasIcon && !broken ? <img src={api.iconUrl(g.id)} alt="" onError={() => setBroken(true)} /> : <span className="initials">{g.name.slice(0, 2).toUpperCase()}</span>}
+      {art ? <img src={g.ngageInfo?.hasCover ? `/api/games/${g.id}/ngage-cover` : api.coverUrl(g.id)} alt="" loading="lazy" onError={() => setBroken(true)} /> : g.hasIcon && !broken ? <img src={api.iconUrl(g.id)} alt="" onError={() => setBroken(true)} /> : <PlatformIcon platform={g.platform ?? 'j2me'} size={96} className="cover-platform" />}
     </div>
   );
 }
@@ -54,6 +54,7 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
   const [platform, setPlatform] = useState<GamePlatform | 'all'>(() => {
     try { const value = localStorage.getItem('mgo.library.platform'); return isGamePlatform(value) ? value : 'all'; } catch { return 'all'; }
   });
+  const choosePlatform = (value: GamePlatform | 'all') => { setPlatform(value); try { localStorage.setItem('mgo.library.platform', value); } catch { /* storage unavailable */ } };
   const [view, setViewState] = useState<View>(loadView);
   const setView = (v: View) => { setViewState(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* storage unavailable */ } };
   const [dragging, setDragging] = useState(false);
@@ -202,12 +203,14 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
 
       <div className="lib-toolbar" role="search">
         <input className="input lib-search" type="search" placeholder={translateUI("Search games or vendors")} value={query} onChange={(e) => onQuery(e.target.value)} aria-label={translateUI("Search")} data-testid="search" />
-        <select className="select compact" aria-label={translateUI('Game platform')} data-testid="platform-filter" value={platform} onChange={e => {
-          const value = e.target.value as GamePlatform | 'all'; setPlatform(value);
-          try { localStorage.setItem('mgo.library.platform', value); } catch { /* storage unavailable */ }
-        }}>
-          <option value="all">{translateUI('All platforms')}</option>
-          {GAME_PLATFORMS.map(p => <option key={p} value={p}>{GAME_PLATFORM_LABELS[p]}</option>)}
+        <div className="plat-filter" role="group" aria-label={translateUI('Game platform')} data-testid="platform-filter">
+          <button type="button" className={platform === 'all' ? 'on' : ''} aria-pressed={platform === 'all'} onClick={() => choosePlatform('all')}>{translateUI('All')}</button>
+          {GAME_PLATFORMS.map(p => <button type="button" key={p} className={platform === p ? 'on' : ''} aria-pressed={platform === p} onClick={() => choosePlatform(platform === p ? 'all' : p)} data-platform={p} title={GAME_PLATFORM_LABELS[p]}><PlatformIcon platform={p} variant="banner" size={22} /></button>)}
+        </div>
+        <select className="select compact" value={genre} onChange={(e) => setGenre(e.target.value as GenreFilter)} aria-label={translateUI('Filter by genre')} data-testid="genre-filter">
+          <option value="all">{translateUI('All genres')} ({genreCounts.total})</option>
+          {GENRES.filter((x) => (genreCounts.n.get(x) ?? 0) > 0 || genre === x).map((x) => <option key={x} value={x}>{translateUI(x)} ({genreCounts.n.get(x) ?? 0})</option>)}
+          {(genreCounts.none > 0 || genre === 'unclassified') && <option value="unclassified">{translateUI('No genre')} ({genreCounts.none})</option>}
         </select>
         <select className="select compact" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} aria-label={translateUI("Sort by")} data-testid="sort">
           {SORT_KEYS.map((k) => <option key={k} value={k}>{translateUI(SORT_LABEL[k])}</option>)}
@@ -222,19 +225,9 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
       {scanning && scan && <div className="note info" role="status" data-testid="scan-banner">{translateUI("Importing from the library folder…")} {scan.added + scan.updated + scan.unchanged}/{scan.jars} {translateUI("files ·")} {scan.added} {translateUI("new")}{translateUI(scan.current ? ` · ${scan.current}` : '')}</div>}
       {reviewGroups > 0 && <div className="note warn" role="status">{reviewGroups} {translateUI("game")}{translateUI(reviewGroups === 1 ? '' : 's')} {translateUI("could be matched to several MobyGames entries.")} <a href="/settings#mobygames" onClick={(e) => { e.preventDefault(); navigate('/settings#mobygames'); }}>{translateUI("Choose the right ones")}</a>.</div>}
 
-      {games && games.length > 0 && (genreCounts.total - genreCounts.none > 0 || genre !== 'all') && (
-        <div className="genre-bar" role="group" aria-label={translateUI("Filter by genre")} data-testid="genre-bar">
-          <button className={`chip genre-chip${genre === 'all' ? ' on' : ''}`} aria-pressed={genre === 'all'} onClick={() => setGenre('all')}>{translateUI("All genres")} <span className="count">{genreCounts.total}</span></button>
-          {GENRES.filter((x) => (genreCounts.n.get(x) ?? 0) > 0 || genre === x).map((x) => (
-            <button key={x} className={`chip genre-chip${genre === x ? ' on' : ''}`} aria-pressed={genre === x} onClick={() => setGenre(genre === x ? 'all' : x)}>{translateUI(x)} <span className="count">{genreCounts.n.get(x) ?? 0}</span></button>
-          ))}
-          {(genreCounts.none > 0 || genre === 'unclassified') && <button className={`chip genre-chip${genre === 'unclassified' ? ' on' : ''}`} aria-pressed={genre === 'unclassified'} onClick={() => setGenre(genre === 'unclassified' ? 'all' : 'unclassified')}>{translateUI("No genre")} <span className="count">{genreCounts.none}</span></button>}
-        </div>
-      )}
-
       {games && games.length === 0 && (
         <div className="empty">
-          <div className="empty-art" aria-hidden />
+          <img className="empty-art" src="/graphics/states/library-empty.svg" alt="" />
           <h2>{translateUI("Your library is empty")}</h2>
           <p>{translateUI("Drop your own")} <code>{translateUI(".jar")}</code> {translateUI("files here (a matching")} <code>{translateUI(".jad")}</code> {translateUI("is optional)")}{translateUI(libraryPath ? ', or import the folder you connected.' : ', or connect a folder with your collection.')} {translateUI("Games are stored on this server only; nothing is downloaded for you.")}</p>
           <div className="btn-row">
@@ -274,7 +267,7 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
           );
           const flags = (
             <>
-              {sel.platform && sel.platform !== 'j2me' && <span className="badge mock" data-testid="platform-badge" title={translateUI("Runs in EKA2L1 (experimental), not in the Java emulator")}>{PLATFORM_LABEL[sel.platform]}</span>}
+              <span className="platform-badge" data-testid="platform-badge" data-platform={sel.platform ?? 'j2me'}><PlatformIcon platform={sel.platform ?? 'j2me'} variant="banner" size={22} /></span>
               {sel.platform === 'symbian' && sel.packageFormat && sel.packageFormat !== 'unknown' && <span className="badge plain" data-testid="package-generation" title={translateUI(PACKAGE_FORMAT_LABEL[sel.packageFormat])}>{sel.packageFormat === 'sis-legacy' ? 'S60 ≤2nd' : 'S60 3rd+'}</span>}
               {sel.warnings.length > 0 && <span className="badge mock" title={translateUI(sel.warnings.join('\n'))}>!</span>}
               {sel.sourceMissing && <span className="badge plain" title={translateUI("The file is no longer in the library folder; the game stays here with its saves")}>{translateUI("file gone")}</span>}

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="MGO favicon">
+<title>MGO favicon</title><desc>MGO favicon</desc><defs><linearGradient id="cyan" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#5CF0FF"/><stop offset="1" stop-color="#00B8CC"/></linearGradient>
+<linearGradient id="glass" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#293D48"/><stop offset=".42" stop-color="#101923"/><stop offset="1" stop-color="#080E15"/></linearGradient>
+<linearGradient id="phone" x1="0" x2="1" y1="0" y2=".4"><stop stop-color="#5C6C75"/><stop offset=".28" stop-color="#1A2730"/><stop offset=".85" stop-color="#10171D"/><stop offset="1" stop-color="#4B5A62"/></linearGradient>
+<linearGradient id="lcd" x1="0" x2=".8" y1="0" y2="1"><stop stop-color="#195B65"/><stop offset="1" stop-color="#06161F"/></linearGradient>
+<radialGradient id="halo"><stop stop-color="#00E5FF" stop-opacity=".20"/><stop offset=".65" stop-color="#00E5FF" stop-opacity=".05"/><stop offset="1" stop-color="#00E5FF" stop-opacity="0"/></radialGradient>
+<pattern id="dots" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1" fill="#00E5FF" opacity=".15"/></pattern>
+<filter id="soft"><feGaussianBlur stdDeviation="9"/></filter>
+</defs><rect x="1" y="1" width="62" height="62" rx="14" fill="#11262B" stroke="#00B8CC" stroke-width="2"/>
+<rect x="16" y="8" width="32" height="48" rx="8" fill="#080F14" stroke="#00E5FF" stroke-width="3.5"/>
+<path d="M27 17h10" stroke="#86F7FF" stroke-width="2" stroke-linecap="round"/>
+<rect x="21" y="24" width="22" height="20" rx="3" fill="#0A3B44"/>
+<path d="M29 28v12l11-6z" fill="#5CF0FF"/><circle cx="28" cy="49.5" r="2" fill="#00E5FF"/><circle cx="36" cy="49.5" r="2" fill="#00E5FF"/></svg>

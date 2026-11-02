@@ -1,13 +1,13 @@
 import { t as translateUI } from '../i18n';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { EMULATED_DEVICES, GAME_PLATFORM_LABELS, PHONE_COMPATIBILITY, type EmulatedDevice, type SymbianJob, type SymbianStatus } from '@mgo/protocol';
-import { api, type ApiError } from '../api';
+import { api } from '../api';
+import { FirmwareAdd, FirmwareJobStatus, useFirmwareJob } from './FirmwareAdd';
 import { Icon } from './Icon';
+import { PlatformIcon } from './PlatformIcon';
 import { Hint } from './ui';
 
 type Toaster = (kind: 'info' | 'error', text: string) => void;
-const JOB_KEY = 'mgo.symbian.job.v1';
-const mb = (n: number) => `${Math.round(n / 1048576).toLocaleString()} MB`;
 const gb = (n: number) => `${(n / 1024 ** 3).toFixed(1)} GB`;
 type Native = Extract<EmulatedDevice, { engine: 'eka2l1' }>;
 type DefaultPlatform = 'ngage' | 'ngage2' | 'symbian';
@@ -38,96 +38,21 @@ const skinOf = (device: Native | null): string | null => (device ? (Object.entri
  */
 export function SymbianPanel({ toast }: { toast: Toaster }) {
   const [st, setSt] = useState<SymbianStatus | null>(null);
-  const [archive, setArchive] = useState<File | null>(null);
-  const [pickVersion, setPickVersion] = useState(0);
-  const [working, setWorking] = useState<string | null>(null);
-  const [job, setJob] = useState<SymbianJob | null>(null);
-  const [inboxPick, setInboxPick] = useState('');
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [jobError, setJobError] = useState<string | null>(null);
-  const jobId = useRef<string | null>(null);
-  const [percent, setPercent] = useState<number | null>(null);
-  const uploadAbort = useRef<AbortController | null>(null);
   const alive = useRef(true);
-  const timer = useRef<number | null>(null);
 
   const load = useCallback(() => {
     api.symbianStatus().then(value => { if (alive.current) { setSt(value); setLoadError(null); } }, e => { if (alive.current) setLoadError((e as Error).message); });
   }, []);
-
-  const follow = useCallback((j: SymbianJob) => {
-    jobId.current = j.id;
-    try { localStorage.setItem(JOB_KEY, j.id); } catch { /* storage unavailable */ }
-    if (!alive.current) return;
-    setJob(j); setJobError(null);
-    if (timer.current) window.clearTimeout(timer.current);
-    const poll = async () => {
-      try {
-        const cur = await api.symbianJob(j.id);
-        if (!alive.current) return;
-        setJob(cur);
-        if (cur.state !== 'running') {
-          timer.current = null; jobId.current = null;
-          try { localStorage.removeItem(JOB_KEY); } catch { /* storage unavailable */ }
-          toast(cur.state === 'succeeded' ? 'info' : 'error', cur.state === 'succeeded' ? translateUI('Firmware installed') : `${translateUI('Firmware job failed')}: ${cur.error ?? ''}`);
-          load();
-        } else timer.current = window.setTimeout(poll, 2000);
-      } catch (e) { if (alive.current) { setJobError((e as Error).message); timer.current = null; } }
-    };
-    timer.current = window.setTimeout(poll, 500);
-  }, [load, toast]);
-
-  useEffect(() => {
-    alive.current = true;
-    load();
-    try {
-      const id = localStorage.getItem(JOB_KEY);
-      if (id && /^[a-f0-9]{12}$/.test(id)) {
-        jobId.current = id;
-        api.symbianJob(id).then(follow, e => {
-          if (!alive.current) return;
-          if ((e as ApiError).status === 404) { jobId.current = null; localStorage.removeItem(JOB_KEY); load(); }
-          else setJobError((e as Error).message);
-        });
-      }
-    } catch { /* storage unavailable */ }
-    return () => { alive.current = false; if (timer.current) window.clearTimeout(timer.current); uploadAbort.current?.abort(); };
-  }, [load, follow]);
-
-  const install = async () => {
-    if (!archive) return;
-    try {
-      if (archive.size > (st?.maxFirmwareBytes ?? 0)) throw new Error(translateUI('The selected file exceeds the server firmware limit. Use the inbox folder or change the server limit.'));
-      const controller = new AbortController(); uploadAbort.current = controller;
-      setPercent(0); setWorking(`${translateUI('Uploading')} ${archive.name}…`);
-      const stored = await api.symbianUpload('archive', archive, { progress: setPercent, signal: controller.signal });
-      uploadAbort.current = null; setPercent(null); setWorking(translateUI('Starting firmware job…'));
-      follow(await api.symbianInstall({ archive: stored.file }));
-      setWorking(null); setArchive(null); setPickVersion(v => v + 1);
-    } catch (e) {
-      uploadAbort.current = null; setPercent(null); setWorking(null);
-      if ((e as ApiError).code === 'cancelled') { toast('info', translateUI('Upload cancelled')); return; }
-      const status = (e as ApiError).status;
-      toast('error', status === 413 || status === 0
-        ? `${(e as Error).message} — ${translateUI('a proxy or tunnel in front of MGO may be refusing large files; see docs/SYMBIAN.md, "Upload limits", or put the files into the inbox folder')}`
-        : (e as Error).message);
-    }
-  };
-
-  const installFromInbox = async () => {
-    setWorking(translateUI('Starting firmware job…'));
-    try { follow(await api.symbianInstall({ archive: inboxPick, source: 'inbox' })); }
-    catch (e) { toast('error', (e as Error).message); }
-    finally { setWorking(null); }
-  };
+  const { job, jobRunning, jobError, follow, resume, canResume } = useFirmwareJob(toast, load);
+  useEffect(() => { alive.current = true; load(); return () => { alive.current = false; }; }, [load]);
 
   const setDefault = async (platform: DefaultPlatform, code: string) => {
     try { await api.symbianDefault(platform, code || null); load(); } catch (err) { toast('error', (err as Error).message); }
   };
 
   if (!st) return <div role="status"><p>{loadError ?? translateUI('Checking service and firmware…')}</p><button className="btn sm" onClick={load}>{translateUI('Refresh status')}</button></div>;
-  const jobRunning = job?.state === 'running';
-  const busy = st.busy || jobRunning || !!working;
+  const busy = st.busy || jobRunning;
   const lowDisk = !!st.disk && st.disk.free < 5 * 1024 ** 3;
   const diskUsed = st.disk ? Math.max(0, Math.min(100, Math.round(100 * (1 - st.disk.free / st.disk.total)))) : 0;
 
@@ -146,6 +71,7 @@ export function SymbianPanel({ toast }: { toast: Toaster }) {
           <button className="btn sm" onClick={load}><Icon name="restart" /> {translateUI('Refresh status')}</button>
           <a className="btn sm" href="/api/symbian/diagnostics" download data-testid="symbian-diagnostics" title={translateUI("Versions, devices, the service log and the emulator's last words: attach it to a bug report.")}>{translateUI('Download Symbian diagnostics')}</a>
         </div>
+        {!st.reachable && <img className="state-art" src="/graphics/states/server-offline.svg" alt="" />}
         {!st.configured && <p className="note">{translateUI('The Symbian service is not set up on this server (SYMBIAN_AGENT_URL is empty). See docs/SYMBIAN.md to enable it.')}</p>}
         {st.configured && !st.reachable && <p className="note err">{translateUI('The Symbian service does not answer')}: {st.message}</p>}
         {st.disk && (
@@ -176,7 +102,7 @@ export function SymbianPanel({ toast }: { toast: Toaster }) {
                     <p className="muted small">{cat ? cat.os : translateUI('Not in the MGO phone catalog: MGO cannot tell which games it runs.')}</p>
                     <div className="chips">
                       <span className="chip"><code>{d.code}</code></span>
-                      {cat && cat.platforms.map(p => <span key={p} className="chip">{GAME_PLATFORM_LABELS[p]}</span>)}
+                      {cat && cat.platforms.map(p => <span key={p} className="chip icon-chip"><PlatformIcon platform={p} size={20} /></span>)}
                       {defaultsOf.map(pl => <span key={pl} className="chip on" title={translateUI('This device is the default for this kind of game')}>★ {PLATFORM_HELP[pl].title.split(' (')[0]}</span>)}
                     </div>
                   </div>
@@ -214,33 +140,8 @@ export function SymbianPanel({ toast }: { toast: Toaster }) {
             </>
           )}
 
-          <h3>{translateUI('Add firmware')} <Hint text="One firmware archive per device. If you have a ROM and its RPKG, or a factory kit (.vpl + .fpsx), pack them into one archive first, or put them in the inbox folder." /></h3>
-          <div className="sym-add card-pad">
-            <label className={`sym-drop${archive ? ' has-file' : ''}`}>
-              <input type="file" accept=".zip,.7z,.rar,.rpkg" disabled={busy} onChange={(e) => setArchive(e.target.files?.[0] ?? null)} key={`archive-${pickVersion}`} data-testid="fw-archive" />
-              <span className="sym-drop-title"><Icon name="upload" /> {archive ? archive.name : translateUI('Choose a firmware archive')}</span>
-              <span className="muted small">{archive ? mb(archive.size) : translateUI('.zip, .7z, .rar or .rpkg')} · {translateUI('up to')} {mb(st.maxFirmwareBytes)}</span>
-            </label>
-            <button className="btn primary" disabled={!archive || busy} onClick={install} data-testid="fw-install"><Icon name="upload" /> {translateUI('Upload and install')}</button>
-          </div>
-          <p className="muted small">{translateUI('They are sent to the service only and are not kept in MGO or in its image. Installing can take several minutes.')}</p>
-          {working && <div role="status"><p className="muted">{working} {percent !== null ? `${percent}%` : ''}</p><progress max={100} value={percent ?? undefined} aria-label={translateUI('Firmware upload progress')} />{uploadAbort.current && <button className="btn sm" onClick={() => uploadAbort.current?.abort()}>{translateUI('Cancel upload')}</button>}</div>}
-
-          {st.inbox.length > 0 && (
-            <div className="sym-inbox card-pad" data-testid="inbox">
-              <h4>{translateUI('Firmware from a folder')} <Hint text="Files found in the service's inbox folder. They are read in place, never uploaded through the browser and never deleted. Use it for very large firmware or when a proxy blocks big uploads." /></h4>
-              <label className="field"><span className="label-caps">{translateUI('Archive')}</span>
-                <select className="select" value={inboxPick} data-testid="inbox-archive" onChange={(e) => setInboxPick(e.target.value)}>
-                  <option value="">—</option>
-                  {st.inbox.map((f) => <option key={f.name} value={f.name}>{f.name} ({mb(f.size)})</option>)}
-                </select>
-              </label>
-              <button className="btn" disabled={!inboxPick || busy} onClick={installFromInbox} data-testid="inbox-install">{translateUI('Install from the folder')}</button>
-            </div>)}
-
-          {jobError && <div className="note err" role="alert">{translateUI('Monitoring interrupted. The firmware job may still be running.')}{jobId.current && <button className="btn sm" onClick={() => { void api.symbianJob(jobId.current!).then(follow, e => setJobError((e as Error).message)); }}>{translateUI('Resume monitoring')}</button>}</div>}
-          {jobRunning && <progress max={1} value={job.progress ?? undefined} aria-label={translateUI('Firmware installation progress')} />}
-          {job && <p role="status" className={job.state === 'failed' ? 'note err' : 'muted'}>{translateUI(job.state === 'running' ? 'Working…' : job.state === 'succeeded' ? 'Done' : 'Failed')}{job.state === 'failed' && job.error ? `: ${job.error}` : ''}</p>}
+          <FirmwareAdd st={st} toast={toast} follow={follow} busy={busy} />
+          <FirmwareJobStatus job={job} jobError={jobError} canResume={canResume} resume={resume} />
         </>
       )}
     </div>
