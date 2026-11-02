@@ -88,6 +88,8 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
   // an import started from the wizard or Settings keeps running while this page is open: follow it and refresh when it ends
   const scanning = scan?.state === 'running';
   const lastScan = useRef<string | null | undefined>(undefined);
+  const lastMeta = useRef<string | null>(null);
+  const metaRunning = useRef(false);
   useEffect(() => {
     let dead = false;
     const tick = async () => {
@@ -96,18 +98,25 @@ export function Library({ toast, onPlay, health, query, onQuery }: { toast: (k: 
         if (dead) return;
         setScan(s.running ? s.report : null);
         // refresh when a scan started or ended since the last look; the first look always refreshes (a quick scan may already be over)
-        const id = s.report ? `${s.report.id}:${s.report.state}` : null;
-        if (id !== lastScan.current) {
+        // MobyGames lookups finish after the scan: covers, genres and the "review" mark must appear without a manual reload
+        const meta = await api.metaJob().then((m) => m.job, () => null);
+        if (dead) return;
+        metaRunning.current = meta?.state === 'running';
+        const scanId = s.report ? `${s.report.id}:${s.report.state}` : null;
+        const metaId = meta ? `${meta.state}:${meta.done}` : null;
+        if (scanId !== lastScan.current || metaId !== lastMeta.current) {
           const first = lastScan.current === undefined;
-          lastScan.current = id;
+          const scanChanged = scanId !== lastScan.current;
+          lastScan.current = scanId; lastMeta.current = metaId;
           void reload();
-          if (!first && !s.running && s.report && s.report.state === 'done' && s.report.added + s.report.updated > 0) toast('info', translateUI('Import finished: {added} new, {updated} changed', {added:s.report.added,updated:s.report.updated}));
+          if (scanChanged && !first && !s.running && s.report && s.report.state === 'done' && s.report.added + s.report.updated > 0) toast('info', translateUI('Import finished: {added} new, {updated} changed', {added:s.report.added,updated:s.report.updated}));
         }
       } catch { /* old server or offline */ }
     };
-    void tick();
-    const t = window.setInterval(() => void tick(), scanning ? 1000 : 4000);
-    return () => { dead = true; window.clearInterval(t); };
+    let timer: number | undefined;
+    const loop = async () => { await tick(); if (!dead) timer = window.setTimeout(() => void loop(), scanning || metaRunning.current ? 1000 : 4000); };
+    void loop();
+    return () => { dead = true; window.clearTimeout(timer); };
   }, [scanning, reload, toast]);
   const review = (games ?? []).filter((g) => g.info?.status === 'ambiguous');
   const reviewGroups = new Set(review.map((g) => g.groupKey)).size;
