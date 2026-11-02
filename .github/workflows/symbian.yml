@@ -6,10 +6,10 @@ name: Symbian service (EKA2L1)
 # Slow (EKA2L1 and FFmpeg are compiled), so it only runs when the service changes. On main the image is published as :edge.
 on:
   pull_request:
-    paths: ['symbian/**', 'compose.yaml', '.github/workflows/symbian.yml', 'tests/scripts/vpl-real-smoke.mjs', 'tests/fixtures/factory-kit.mjs', 'tests/scripts/pulse-smoke.mjs']
+    paths: ['symbian/**', '.github/workflows/symbian.yml', 'tests/scripts/vpl-real-smoke.mjs', 'tests/fixtures/factory-kit.mjs', 'tests/scripts/pulse-smoke.mjs']
   push:
     branches: [main]
-    paths: ['symbian/**', 'compose.yaml', '.github/workflows/symbian.yml', 'tests/scripts/vpl-real-smoke.mjs', 'tests/fixtures/factory-kit.mjs', 'tests/scripts/pulse-smoke.mjs']
+    paths: ['symbian/**', '.github/workflows/symbian.yml', 'tests/scripts/vpl-real-smoke.mjs', 'tests/fixtures/factory-kit.mjs', 'tests/scripts/pulse-smoke.mjs']
   workflow_dispatch:
 
 permissions:

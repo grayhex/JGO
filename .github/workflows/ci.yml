@@ -1,8 +1,10 @@
 name: CI
 
+# One run per change: a push to main, or a pull request (a branch with a PR used to run twice, on `push` and on `pull_request`).
+# A branch without a PR is not tested until one is opened (or run this workflow by hand).
 on:
   push:
-    branches: [main, 'claude/**', 'feat/**']
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -19,6 +21,23 @@ env:
   KEM_BUILD_INPUTS: runtime/patches runtime/audio runtime/scripts/build-kemulator.sh runtime/scripts/lib.sh
 
 jobs:
+  # Which expensive jobs a pull request needs: the real-LXC run only when the install/packaging side changed (always on main).
+  changes:
+    name: What changed
+    runs-on: ubuntu-24.04
+    outputs:
+      packaging: ${{ steps.f.outputs.packaging }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: f
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then echo "packaging=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          files="$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")"
+          if echo "$files" | grep -qE '^(ct/|install/|packaging/|tests/lxc/|tools/proxmox/|runtime/|bridge/|\.github/workflows/ci\.yml)'; then echo "packaging=true" >> "$GITHUB_OUTPUT"; else echo "packaging=false" >> "$GITHUB_OUTPUT"; fi
+          echo "$files" | head -50
+
   typescript:
     name: TypeScript (typecheck, build, unit tests)
     runs-on: ubuntu-24.04
@@ -100,9 +119,9 @@ jobs:
       - run: bash tests/scripts/version-order.test.sh
 
   integration:
-    name: Integration + e2e on the real KEmulator
+    name: Integration tests on the real KEmulator
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -141,6 +160,45 @@ jobs:
         run: |
           xvfb-run -a -s "-screen 0 1024x768x24 +extension GLX" \
             env KEM_DISPLAY="$DISPLAY" LIBGL_ALWAYS_SOFTWARE=1 npm run test:integration
+
+  e2e:
+    name: Browser e2e + compatibility lab on the real KEmulator
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            bridge/kemulator-adapter/target
+          key: cargo-int-${{ runner.os }}-${{ hashFiles('bridge/kemulator-adapter/Cargo.lock', 'bridge/kemulator-adapter/src/**') }}
+          restore-keys: cargo-int-${{ runner.os }}-
+      - name: Cache the patched KEmulator build
+        id: kem
+        uses: actions/cache@v4
+        with:
+          path: runtime/build/kemulator
+          key: kemulator-${{ hashFiles('runtime/patches/*', 'runtime/audio/**', 'runtime/scripts/build-kemulator.sh', 'runtime/scripts/lib.sh') }}
+      - name: System packages (X server + Mesa software GL, fonts)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb libgl1 libglx-mesa0 libgl1-mesa-dri libegl1 fontconfig fonts-dejavu-core libharfbuzz0b nginx-light
+      - name: Build everything (KEmulator from the pinned commit + patches, adapter, web, fixtures)
+        run: |
+          [ -f runtime/build/kemulator/KEmulator.jar ] && echo "KEmulator restored from cache" || true
+          npm ci
+          bash runtime/scripts/setup.sh
       - name: Install Chromium for the browser e2e test
         run: npx playwright install --with-deps chromium
       - name: Browser e2e (upload, play, keys, audio, phone skins, first-run wizard, library import, MobyGames stand-in)
@@ -209,8 +267,10 @@ jobs:
 
   lxc-real:
     name: Same scenarios in a real unprivileged LXC container (LXD, Debian 13 image)
+    needs: changes
+    if: needs.changes.outputs.packaging == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -232,7 +292,8 @@ jobs:
           bash runtime/scripts/setup.sh
       - name: LXD
         run: |
-          sudo snap install lxd 2>/dev/null || sudo snap refresh lxd || true
+          # the snap store resets connections now and then: try again before giving up
+          for i in 1 2 3 4; do sudo snap install lxd 2>/dev/null && break || sudo snap refresh lxd 2>/dev/null && break; echo "snap install lxd failed ($i), retrying"; sleep $((i * 20)); done
           sudo lxd waitready
           sudo lxd init --auto
           # Docker on the runner sets the FORWARD policy to DROP, which cuts the LXD bridge off from the internet
