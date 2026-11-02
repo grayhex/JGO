@@ -95,6 +95,15 @@ try {
   await p.locator('.skin-box').waitFor();
   await sleep(1200);
   await p.screenshot({ path: path.join(out, '15-player-tip.png') });
+  // Lights Out: one Options button, its menu
+  await p.evaluate(() => { localStorage.setItem('j2me-web.skin.v1', JSON.stringify({ skinId: 'nokia-n95', view: 'screen', integer: true })); localStorage.setItem('j2me-web.lights.v1', 'true'); });
+  await p.goto(base + '/play/' + racer.id);
+  await p.locator('.lights-out').waitFor();
+  await sleep(500);
+  await p.screenshot({ path: path.join(out, '16-lights-out.png') });
+  await p.getByTestId('lights-options').click();
+  await sleep(300);
+  await p.screenshot({ path: path.join(out, '17-lights-menu.png') });
   console.log('screenshots in', out);
 } finally {
   await browser?.close();

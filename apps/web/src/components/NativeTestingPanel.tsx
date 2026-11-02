@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { EMULATED_DEVICES, PACKAGE_FORMAT_LABEL, emulatedDevice, type GameMeta, type NativePhonePlan, type SymbianStatus } from '@mgo/protocol';
 import { api } from '../api';
 import { t } from '../i18n';
-import { PlatformIcon } from './PlatformIcon';
+import { PlatformTag } from './PlatformTag';
 import { navigate } from '../router';
 import { Panel } from './ui';
 
@@ -33,7 +33,7 @@ export function NativeTestingPanel({ game, data, error, running, starting, onCha
   const owned = (running || starting) && plan?.code === 'symbian_busy';
   const ready = !!plan?.ready || !!owned;
   return <Panel icon="cpu" title={t('Symbian emulator')} right={<span className="badge mock" title={t('Experimental: not every game works')}>{t('experimental')}</span>}>
-    <p className="muted small native-platform"><PlatformIcon platform={platform} variant="banner" size={22} />{game.packageFormat && game.packageFormat !== 'unknown' && platform === 'symbian' ? ` · ${t(PACKAGE_FORMAT_LABEL[game.packageFormat])}` : ''}</p>
+    <p className="muted small native-platform"><PlatformTag platform={platform} size="sm" />{game.packageFormat && game.packageFormat !== 'unknown' && platform === 'symbian' ? ` · ${t(PACKAGE_FORMAT_LABEL[game.packageFormat])}` : ''}</p>
     <div className={`note ${ready ? 'ok' : 'warn'}`} role="status" data-testid="native-readiness" data-ready={ready ? '1' : '0'}>
       {error ? t('Cannot check the Symbian service. Try again in a moment.')
         : !data ? t('Checking…')

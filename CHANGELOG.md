@@ -5,6 +5,21 @@ Formatted after [Keep a Changelog](https://keepachangelog.com/); versions follow
 
 ## [Unreleased]
 
+### Added
+- **Sign out** (sidebar, when the server asks for a token) and `POST /api/auth/logout`.
+- **Token guessing is slowed down**: ten wrong tokens a minute from one address, then `429` with `Retry-After` (a valid token never counts).
+- The gateway compresses text (UI scripts and styles, JSON) with gzip; a page that fails to draw shows a recovery page instead of a blank screen; an address that is not a page goes to the library.
+
+### Changed
+- Platform tags are a small drawing and a word in the platform's colour (library, filter, phones, settings, wizard); screen size and firmware state are chips with an icon. The big and small picture badges and the thumbnail of the current game in the sidebar are gone.
+- Lights Out has one *Options* button (exit, fullscreen, on-screen keypad) anchored to the top-right corner of the screen, also in fullscreen.
+- The gamepad no longer pops up "Held: ..." in the Controls panel (the on-screen keypad shows what is held); the player is not re-drawn on every button press any more.
+
+### Fixed
+- Settings -> Firmware: the phone picture of an installed device ran out of its card over "Default device per platform".
+- The player asked for the JAR analysis of Symbian / N-Gage games (a `404` in the console every time).
+- `@fastify/static` 8 -> 10 (security advisories: path traversal and route-guard bypass; MGO serves only its own UI, with `wildcard: false`).
+
 ### Fixed
 - The library now refreshes itself when the MobyGames lookup finishes (covers, genres and the "review" mark used to appear only after a manual reload; it made the setup e2e test depend on timing).
 - **N-Gage games were not recognised** from the All About Symbian directory. The matcher compared whole normalised titles, so any dump-style file name (`Asphalt Urban GT (E)`, `Tony Hawk's Pro Skater (Europe)`, `Ghost Recon - Jungle Storm`) stayed unrecognised, and everything depended on the server reaching the site (the app container has no internet; a failed request left nothing and no reason). Now the list of the 64 released games ships with MGO, so a game is recognised and gets its genre offline; titles are matched ignoring region/version tags, the word N-Gage, Roman numerals and a missing brand (never guessing between two candidates, a sequel never replaces the first game); redirects are followed only to the fixed catalog pages; one failing game page no longer stops the others; *Settings → Game metadata* shows "N of M recognised", the unrecognised names and the reason covers are missing.

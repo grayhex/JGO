@@ -22,3 +22,6 @@ a { color: var(--primary-focus); }
 :focus-visible { outline: 2px solid var(--primary-focus); outline-offset: 2px; border-radius: var(--r-sm); }
 ::selection { background: var(--primary-tint-strong); }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+
+.crash { min-height: 100dvh; display: grid; align-content: center; justify-items: center; gap: 14px; padding: 24px; text-align: center; max-width: 560px; margin: 0 auto; }
+.crash .codeblock { text-align: left; max-width: 100%; }

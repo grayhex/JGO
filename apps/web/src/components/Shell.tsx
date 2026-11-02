@@ -4,7 +4,7 @@ import { t as translateUI } from '../i18n';
 import type { GameMeta, HealthStatus, SymbianStatus } from '@mgo/protocol';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Icon, type IconName } from './Icon';
-import { PlatformIcon } from './PlatformIcon';
+import { PlatformTag } from './PlatformTag';
 import { Seg } from './ui';
 import { useLastGame } from '../lastGame';
 
@@ -67,8 +67,8 @@ export function Shell({ path, go, health, symbian, title, subtitle, children }: 
           <div className="nav-title">{translateUI("Workspace")}</div>
           {item('/', 'library', 'Library', path === '/')}
           {lastGame && <Link to={`/play/${lastGame.id}`} onNavigate={go} data-testid="current-game" className={`nav-item current-game ${inPlayer ? 'active' : ''}`} title={lastGame.name} aria-label={translateUI('Current game: {name}', { name: lastGame.name })}>
-            {loadedGame?.ngageInfo?.hasCover ? <img src={`/api/games/${lastGame.id}/ngage-cover`} alt="" /> : loadedGame?.info?.hasCover ? <img src={api.coverUrl(lastGame.id)} alt="" /> : <Icon name="play" />}
-            <span className="nav-label"><small>{translateUI('Current game')}</small><strong>{lastGame.name}</strong><small><PlatformIcon platform={loadedGame?.platform ?? 'j2me'} size={14} className="inline" /></small></span>
+            <Icon name="play" />
+            <span className="nav-label"><small>{translateUI('Current game')}</small><strong>{lastGame.name}</strong><small><PlatformTag platform={loadedGame?.platform ?? 'j2me'} size="sm" className="bare" /></small></span>
           </Link>}
           {item('/phones', 'phone', 'Phones', path === '/phones')}
           {item('/settings', 'sliders', 'Settings', path === '/settings')}
@@ -80,6 +80,12 @@ export function Shell({ path, go, health, symbian, title, subtitle, children }: 
             <div className="runtime" title={`KEmulator ${health?.kemulator.commit ?? '—'}`}><span className={`dot ${health?.ok ? '' : 'bad'}`} aria-hidden /><span className="runtime-text"><b>KEmulator <em>{translateUI(health?.ok ? 'Ready' : 'Unavailable')}</em></b><small title={health?.kemulator.commit ?? undefined}>Java ME · {health?.kemulator.commit?.slice(0, 9) ?? '—'}</small></span></div>
             <div className="runtime" data-testid="symbian-runtime" title={`EKA2L1 ${symbian?.emulator ?? '—'}`}><span className={`dot ${symbian?.reachable && symbian.firmware.installed ? '' : 'bad'}`} aria-hidden /><span className="runtime-text"><b>EKA2L1 <em>{translateUI(!symbian?.configured ? 'Not configured' : !symbian.reachable ? 'Unavailable' : symbian.busy ? 'Running' : symbian.firmware.installed ? 'Ready' : 'Needs firmware')}</em></b><small title={symbian?.emulator ?? undefined}>Symbian / N-Gage · {symbian?.emulator?.replace(/^EKA2L1\s*/, '') ?? '—'}</small></span></div>
           </div>
+          {health?.auth === 'token' && (
+            <button className="nav-item" onClick={() => void api.logout().finally(() => location.reload())} title={translateUI('Sign out of this browser')} data-testid="sign-out">
+              <Icon name="back" />
+              <span className="nav-label">{translateUI('Sign out')}</span>
+            </button>
+          )}
           <button className="nav-item hide-mobile" onClick={() => setCollapsed((c) => !c)} aria-pressed={collapsed} title={translateUI(collapsed ? 'Expand sidebar' : 'Collapse sidebar')}>
             <Icon name="sidebar" />
             <span className="nav-label">{translateUI(collapsed ? 'Expand' : 'Collapse')}</span>

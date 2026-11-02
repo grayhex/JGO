@@ -54,8 +54,10 @@ try {
   // platforms are pictures (the kit's plates), not words: the picture carries its name for screen readers and as a tooltip
   const badgePlatforms = async () => (await p.getByTestId('platform-badge').evaluateAll((els) => els.map((e) => e.getAttribute('data-platform')))).sort();
   assert.deepEqual(await badgePlatforms(), ['j2me', 'ngage', 'ngage2', 'symbian']);
-  assert.equal(await p.getByTestId('platform-badge').locator('img.banner').count(), 4);
-  assert.deepEqual(await p.getByTestId('platform-badge').locator('img').evaluateAll((els) => els.map((e) => e.getAttribute('alt')).sort()), ['Java ME', 'N-Gage', 'N-Gage 2.0', 'Symbian S60 / Symbian³']);
+  assert.equal(await p.getByTestId('platform-badge').locator('.ptag').count(), 4);
+  assert.deepEqual((await p.getByTestId('platform-badge').locator('.ptag').allInnerTexts()).sort(), ['Java ME', 'N-Gage', 'N-Gage 2.0', 'Symbian'], 'a drawing and a word');
+  const colours = await p.getByTestId('platform-badge').locator('.ptag').evaluateAll((els) => els.map((e) => getComputedStyle(e).color));
+  assert.equal(new Set(colours).size, 4, 'every platform has its own colour');
   assert.deepEqual(await p.getByTestId('platform-filter').locator('button').evaluateAll((els) => els.map((e) => e.getAttribute('data-platform') ?? 'all')), ['all', 'j2me', 'symbian', 'ngage', 'ngage2']);
   assert.equal(await p.locator('.lib-grid').getAttribute('data-view'), 'list', 'the list is the default view');
   for (const value of ['j2me', 'symbian', 'ngage', 'ngage2']) {

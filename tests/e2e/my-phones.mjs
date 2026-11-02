@@ -66,7 +66,7 @@ try {
   await wait(async () => (await p.locator('.phone-pick').count()) === mine, 'only my phones');
   await p.getByTestId('only-mine').uncheck();
   await wait(async () => (await p.locator('.phone-pick').count()) === 15, 'all phones');
-  assert.equal(await p.locator('.phone-pick .plat-chip img').first().isVisible(), true, 'platforms are pictures');
+  assert.equal(await p.locator('.phone-pick .ptag').first().isVisible(), true, 'platforms are a drawing and a word');
   console.log('✔ /phones lists my phones first-class; the rest is one switch away; platforms are pictures');
 
   // ---- the Java game made for 240x320 on an N-Gage phone: a reminder with a one-click switch ----

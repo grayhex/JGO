@@ -206,6 +206,12 @@ try {
   const games = await (await fetch(base + '/api/games', { headers: { authorization: `Bearer ${TOKEN}` } })).json();
   ok('removing the MobyGames data keeps the games', games.length === 4 && games.every((g) => !g.info));
 
+  // ---- sign out: back to the login page, and the old cookie no longer works
+  await page.getByTestId('sign-out').click();
+  await page.waitForSelector('input[aria-label="Access token"]');
+  ok('signing out returns to the login page', true);
+  ok('... and the API wants the token again', (await page.evaluate(() => fetch('/api/settings').then((r) => r.status))) === 401);
+
   // ---- mobile
   const m = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   const mp = await m.newPage();

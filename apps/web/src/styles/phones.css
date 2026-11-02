@@ -30,8 +30,9 @@
 .sym-empty p { margin: 4px 0; }
 .sym-devices, .sym-defaults { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-md); }
 .sym-device { display: grid; grid-template-columns: 96px 1fr auto; gap: var(--s-lg); align-items: center; border: 1px solid var(--outline); border-radius: var(--r-lg, 12px); background: var(--surface-soft); }
-.sym-thumb { width: 96px; height: 80px; display: grid; place-items: center; }
-.sym-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.sym-thumb { width: 96px; height: 80px; display: grid; place-items: center; overflow: hidden; }
+/* a percentage max-height does not work in a grid cell of an auto-sized row: the picture kept its own size and ran over the next block */
+.sym-thumb img { width: auto; height: auto; max-width: 96px; max-height: 80px; object-fit: contain; }
 .sym-device-body .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 .sym-device-body .chip { font-size: 0.72rem; padding: 1px 8px; }
 .sym-device-body .chip.on { background: transparent; border-color: var(--primary); color: var(--primary); }
@@ -61,8 +62,27 @@
 @media(max-width: 420px) { .phones-models { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; } .phone-pick .phone-pick-skin { height: 140px; } }
 
 /* platform pictures on the phone cards */
-.plat-chip { display: inline-flex; padding: 2px; border-radius: 9px; border: 2px solid transparent; opacity: 0.85; }
-.plat-chip.on { border-color: var(--primary); opacity: 1; box-shadow: 0 0 0 2px var(--primary-tint-strong); }
 .phone-platforms { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center; }
 .phones-filter { margin: 6px 0 12px; }
 .my-phone { margin-left: 4px; }
+
+.phone-facts, .phone-platforms { display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap; margin: 4px 0 0; }
+.phone-platforms .fit-on .ptag { box-shadow: 0 0 0 2px var(--primary-tint-strong); }
+.phone-pick .ichip { max-width: 100%; white-space: normal; text-align: left; }
+
+/* phone cards: every chip the same height and one line, the firmware chip the same size as the others and always at the bottom */
+.phone-pick { display: flex; flex-direction: column; align-items: center; }
+.phone-pick .phone-facts, .phone-pick .phone-platforms { min-height: 26px; }
+.phone-pick .ichip, .phone-pick .ptag { height: 22px; box-sizing: border-box; padding-top: 0; padding-bottom: 0; font-size: 0.6875rem; line-height: 20px; white-space: nowrap; max-width: 100%; }
+.phone-pick .ichip > span { overflow: hidden; text-overflow: ellipsis; }
+.phone-pick .ichip .icon-svg, .phone-pick .ptag .pglyph { width: 13px; height: 13px; }
+.phone-pick > .ichip { margin-top: auto; }
+/* one size for all of them: the same width, centred, one under another (the cards line up with each other) */
+.phone-pick .ichip, .phone-pick .ptag { width: 136px; justify-content: center; }
+.phone-pick .phone-facts, .phone-pick .phone-platforms { flex-direction: column; gap: 4px; }
+.phone-pick .phone-platforms { min-height: 0; }
+/* compact cards: a slightly smaller picture, tighter chips (a card stays under ~330 px with three platforms and a firmware chip) */
+.phone-pick .phone-pick-skin { height: 120px; }
+.phone-pick .phone-facts, .phone-pick .phone-platforms { gap: 3px; }
+.phone-pick .ichip, .phone-pick .ptag { height: 20px; line-height: 18px; }
+.phone-preview.phone-pick { gap: 4px; }

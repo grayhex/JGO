@@ -47,6 +47,7 @@ export type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartia
 const jsonInit = (method: string, body: unknown): RequestInit => ({ method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 
 export const api = {
+  logout: () => req<{ ok: boolean }>('/api/auth/logout', jsonInit('POST', {})),
   health: () => req<HealthStatus>('/api/health'),
   login: (token: string) => req<{ ok: true }>('/api/auth/login', jsonInit('POST', { token })),
   games: () => req<GameMeta[]>('/api/games'),

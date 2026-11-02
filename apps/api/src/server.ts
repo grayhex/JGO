@@ -139,6 +139,22 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
   }
   const owner = 'default';
 
+  // Wrong tokens are slowed down: 10 failures a minute from one address, then 429 until the minute is over (a valid token never counts).
+  // Behind the bundled gateway every browser shares the gateway's address, so this limits guessing, not people who know the token.
+  const failures = new Map<string, { n: number; since: number }>();
+  const tooMany = (ip: string): number => {
+    const f = failures.get(ip);
+    if (!f) return 0;
+    if (Date.now() - f.since > 60_000) { failures.delete(ip); return 0; }
+    return f.n >= 10 ? Math.ceil((60_000 - (Date.now() - f.since)) / 1000) : 0;
+  };
+  const failed = (ip: string) => {
+    const f = failures.get(ip);
+    if (!f || Date.now() - f.since > 60_000) failures.set(ip, { n: 1, since: Date.now() });
+    else f.n++;
+    if (failures.size > 5000) for (const [k, v] of failures) if (Date.now() - v.since > 60_000) failures.delete(k);
+  };
+
   // --- security: Host/Origin checks (DNS rebinding + CSRF against a localhost API) and auth ---
   app.addHook('onRequest', async (req, reply) => {
     reply.header('X-Content-Type-Options', 'nosniff').header('Referrer-Policy', 'no-referrer').header('X-Frame-Options', 'DENY');
@@ -154,11 +170,19 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
     }
     if (!cfg.authToken) return;
     const url = req.url.split('?')[0]!;
-    if (url === '/api/health' || url === '/api/auth/login' || !url.startsWith('/api/')) return;
+    if (url === '/api/health' || url === '/api/auth/login' || url === '/api/auth/logout' || !url.startsWith('/api/')) return;
     const bearer = /^Bearer (.+)$/.exec(req.headers.authorization ?? '')?.[1];
     const ck = cookieOf(req);
     const ok = (bearer && safeEq(bearer, cfg.authToken)) || (ck && authCookie && safeEq(ck, authCookie));
-    if (!ok) return reply.code(401).send({ error: 'unauthorized', message: 'Authentication required' });
+    if (!ok) {
+      // a request without any credential is the browser asking whether it must sign in: not a guess
+      if (bearer) {
+        const wait = tooMany(req.ip);
+        if (wait) return reply.code(429).header('Retry-After', String(wait)).send({ error: 'too_many_attempts', message: `Too many wrong tokens. Try again in ${wait} s.` });
+        failed(req.ip);
+      }
+      return reply.code(401).send({ error: 'unauthorized', message: 'Authentication required' });
+    }
   });
 
   app.setErrorHandler((err: Error & { statusCode?: number; code?: string }, req, reply) => {
@@ -188,9 +212,17 @@ export async function buildApp(cfg: Config = loadConfig()): Promise<App> {
   app.post('/api/auth/login', async (req, reply) => {
     if (!cfg.authToken || !authCookie) return { ok: true };
     const t = (req.body as { token?: unknown } | null)?.token;
-    if (typeof t !== 'string' || !safeEq(t, cfg.authToken)) return reply.code(401).send({ error: 'unauthorized', message: 'Wrong token' });
+    const wait = tooMany(req.ip);
+    if (wait) return reply.code(429).header('Retry-After', String(wait)).send({ error: 'too_many_attempts', message: `Too many wrong tokens. Try again in ${wait} s.` });
+    if (typeof t !== 'string' || !safeEq(t, cfg.authToken)) { failed(req.ip); return reply.code(401).send({ error: 'unauthorized', message: 'Wrong token' }); }
     const secure = req.protocol === 'https' ? '; Secure' : '';
     reply.header('Set-Cookie', `${COOKIE}=${authCookie}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000${secure}`);
+    return { ok: true };
+  });
+
+  app.post('/api/auth/logout', async (req, reply) => {
+    const secure = req.protocol === 'https' ? '; Secure' : '';
+    reply.header('Set-Cookie', `${COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${secure}`);
     return { ok: true };
   });
 

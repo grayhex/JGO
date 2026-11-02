@@ -118,9 +118,6 @@
 .scan-summary { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--outline); border-radius: var(--r-md); background: var(--surface-soft); }
 .lib-more { border-top: 1px solid var(--outline); padding-top: 12px; }
 .lib-more > summary { color: var(--muted); }
-.platform-icon { display: block; flex: none; }
-.platform-icon.cover { border-radius: 10px; object-fit: cover; }
-.platform-icon.banner { width: auto; object-fit: contain; }
 .folder-picker .crumbs { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .folder-picker .crumb-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .folder-list.pick { max-height: 260px; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
@@ -140,7 +137,6 @@
 .phone-card > img { height: 96px; width: auto; max-width: 100%; object-fit: contain; }
 .phone-card strong { font-size: 0.8125rem; line-height: 1.2; }
 .phone-platforms { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
-.phone-platforms .platform-icon.cover { border-radius: 5px; }
 .phone-tick { position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border-radius: 50%; background: var(--primary); color: var(--on-primary); display: grid; place-items: center; font-size: 0.75rem; font-weight: 800; }
 .role-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
 .role-title { display: inline-flex; align-items: center; gap: 8px; }
@@ -152,3 +148,7 @@
 .state-art { width: min(300px, 70%); height: auto; justify-self: center; opacity: 0.95; }
 /* these two are one column even on wide screens */
 .settings-section > .stack.lib-folders, .settings-section > .stack.my-phones, .settings-section .stack.fw-setup { grid-template-columns: minmax(0, 1fr); }
+
+.lib-glyph { --plat: var(--primary); width: 44px; height: 44px; display: grid; place-items: center; border-radius: 12px; color: var(--plat); background: color-mix(in srgb, var(--plat) 14%, transparent); border: 1px solid color-mix(in srgb, var(--plat) 40%, transparent); }
+.phone-card .phone-platforms { margin-top: 2px; }
+.native-platform { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

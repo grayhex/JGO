@@ -127,4 +127,14 @@ describe('gateway (nginx) and large uploads', { skip: nginxBin ? false : 'nginx 
     const r = await fetch(`${gw}/api/library/cleanup`, { method: 'POST', headers: { 'content-type': 'application/json' }, body });
     assert.equal(r.status, 413);
   });
+
+  it('text is compressed on the way out (the preset list is several KB of JSON), and a client that does not ask gets it plain', async () => {
+    const r = await fetch(`${gw}/api/devices`, { headers: { 'accept-encoding': 'gzip' } });
+    assert.equal(r.status, 200);
+    assert.equal(r.headers.get('content-encoding'), 'gzip');
+    assert.match(r.headers.get('vary') ?? '', /Accept-Encoding/i);
+    assert.ok(Array.isArray((await r.json()).presets), 'and it decodes to the same JSON');
+    const plain = await fetch(`${gw}/api/devices`, { headers: { 'accept-encoding': 'identity' } });
+    assert.equal(plain.headers.get('content-encoding'), null);
+  });
 });

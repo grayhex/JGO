@@ -6,7 +6,7 @@ import { setServerSettings, useServerSettings } from '../serverSettings';
 import { FirmwareSetup } from './FirmwareSetup';
 import { LibraryFolders } from './LibraryFolders';
 import { currentPhones, missingRoles, MyPhones, PHONE_ROLES } from './MyPhones';
-import { PlatformIcon } from './PlatformIcon';
+import { PlatformTag } from './PlatformTag';
 import { MobyPanel } from './Moby';
 import { Modal } from './Modal';
 import { SoundControlsForm, SystemChecks } from './SettingsForms';
@@ -98,7 +98,7 @@ export function SetupWizard({ toast, onClose, onFinished }: { toast: Toaster; on
             <h3>{translateUI("All set")}</h3>
             <ul className="plain-list">
               <li>{translateUI("Game folders:")} <strong>{hasLibrary ? [paths?.j2me ?? server?.settings.libraryPath ? 'Java ME' : '', paths?.ngage ? 'N-Gage' : '', paths?.symbian ? 'Symbian' : ''].filter(Boolean).join(', ') : translateUI('not used (uploads only)')}</strong></li>
-              {phones && PHONE_ROLES.map((r) => <li key={r.platform}><PlatformIcon platform={r.platform} size={16} /> {r.title}: <strong>{phones.defaults[r.platform]?.replace(/-/g, ' ') ?? '—'}</strong></li>)}
+              {phones && PHONE_ROLES.map((r) => <li key={r.platform}><PlatformTag platform={r.platform} size="sm" /> <strong>{phones.defaults[r.platform]?.replace(/-/g, ' ') ?? '—'}</strong></li>)}
               <li>{translateUI("MobyGames:")} <strong>{translateUI(hasKey ? 'API key saved' : 'not used')}</strong></li>
             </ul>
             {hasLibrary && <label className="switch-line"><input type="checkbox" checked={scanNow} onChange={(e) => setScanNow(e.target.checked)} /><span>{translateUI("Import the games from the folder now")}{translateUI(hasKey ? ' and look them up on MobyGames' : '')}</span></label>}

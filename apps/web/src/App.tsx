@@ -100,6 +100,10 @@ export function App() {
     return () => { dead = true; clearTimeout(timer); };
   }, [ready, needLogin]);
 
+  // an address that is not a page (a mistyped link, an old bookmark) goes to the library instead of showing it under a wrong URL
+  const knownPath = path === '/' || /^\/play\/[0-9a-f]{16}\/?$/.test(path) || /^\/(phones|settings)\/?$/.test(path) || path === '/phones/lab';
+  useEffect(() => { if (ready && !needLogin && !knownPath) go('/', true); }, [ready, needLogin, knownPath, go]);
+
   if (needLogin) return <Login onDone={() => { setNeedLogin(false); void refreshHealth(); void boot(); }} />;
   if (!ready) return null;
 

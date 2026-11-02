@@ -52,10 +52,13 @@
 .lights-out .skin-lcd { background:#000;box-shadow:none; }
 .lights-out .stage-foot { display:none;background:#010203;border:0; }
 .lights-out.touch-controls .stage-foot { display:grid;position:absolute;bottom:0;left:0;right:0;z-index:10;opacity:.85;max-height:45dvh;overflow:auto; }
-.lights-hud { position:absolute;right:12px;top:max(12px,env(safe-area-inset-top));z-index:30;display:flex;gap:8px; }
+.lights-hud { position:fixed;right:max(12px,env(safe-area-inset-right));top:max(12px,env(safe-area-inset-top));z-index:1001;display:grid;justify-items:end;gap:6px; }
+.lights-menu { display:grid;gap:4px;padding:6px;border:1px solid #1f2a31;border-radius:12px;background:#0b1114;box-shadow:0 12px 32px rgba(0,0,0,.6);min-width:220px; }
+.lights-menu .btn { justify-content:flex-start;gap:10px;background:#101519;width:100%; }
+.lights-menu kbd, .lights-menu .menu-state { margin-left:auto;color:#7f9aa6;font:inherit;font-size:.75rem; }
 .lights-hud .btn { background:#101519;color:#d6e2e8; }
 .lights-out:not(.hud-awake) { cursor:none; }
-.lights-out:not(.hud-awake) .lights-hud .transient { opacity:0;pointer-events:none; }
+.lights-out:not(.hud-awake) .lights-hud .lights-opts { opacity:.35; }
 .lights-hud .btn { transition:opacity .3s; }
 @media(prefers-reduced-motion:reduce){.lights-out *{transition:none!important;}}
 

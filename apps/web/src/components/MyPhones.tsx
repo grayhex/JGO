@@ -1,11 +1,11 @@
 import { t as translateUI } from '../i18n';
 import { PHONE_SKIN_IDS, profilesForSkin, skinSupportsPlatform, type GamePlatform, type PhoneSkinId, type PublicSettings } from '@mgo/protocol';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { api } from '../api';
-import { setServerSettings, useServerSettings } from '../serverSettings';
+import { getServerSettings, setServerSettings, useServerSettings } from '../serverSettings';
 import { useCatalog } from '../skin/registry';
 import { Hint } from './ui';
-import { PlatformIcon } from './PlatformIcon';
+import { PlatformTag } from './PlatformTag';
 
 type Toaster = (kind: 'info' | 'error', text: string) => void;
 
@@ -66,8 +66,19 @@ export function MyPhones({ toast, wizard = false }: { toast: Toaster; wizard?: b
   if (!server || !view) return <p className="muted">{translateUI('Loading…')}</p>;
   const { mine, defaults } = view;
   const missing = missingRoles(server.settings);
-  const run = (mineNext: PhoneSkinId[], d?: Partial<Record<PhoneRole, PhoneSkinId | null>>) => savePhones(server.settings, mineNext, d).then(setServerSettings, (e) => toast('error', (e as Error).message));
-  const toggle = (id: PhoneSkinId) => void run(mine.includes(id) ? mine.filter((x) => x !== id) : PHONE_SKIN_IDS.filter((x) => x === id || mine.includes(x)));
+  // Clicks come faster than the server answers: each one builds on the selection of the click before it (not on what was last saved),
+  // and the saves go one after another, so two quick clicks never undo each other.
+  const latest = useRef<PhoneSkinId[] | null>(null);
+  const chain = useRef<Promise<unknown>>(Promise.resolve());
+  const current = () => latest.current ?? mine;
+  const run = (mineNext: PhoneSkinId[], d?: Partial<Record<PhoneRole, PhoneSkinId | null>>) => {
+    latest.current = mineNext;
+    chain.current = chain.current
+      .then(() => savePhones(getServerSettings()!.settings, mineNext, d))
+      .then(setServerSettings, (e) => toast('error', (e as Error).message))
+      .finally(() => { if (latest.current === mineNext) latest.current = null; });
+  };
+  const toggle = (id: PhoneSkinId) => { const cur = current(); run(cur.includes(id) ? cur.filter((x) => x !== id) : PHONE_SKIN_IDS.filter((x) => x === id || cur.includes(x))); };
   const label = (id: PhoneSkinId) => { const s = skins?.find((k) => k.config.id === id); return s ? `${s.config.manufacturer} ${s.config.model}` : id; };
 
   return (
@@ -83,7 +94,7 @@ export function MyPhones({ toast, wizard = false }: { toast: Toaster; wizard?: b
               <img src={`/phones/${id}/${skin?.config.assets.preview ?? 'preview.webp'}`} alt="" loading="lazy" draggable={false} />
               <strong>{skin?.config.model ?? id}</strong>
               <span className="muted small">{skin?.config.manufacturer ?? ''}</span>
-              <span className="phone-platforms">{SHOWN.filter((p) => supports(id, p)).map((p) => <PlatformIcon key={p} platform={p} size={20} />)}</span>
+              <span className="phone-platforms">{SHOWN.filter((p) => supports(id, p)).map((p) => <PlatformTag key={p} platform={p} size="sm" />)}</span>
               {on && <span className="phone-tick" aria-hidden="true">✓</span>}
             </button>
           );
@@ -100,8 +111,8 @@ export function MyPhones({ toast, wizard = false }: { toast: Toaster; wizard?: b
           const fits = mine.filter((id) => supports(id, r.platform));
           return (
             <label className="field role" key={r.platform}>
-              <span className="label-caps role-title"><PlatformIcon platform={r.platform} size={22} /> {translateUI(r.title)} <Hint text={r.hint} /></span>
-              <select className="select" value={defaults[r.platform] ?? ''} disabled={fits.length === 0} aria-label={translateUI(`Phone for ${r.title}`)} data-testid={`default-phone-${r.platform}`} onChange={(e) => void run(mine, { [r.platform]: e.target.value as PhoneSkinId })}>
+              <span className="label-caps role-title"><PlatformTag platform={r.platform} /> <Hint text={r.hint} /></span>
+              <select className="select" value={defaults[r.platform] ?? ''} disabled={fits.length === 0} aria-label={translateUI(`Phone for ${r.title}`)} data-testid={`default-phone-${r.platform}`} onChange={(e) => run(current(), { [r.platform]: e.target.value as PhoneSkinId })}>
                 {fits.length === 0 && <option value="">{translateUI('— choose a phone above —')}</option>}
                 {fits.map((id) => <option key={id} value={id}>{label(id)}{fits.length > 1 && id === defaults[r.platform] ? ` · ${translateUI('default')}` : ''}</option>)}
               </select>

@@ -94,4 +94,3 @@
 @media (max-width: 860px) { .shell-collapsed .brand-logo { display: block; } .shell-collapsed .brand-mark-img { display: none; } }
 .act-icon { display: block; flex: none; }
 .btn .act-icon { margin-right: -2px; }
-.platform-icon.inline { display: inline-block; vertical-align: middle; border-radius: 4px; }
