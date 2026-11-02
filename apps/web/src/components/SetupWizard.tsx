@@ -3,20 +3,23 @@ import type { SystemStatus } from '@mgo/protocol';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
 import { setServerSettings, useServerSettings } from '../serverSettings';
-import { LibrarySource } from './LibrarySource';
+import { FirmwareSetup } from './FirmwareSetup';
+import { LibraryFolders } from './LibraryFolders';
+import { currentPhones, missingRoles, MyPhones, PHONE_ROLES } from './MyPhones';
+import { PlatformIcon } from './PlatformIcon';
 import { MobyPanel } from './Moby';
 import { Modal } from './Modal';
-import { PhoneDefaultsForm, ServerForm, SoundControlsForm, SystemChecks } from './SettingsForms';
+import { SoundControlsForm, SystemChecks } from './SettingsForms';
 
 type Toaster = (kind: 'info' | 'error', text: string) => void;
 
 const STEPS = [
   { id: 'welcome', title: 'Welcome' },
-  { id: 'library', title: 'Game library' },
-  { id: 'mobygames', title: 'MobyGames' },
-  { id: 'phone', title: 'Default phone' },
-  { id: 'sound', title: 'Sound & controls' },
-  { id: 'server', title: 'Server' },
+  { id: 'library', title: 'Games' },
+  { id: 'phones', title: 'Phones' },
+  { id: 'firmware', title: 'Firmware' },
+  { id: 'mobygames', title: 'Covers' },
+  { id: 'sound', title: 'Sound' },
   { id: 'done', title: 'Finish' },
 ] as const;
 
@@ -33,14 +36,17 @@ export function SetupWizard({ toast, onClose, onFinished }: { toast: Toaster; on
   const loadStatus = useCallback(() => { setStatus(null); api.systemStatus().then(setStatus, () => setStatus({ version: '?', checks: [], storage: { totalBytes: 0, freeBytes: 0, libraryBytes: 0, quotaBytes: 0 } })); }, []);
   useEffect(() => { loadStatus(); }, [loadStatus]);
 
-  const hasLibrary = !!server?.settings.libraryPath;
+  const paths = server?.settings.libraryPaths;
+  const hasLibrary = !!server?.settings.libraryPath || !!(paths?.j2me || paths?.ngage || paths?.symbian);
+  const missing = server ? missingRoles(server.settings) : [];
+  const phones = server ? currentPhones(server.settings) : null;
   const hasKey = server?.secrets.mobygames.configured ?? false;
   const finish = async () => {
     try {
       await api.setupAction('complete');
       const s = await api.settings();
       setServerSettings(s);
-      onFinished(scanNow && !!s.settings.libraryPath);
+      onFinished(scanNow && (!!s.settings.libraryPath || Object.values(s.settings.libraryPaths ?? {}).some(Boolean)));
     } catch (e) { toast('error', (e as Error).message); }
   };
   const skip = async () => {
@@ -51,7 +57,7 @@ export function SetupWizard({ toast, onClose, onFinished }: { toast: Toaster; on
   return (
     <Modal title={translateUI("Set up MGO")} onClose={() => void skip()} wide>
       <ol className="steps" aria-label={translateUI("Setup steps")}>
-        {STEPS.map((s, n) => <li key={s.id} className={n === i ? 'on' : n < i ? 'past' : ''} aria-current={n === i ? 'step' : undefined}><span>{n + 1}</span> {s.title}</li>)}
+        {STEPS.map((s, n) => <li key={s.id} className={n === i ? 'on' : n < i ? 'past' : ''} aria-current={n === i ? 'step' : undefined}><span>{n + 1}</span> {translateUI(s.title)}</li>)}
       </ol>
       <div className="wizard-body" data-step={step.id}>
         {step.id === 'welcome' && (
@@ -64,8 +70,20 @@ export function SetupWizard({ toast, onClose, onFinished }: { toast: Toaster; on
         {step.id === 'library' && (
           <div className="stack">
             <h3>{translateUI("Where are your games?")}</h3>
-            <p>{translateUI("Point MGO at a folder with")} <code>{translateUI(".jar")}</code>/<code>{translateUI(".jad")}</code> {translateUI("files (searched recursively), shared read-only with the container. Or skip this and upload games from the browser.")}</p>
-            <LibrarySource toast={toast} saveLabel="Use this folder" />
+            <p>{translateUI("Choose a folder for each kind of games you have: Java ME (.jar), N-Gage and Symbian (.sis). MGO only reads them. Skip a kind you do not have, or upload games from the browser instead.")}</p>
+            <LibraryFolders toast={toast} wizard />
+          </div>
+        )}
+        {step.id === 'phones' && (
+          <div className="stack">
+            <h3>{translateUI("Your phones")}</h3>
+            <MyPhones toast={toast} wizard />
+          </div>
+        )}
+        {step.id === 'firmware' && (
+          <div className="stack">
+            <h3>{translateUI("Firmware for Symbian and N-Gage")}</h3>
+            <FirmwareSetup toast={toast} />
           </div>
         )}
         {step.id === 'mobygames' && (
@@ -74,26 +92,14 @@ export function SetupWizard({ toast, onClose, onFinished }: { toast: Toaster; on
             <MobyPanel toast={toast} />
           </div>
         )}
-        {step.id === 'phone' && (
-          <div className="stack">
-            <h3>{translateUI("Your usual phone")}</h3>
-            <PhoneDefaultsForm toast={toast} auto />
-          </div>
-        )}
         {step.id === 'sound' && <SoundControlsForm toast={toast} auto />}
-        {step.id === 'server' && (
-          <div className="stack">
-            <h3>{translateUI("Server limits")}</h3>
-            <ServerForm toast={toast} auto />
-          </div>
-        )}
         {step.id === 'done' && (
           <div className="stack">
             <h3>{translateUI("All set")}</h3>
             <ul className="plain-list">
-              <li>{translateUI("Game library folder:")} <strong>{translateUI(hasLibrary ? server?.settings.libraryPath : 'not used (uploads only)')}</strong></li>
+              <li>{translateUI("Game folders:")} <strong>{hasLibrary ? [paths?.j2me ?? server?.settings.libraryPath ? 'Java ME' : '', paths?.ngage ? 'N-Gage' : '', paths?.symbian ? 'Symbian' : ''].filter(Boolean).join(', ') : translateUI('not used (uploads only)')}</strong></li>
+              {phones && PHONE_ROLES.map((r) => <li key={r.platform}><PlatformIcon platform={r.platform} size={16} /> {r.title}: <strong>{phones.defaults[r.platform]?.replace(/-/g, ' ') ?? '—'}</strong></li>)}
               <li>{translateUI("MobyGames:")} <strong>{translateUI(hasKey ? 'API key saved' : 'not used')}</strong></li>
-              <li>{translateUI("Default phone:")} <strong>{server?.settings.phone.skinId.replace(/-/g, ' ')}</strong>, {server?.settings.phone.width}×{server?.settings.phone.height}</li>
             </ul>
             {hasLibrary && <label className="switch-line"><input type="checkbox" checked={scanNow} onChange={(e) => setScanNow(e.target.checked)} /><span>{translateUI("Import the games from the folder now")}{translateUI(hasKey ? ' and look them up on MobyGames' : '')}</span></label>}
           </div>
@@ -104,7 +110,7 @@ export function SetupWizard({ toast, onClose, onFinished }: { toast: Toaster; on
         <span className="spacer" />
         {i > 0 && <button className="btn" type="button" onClick={() => setI(i - 1)}>{translateUI("Back")}</button>}
         {step.id !== 'done'
-          ? <button className="btn primary" type="button" onClick={() => setI(i + 1)}>{translateUI(step.id === 'welcome' ? 'Start' : 'Next')}</button>
+          ? <button className="btn primary" type="button" disabled={step.id === 'phones' && missing.length > 0} onClick={() => setI(i + 1)} data-testid="wizard-next">{translateUI(step.id === 'welcome' ? 'Start' : step.id === 'firmware' ? 'Next / skip' : 'Next')}</button>
           : <button className="btn primary" type="button" onClick={() => void finish()}>{translateUI("Finish")}</button>}
       </div>
     </Modal>

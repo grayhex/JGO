@@ -1,6 +1,7 @@
 import { getLastGame, setLastGame } from '../lastGame';
 import { t as translateUI } from '../i18n';
-import { GAME_PLATFORM_LABELS, SCREEN_PRESETS, KEY_LAYOUTS, type GameMeta, type GameSettings, type LayoutId } from '@mgo/protocol';
+import { PlatformIcon } from './PlatformIcon';
+import { SCREEN_PRESETS, KEY_LAYOUTS, type GameMeta, type GameSettings, type LayoutId } from '@mgo/protocol';
 import { useState } from 'react';
 import { api } from '../api';
 import type { Toast } from '../App';
@@ -36,7 +37,7 @@ export function GameSettingsDialog({ game, toast, onClose, onChanged }: { game: 
         <span className="hint">{translateUI("The title applies to every version of the game.")}</span>
       </div>
       <dl className="facts">
-        <dt>{translateUI("Game platform")}</dt><dd>{GAME_PLATFORM_LABELS[game.platform ?? 'j2me']}</dd>
+        <dt>{translateUI("Game platform")}</dt><dd><PlatformIcon platform={game.platform ?? 'j2me'} variant="banner" size={24} /></dd>
         <dt>{translateUI("Vendor")}</dt><dd>{game.vendor}</dd>
         <dt>{translateUI("Version")}</dt><dd>{game.version || '—'}</dd>
         <dt>{translateUI("Size")}</dt><dd>{(game.sizeBytes / 1024).toFixed(0)} {j2me ? <>{translateUI("KB · class v")}{game.classVersion || '?'} · {translateUI(game.hasJad ? 'with JAD' : 'no JAD')}</> : translateUI("KB")}</dd>

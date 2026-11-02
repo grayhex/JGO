@@ -5,6 +5,16 @@ Formatted after [Keep a Changelog](https://keepachangelog.com/); versions follow
 
 ## [Unreleased]
 
+### Fixed
+- **N-Gage games were not recognised** from the All About Symbian directory. The matcher compared whole normalised titles, so any dump-style file name (`Asphalt Urban GT (E)`, `Tony Hawk's Pro Skater (Europe)`, `Ghost Recon - Jungle Storm`) stayed unrecognised, and everything depended on the server reaching the site (the app container has no internet; a failed request left nothing and no reason). Now the list of the 64 released games ships with MGO, so a game is recognised and gets its genre offline; titles are matched ignoring region/version tags, the word N-Gage, Roman numerals and a missing brand (never guessing between two candidates, a sequel never replaces the first game); redirects are followed only to the fixed catalog pages; one failing game page no longer stops the others; *Settings → Game metadata* shows "N of M recognised", the unrecognised names and the reason covers are missing.
+
+### Changed
+- **Game library settings in three rows** (Java ME, N-Gage, Symbian S60): choose a folder (picker limited to the shared locations, shows what is inside), *Scan* and *Clear* per kind, *Scan all*. The long accordion with typed paths, access checks and separate scan/cleanup/genre blocks is gone (missing files, "empty everything" and genres moved into *More*). `compose.yaml` mounts one optional library folder; the library path is no longer needed in the configuration. New API: `POST /api/library/scan {kinds}`, `POST /api/library/cleanup {what: "kind", kind}`.
+- **My phones.** The first-run wizard and *Settings → My phones* let you pick the phones you play on from the catalog (at least one for Java ME, Symbian S60 and N-Gage) and which one starts each kind; the pickers show only these (`settings.myPhones`). The wizard has a firmware step for the chosen Symbian and N-Gage phones (skippable); firmware upload moved out of a settings-only place into a reusable component. The wizard's server-limits step was dropped (still in Settings → Server).
+- **Library**: the list is the default view (tiles are optional); the genre filter is a drop-down; platforms are shown as the kit's pictures (also as the filter and as the cover placeholder) instead of text.
+- **Player**: opening a game of another kind switches to a suitable phone (a Java game without its own phone starts on the Java default); when the current phone can run the game but another of your phones shows it better (Java: the screen the game was made for; Symbian/N-Gage: a larger screen with firmware installed) there is a reminder with a one-click switch. The Audio panel moved up, under Session.
+- **MGO graphics kit** (WattVision): logo and favicon, login illustration and token shield, play/stop/restart icons, empty-library illustration; platform pictures (Java ME, N-Gage, N-Gage 2.0, Symbian S60 3rd Edition) on phone cards, in the library, in settings and in the Symbian panel.
+
 ### Changed
 - Complete MGO naming for images, CLI, services, configuration and documentation; migration notes preserve access to existing data.
 - HTTPS gateway with persistent certificates, HTTP redirect, WSS and streamed large uploads.

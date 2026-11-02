@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96" role="img" aria-label="Protected access token">
+<title>Protected access token</title><desc>Protected access token</desc><defs><linearGradient id="cyan" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#5CF0FF"/><stop offset="1" stop-color="#00B8CC"/></linearGradient>
+<linearGradient id="glass" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#293D48"/><stop offset=".42" stop-color="#101923"/><stop offset="1" stop-color="#080E15"/></linearGradient>
+<linearGradient id="phone" x1="0" x2="1" y1="0" y2=".4"><stop stop-color="#5C6C75"/><stop offset=".28" stop-color="#1A2730"/><stop offset=".85" stop-color="#10171D"/><stop offset="1" stop-color="#4B5A62"/></linearGradient>
+<linearGradient id="lcd" x1="0" x2=".8" y1="0" y2="1"><stop stop-color="#195B65"/><stop offset="1" stop-color="#06161F"/></linearGradient>
+<radialGradient id="halo"><stop stop-color="#00E5FF" stop-opacity=".20"/><stop offset=".65" stop-color="#00E5FF" stop-opacity=".05"/><stop offset="1" stop-color="#00E5FF" stop-opacity="0"/></radialGradient>
+<pattern id="dots" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1" fill="#00E5FF" opacity=".15"/></pattern>
+<filter id="soft"><feGaussianBlur stdDeviation="9"/></filter>
+</defs><path d="M48 8L78 19v25c0 23-12 38-30 46C30 82 18 67 18 44V19z" fill="#0F2F35" stroke="#00E5FF" stroke-width="3"/>
+<path d="M48 17L69 25v19c0 16-8 27-21 34-13-7-21-18-21-34V25z" fill="#12242B" stroke="#3299A6" stroke-width="1.2"/>
+<path d="M37 42v-7c0-7 5-11 11-11s11 4 11 11v7" fill="none" stroke="#5CF0FF" stroke-width="4" stroke-linecap="round"/>
+<rect x="33" y="40" width="30" height="25" rx="5" fill="#00E5FF"/>
+<circle cx="48" cy="50" r="3.5" fill="#06323A"/><path d="M48 52v6" stroke="#06323A" stroke-width="3" stroke-linecap="round"/>
+<circle cx="76" cy="17" r="4" fill="#32D74B"/></svg>

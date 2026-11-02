@@ -26,8 +26,10 @@ function Login({ onDone }: { onDone: () => void }) {
   return (
     <div className="login">
       <div className="login-hero"><Seg<'en' | 'ru'> label="Language / Язык" value={locale} onChange={setLocale} options={[{ value: 'en', label: 'EN', title: 'English' }, { value: 'ru', label: 'RU', title: 'Русский' }]} />
-        <h1>{translateUI("MGO")}</h1>
-        <p>{translateUI("Your Java ME games, played by the real KEmulator on this server and streamed to any browser.")}</p>
+        <img className="login-logo" src="/graphics/brand/logo-horizontal.svg" alt="" />
+        <h1 className="sr-only">{translateUI("MGO")}</h1>
+        <p>{translateUI("Your Java ME, Symbian and N-Gage games, played in real emulators on this server and streamed to any browser.")}</p>
+        <img className="login-art" src="/graphics/auth/login-hero.svg" alt="" />
       </div>
       <div className="login-side">
         <form
@@ -38,6 +40,7 @@ function Login({ onDone }: { onDone: () => void }) {
             try { await api.login(token); onDone(); } catch (x) { setErr((x as Error).message); } finally { setBusy(false); }
           }}
         >
+          <img className="login-shield" src="/graphics/auth/token-shield.svg" alt="" width={56} height={56} />
           <h2>{translateUI("Sign in")}</h2>
           <p className="muted">{translateUI("This server requires an access token. On a Proxmox install run")} <code>{translateUI("mgo token")}</code> {translateUI("in the container.")}</p>
           <input className="input" type="password" autoFocus placeholder={translateUI("Access token")} value={token} onChange={(e) => setToken(e.target.value)} aria-label={translateUI("Access token")} />

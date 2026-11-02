@@ -520,6 +520,12 @@ export class Library {
     this.db.exec('DELETE FROM scans');
   }
 
+  /** The games of one kind of folder: Java ME, N-Gage (1.0 and 2.0) or Symbian. */
+  idsOfKind(kind: 'j2me' | 'ngage' | 'symbian'): string[] {
+    const platforms = kind === 'ngage' ? ['ngage', 'ngage2'] : [kind];
+    return this.list().filter((g) => platforms.includes(g.platform ?? 'j2me')).map((g) => g.id);
+  }
+
   allIds(): string[] {
     return (this.db.prepare('SELECT id FROM games').all() as unknown as { id: string }[]).map((r) => r.id);
   }

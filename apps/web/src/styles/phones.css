@@ -59,3 +59,10 @@
 .phone-firmware .dot { display: inline-block; margin-right: 4px; width: 6px; height: 6px; }
 .phones-intro { max-width: 920px; }
 @media(max-width: 420px) { .phones-models { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; } .phone-pick .phone-pick-skin { height: 140px; } }
+
+/* platform pictures on the phone cards */
+.plat-chip { display: inline-flex; padding: 2px; border-radius: 9px; border: 2px solid transparent; opacity: 0.85; }
+.plat-chip.on { border-color: var(--primary); opacity: 1; box-shadow: 0 0 0 2px var(--primary-tint-strong); }
+.phone-platforms { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.phones-filter { margin: 6px 0 12px; }
+.my-phone { margin-left: 4px; }

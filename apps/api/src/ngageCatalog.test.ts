@@ -38,6 +38,55 @@ it('caches catalog facts and covers, leaves manual genres intact, and never enri
     await catalog.refresh(); assert.equal(calls.length, 3, 'fresh cache does not contact the source again');
     const offline = new NgageCatalog(library, dir, async () => { throw new Error('offline'); });
     assert.equal(offline.enrich(game).ngageInfo?.year, 2004);
-    await offline.refresh(true); assert.equal(offline.status().error, 'offline'); assert.equal(offline.enrich(game).ngageInfo?.hasCover, true);
+    await offline.refresh(true); assert.match(offline.status().error ?? '', /cannot be reached.*\(offline\)/s); assert.equal(offline.enrich(game).ngageInfo?.hasCover, true);
+  } finally { library.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
+it('recognises dump-style file names (region tags, missing brand, Roman numerals) and never guesses between candidates', () => {
+  const entries = [
+    ["Tom Clancy's Ghost Recon: Jungle Storm", 'Shooter'], ['Asphalt: Urban GT', 'Racing'], ['Asphalt: Urban GT 2', 'Racing'], ["Tony Hawk's Pro Skater", 'Sports'],
+    ['X-Men Legends II: Rise of Apocalypse', 'RPG'], ['FIFA Football 2004', 'Sports'], ['FIFA Football 2005', 'Sports'], ['Pathway to Glory', 'Strategy'], ['Pathway to Glory: Ikusa Islands', 'Strategy'], ['The Sims Bustin\' Out', 'Simulation'],
+  ].map(([title, genre]) => ({ title: title!, genre: genre!, url: 'https://allaboutsymbian.com/n-gage-games/original/item/x.php', publisher: '', year: null, cover: null }));
+  const m = (name: string) => matchAas(name, entries)?.title ?? null;
+  assert.equal(m('Asphalt Urban GT (E).zip'), 'Asphalt: Urban GT');
+  assert.equal(m('Asphalt Urban GT 2 [!].zip'), 'Asphalt: Urban GT 2');
+  assert.equal(m("Tony Hawk's Pro Skater (Europe) (En,Fr,De)"), "Tony Hawk's Pro Skater");
+  assert.equal(m('Ghost Recon - Jungle Storm'), "Tom Clancy's Ghost Recon: Jungle Storm");
+  assert.equal(m('X-Men Legends 2'), 'X-Men Legends II: Rise of Apocalypse');
+  assert.equal(m('Sims Bustin Out'), "The Sims Bustin' Out");
+  assert.equal(m('FIFA 2004'), 'FIFA Football 2004');
+  assert.equal(m('Pathway to Glory (N-Gage)'), 'Pathway to Glory');
+  assert.equal(m('FIFA'), null, 'one word is not enough');
+  assert.equal(m('Asphalt Urban'), null, 'two candidates: no guess');
+  assert.equal(m('Something Else Entirely'), null);
+});
+it('recognises games and fills their genre from the shipped list when the source cannot be reached, and says why covers are missing', async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'mgo-aas-'));
+  const library = new Library(dir);
+  try {
+    const game = library.addPackage(Buffer.from('PK\x03\x04 synthetic'), 'Pandemonium! (E).zip', 'ngage', 100000).game;
+    const unknown = library.addPackage(Buffer.from('PK\x03\x04 other'), 'Not In The Directory.zip', 'ngage', 100000).game;
+    const offline = new NgageCatalog(library, dir, async () => { throw new TypeError('fetch failed'); });
+    assert.equal(offline.enrich(library.get(game.id)!).ngageInfo?.title, 'Pandemonium!', 'recognised without any network');
+    assert.equal(library.get(game.id)!.classification?.primaryGenre, 'Platformer');
+    await offline.refresh(true);
+    const status = offline.status();
+    assert.match(status.error ?? '', /cannot be reached.*still recognised/s);
+    assert.equal(status.source, 'snapshot');
+    assert.deepEqual(status.unmatched, [library.get(unknown.id)!.name]);
+    assert.equal(status.matched, 1);
+    assert.equal(offline.enrich(library.get(game.id)!).ngageInfo?.hasCover, false);
+  } finally { library.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+it('follows only redirects that stay on the fixed catalog pages', async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'mgo-aas-'));
+  const library = new Library(dir);
+  try {
+    const urls: string[] = [];
+    const client: typeof fetch = async input => { const url = String(input); urls.push(url); if (url.endsWith('/original/')) return new Response(null, { status: 302, headers: { location: 'https://evil.example/n-gage-games/original/' } }); return new Response('x'); };
+    const catalog = new NgageCatalog(library, dir, client);
+    await catalog.refresh(true);
+    assert.deepEqual(urls, ['https://allaboutsymbian.com/n-gage-games/original/']);
+    assert.match(catalog.status().error ?? '', /Unsupported catalog URL/);
   } finally { library.close(); rmSync(dir, { recursive: true, force: true }); }
 });

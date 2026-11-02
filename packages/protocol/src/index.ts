@@ -220,6 +220,8 @@ export interface PublicSettings {
   libraryPath: string | null;
   libraryPaths?: { j2me: string | null; ngage: string | null; symbian: string | null };
   nativePhones?: Partial<Record<'symbian' | 'ngage' | 'ngage2', PhoneSkinId | null>>;
+  /** The phones the owner picked from the whole catalog (the pickers show only these); null = not chosen yet, every phone is offered. */
+  myPhones?: PhoneSkinId[] | null;
   autoScan: boolean;
   /** Look the games up on MobyGames after a scan (only when a key is configured). */
   autoMetadata: boolean;

@@ -32,17 +32,17 @@ try {
   // ---- 1. the folder is imported as soon as it is chosen ----
   assert.equal((await games()).length, 0);
   await p.goto(base + '/settings#library');
-  const folder = p.locator('.source-folder').first();
-  if (await folder.getAttribute('open') === null) await folder.locator('summary').click();
-  await folder.locator('.root', { hasText: lib }).click();
-  await p.locator('.source-folder').first().getByRole('button', { name: 'Use this folder' }).click();
+  await p.getByTestId('choose-j2me').click();
+  const picker = p.getByRole('dialog', { name: /Folder for Java ME games/ });
+  await picker.getByTestId('folder-check').waitFor();
+  await picker.getByTestId('folder-use').click();
   await wait(async () => (await games()).length === 3, 'the 3 games were imported without pressing Scan');
   console.log('✔ choosing the library folder imports it by itself');
 
   // ---- 2. Settings: ten phones wrap inside the page ----
   await p.goto(base + '/settings#phone');
-  await p.locator('.skin-picker.wrap .skin-opt').first().waitFor();
-  const w = await p.evaluate(() => ({ doc: document.documentElement.scrollWidth, win: window.innerWidth, picker: document.querySelector('.skin-picker.wrap').getBoundingClientRect().width, settings: document.querySelector('.settings').getBoundingClientRect().width, count: document.querySelectorAll('.skin-picker.wrap .skin-opt').length }));
+  await p.locator('.phone-grid .phone-card').first().waitFor();
+  const w = await p.evaluate(() => ({ doc: document.documentElement.scrollWidth, win: window.innerWidth, picker: document.querySelector('.phone-grid').getBoundingClientRect().width, settings: document.querySelector('.settings').getBoundingClientRect().width, count: document.querySelectorAll('.phone-grid .phone-card').length }));
   assert.ok(w.doc <= w.win, `no horizontal scroll (${w.doc} > ${w.win})`);
   assert.ok(w.count >= 10, `${w.count} phones`);
   assert.ok(w.settings > 1100, `the settings page is wide (${w.settings}px)`);
@@ -51,16 +51,19 @@ try {
   // ---- 3. library list view ----
   await p.goto(base);
   await p.locator('.game-card').first().waitFor();
+  assert.equal(await p.locator('.lib-grid').getAttribute('data-view'), 'list', 'the list is the default');
+  await p.getByRole('radio', { name: 'Tiles' }).click();
   assert.equal(await p.locator('.lib-grid').getAttribute('data-view'), 'tiles');
+  await p.reload();
+  await p.locator('.game-card').first().waitFor();
+  assert.equal(await p.locator('.lib-grid').getAttribute('data-view'), 'tiles', 'tiles are remembered');
   await p.getByRole('radio', { name: 'List' }).click();
-  assert.equal(await p.locator('.lib-grid').getAttribute('data-view'), 'list');
   const rowH = await p.locator('.game-card').first().evaluate((e) => e.getBoundingClientRect().height);
   assert.ok(rowH < 80, `a list row is compact (${rowH}px)`);
   await p.reload();
   await p.locator('.game-card').first().waitFor();
   assert.equal(await p.locator('.lib-grid').getAttribute('data-view'), 'list');
-  await p.getByRole('radio', { name: 'Tiles' }).click();
-  console.log('✔ the library has a compact list view and remembers the choice');
+  console.log('✔ the library opens as a compact list; tiles are optional and remembered');
 
   // ---- 4. /phones: a click changes the phone of the game opened last; SE uses its own layout ----
   const g = (await games())[0];

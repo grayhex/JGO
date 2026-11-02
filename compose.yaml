@@ -30,7 +30,7 @@ services:
       # Optional override: MGO_TOKEN still works. Empty = auto-generate once in mgo-auth.
       TRUST_PROXY: "1"
       AAS_PROXY_URL: http://gateway:9090
-      LIBRARY_ROOTS: /mnt/mgo-library /mnt/mgo-java /mnt/mgo-ngage /mnt/mgo-sis
+      LIBRARY_ROOTS: /mnt/mgo-library
       AUTH_TOKEN: ${MGO_TOKEN:-}
       MGO_AUTH_DIR: /mgo-auth
       # The app listens on the private compose network only; the gateway below publishes it.
@@ -56,13 +56,10 @@ services:
       # Do not mount this from a NAS shared folder or delete it on upgrade.
       - mgo-auth:/mgo-auth
       - symbian-auth:/symbian-auth:ro
-      # EDIT THE LEFT-HAND PATH for your NAS: e.g. /volume1/games/j2me:/mnt/mgo-library:ro
-      # The default ./games is relative to this compose project; MGO only reads it.
-      # After deployment select /mnt/mgo-library in Settings > Game library.
+      # Your games, read-only. OPTIONAL: leave it as is and add games from the browser, or point MGO_LIBRARY at the folder
+      # that holds them (e.g. /volume1/games). Which sub-folder is Java ME, N-Gage or Symbian is chosen in the app
+      # (setup wizard / Settings > Game library): nothing else to configure here.
       - ${MGO_LIBRARY:-./games}:/mnt/mgo-library:ro
-      - ${MGO_JAVA_LIBRARY:-./games/java}:/mnt/mgo-java:ro
-      - ${MGO_NGAGE_LIBRARY:-./games/ngage}:/mnt/mgo-ngage:ro
-      - ${MGO_SIS_LIBRARY:-./games/sis}:/mnt/mgo-sis:ro
     networks: [internal, symbian]
     # --- hardening: the JAR is untrusted code ---
     # If /data is a NAS bind-mounted directory, grant this UID:GID write access

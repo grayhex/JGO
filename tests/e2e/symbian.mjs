@@ -66,7 +66,8 @@ try {
   const card = panel.getByTestId('device-RM-84');
   await card.getByRole('heading', { name: 'Nokia N70' }).waitFor();
   assert.match(await card.innerText(), /Symbian 8\.1a/);
-  assert.ok(await card.locator('img').count() === 1, 'a picture of the phone');
+  assert.ok(await card.locator('.sym-thumb img').count() === 1, 'a picture of the phone');
+  assert.ok(await card.locator('img.platform-icon').count() >= 1, 'what it runs is shown as pictures');
   // one installed device: every platform it can run is offered it automatically, those it cannot run say so
   const defaults = panel.getByTestId('defaults');
   assert.equal(await defaults.locator('select').count(), 3);
@@ -82,19 +83,19 @@ try {
   await p.goto(base + '/');
   await p.locator('input[type=file]').first().setInputFiles({ name: 'Space Impact (S60).sis', mimeType: 'application/octet-stream', buffer: Buffer.from('fake sis payload') });
   await p.locator('.game-card').first().waitFor();
-  assert.equal(await p.getByTestId('platform-badge').first().innerText(), 'S60');
+  assert.equal(await p.getByTestId('platform-badge').first().getAttribute('data-platform'), 'symbian');
   console.log('✔ a .sis is accepted; the card shows the S60 badge');
   const java = new FormData(); java.append('jar', new Blob([readFileSync('tests/fixtures/testmidlet/build/kemtest.jar')]), 'test.jar');
   await fetch(base + '/api/games', { method: 'POST', body: java });
   const n2 = new FormData(); n2.append('file', new Blob([Buffer.from('ngage two')]), 'Other.n-gage');
   await fetch(base + '/api/games', { method: 'POST', body: n2 });
   await p.reload();
-  await p.getByTestId('platform-filter').selectOption('ngage2');
+  await p.getByTestId('platform-filter').locator('button[data-platform="ngage2"]').click();
   await wait(async () => await p.locator('.game-card').count() === 1, 'N-Gage 2 filter');
-  assert.equal(await p.getByTestId('platform-badge').textContent(), 'N-Gage 2.0');
+  assert.equal(await p.getByTestId('platform-badge').getAttribute('data-platform'), 'ngage2');
   await p.reload();
-  assert.equal(await p.getByTestId('platform-filter').inputValue(), 'ngage2');
-  await p.getByTestId('platform-filter').selectOption('symbian');
+  assert.equal(await p.getByTestId('platform-filter').locator('button[aria-pressed="true"]').getAttribute('data-platform'), 'ngage2');
+  await p.getByTestId('platform-filter').locator('button[data-platform="symbian"]').click();
   await wait(async () => await p.locator('.game-card').count() === 1, 'Symbian filter');
   assert.ok(await p.locator('.card-main').isEnabled(), 'missing KEmulator must not block a native game');
 
