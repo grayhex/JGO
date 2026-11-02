@@ -856,5 +856,17 @@
   "Programs in .sis and .sisx files. Old .sis (S60 1st/2nd Edition) need a phone like the N70, newer .sisx need an S60 3rd Edition or later phone. Needs a firmware of this phone.": "Программы в файлах .sis и .sisx. Старым .sis (S60 1-го/2-го издания) нужен телефон вроде N70, более новым .sisx — S60 3rd Edition и новее. Нужна прошивка этого телефона.",
   "Original N-Gage games (game card dumps). They run on N-Gage and N-Gage QD. Needs a firmware of this phone.": "Игры оригинального N-Gage (дампы карточек). Работают на N-Gage и N-Gage QD. Нужна прошивка этого телефона.",
   "Games": "Игры",
-  "Covers": "Обложки"
+  "Covers": "Обложки",
+  "Options": "Опции",
+  "Sign out": "Выйти",
+  "Sign out of this browser": "Выйти в этом браузере",
+  "Screen size of the phone": "Размер экрана телефона",
+  "Something went wrong on this page": "На этой странице что-то пошло не так",
+  "Your games and saves are safe on the server, and a running game keeps running. Reload the page, or go back to the library.": "Ваши игры и сохранения в безопасности на сервере, запущенная игра продолжает работать. Обновите страницу или вернитесь в библиотеку.",
+  "Reload the page": "Обновить страницу",
+  "Back to the library": "Вернуться в библиотеку",
+  "Details for a bug report": "Подробности для отчёта об ошибке",
+  "on": "вкл",
+  "off": "выкл",
+  "Symbian": "Symbian"
 }

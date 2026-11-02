@@ -56,6 +56,23 @@ describe('setup, settings, library and MobyGames over the API', () => {
     assert.equal((await call('GET', '/api/health', undefined, {})).status, 200, 'health stays public');
   });
 
+  it('guessing the token is slowed down: ten wrong ones a minute, then 429; the right one still works from another address', async () => {
+    const wrong = () => app.fastify.inject({ method: 'POST', url: '/api/auth/login', payload: { token: 'not-the-token-0123456789' }, remoteAddress: '203.0.113.9' });
+    for (let i = 0; i < 10; i++) assert.equal((await wrong()).statusCode, 401);
+    const blocked = await wrong();
+    assert.equal(blocked.statusCode, 429); assert.ok(Number(blocked.headers['retry-after']) > 0);
+    const bearer = await app.fastify.inject({ method: 'GET', url: '/api/settings', headers: { authorization: 'Bearer nope-nope-nope-nope' }, remoteAddress: '203.0.113.9' });
+    assert.equal(bearer.statusCode, 429, 'the same address cannot go on guessing with a Bearer header either');
+    assert.equal((await app.fastify.inject({ method: 'POST', url: '/api/auth/login', payload: { token: TOKEN }, remoteAddress: '198.51.100.7' })).statusCode, 200);
+    assert.equal((await app.fastify.inject({ method: 'GET', url: '/api/settings', headers: { authorization: `Bearer ${TOKEN}` }, remoteAddress: '198.51.100.7' })).statusCode, 200);
+  });
+
+  it('signing out clears the cookie, also without being signed in', async () => {
+    const out = await app.fastify.inject({ method: 'POST', url: '/api/auth/logout', remoteAddress: '192.0.2.50' });
+    assert.equal(out.statusCode, 200);
+    assert.match(String(out.headers['set-cookie']), /Max-Age=0/);
+  });
+
   it('a fresh install asks for the wizard; skipping and re-running work', async () => {
     assert.equal((await call('GET', '/api/setup')).json.needsWizard, true);
     assert.equal((await call('POST', '/api/setup/skip')).json.status, 'skipped');

@@ -77,10 +77,10 @@ function PhoneCard({ skin, frame, current, disabled, onPick, catalog, fit, mine 
       <div className="phone-platforms">{platforms.map(p => <span key={p} className={fit.native === p ? 'fit-on' : ''}><PlatformTag platform={p} size="sm" /></span>)}</div>
       {fw.devices.length > 0 && (
         <InfoChip icon={<Icon name={fw.loaded.length ? 'check' : 'alert'} />} tone={fw.loaded.length ? 'ok' : 'warn'} testId={`phone-firmware-${c.id}`} dataset={{ 'data-loaded': fw.loaded.length ? '1' : '0' }}
-          title={translateUI(fw.loaded.length ? 'The firmware for this phone is installed in the Symbian service, so its games can run here.' : 'No firmware for this phone is installed. Add it in Settings → Symbian; the picture alone cannot run Symbian games.')}>
+          title={`${translateUI(fw.loaded.length ? 'The firmware for this phone is installed in the Symbian service, so its games can run here.' : 'No firmware for this phone is installed. Add it in Settings → Symbian; the picture alone cannot run Symbian games.')} (${fw.devices.map(d => d.firmware.product).join(', ')})`}>
           {fw.loaded.length
-            ? `${translateUI('Firmware loaded')} · ${fw.loaded.map(d => d.firmware.product).join(', ')}`
-            : `${translateUI('Firmware not loaded')} · ${fw.devices.map(d => d.firmware.product).join(', ')}`}
+            ? `${translateUI('Firmware')} ${fw.loaded.map(d => d.firmware.product).join(', ')}`
+            : translateUI('No firmware')}
         </InfoChip>
       )}
     </button>

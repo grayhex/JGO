@@ -31,7 +31,7 @@ docker compose -f compose.yaml -f compose.build.yaml up -d --build
 
 ## 2. Проверить службу
 
-Откройте MGO → **Settings → Symbian (experimental)**. Должно быть «Service connected» и `EKA2L1 master-e04eb03`.
+Откройте MGO → **Settings → Firmware**. Должно быть «Service connected» и `EKA2L1 master-e04eb03`.
 
 | Видите | Значит |
 |---|---|

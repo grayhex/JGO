@@ -153,12 +153,13 @@ export function Player({ gameId, toast, onExit, health }: { gameId: string; toas
         if (!g) { toast('error', 'Game not found'); if (getLastGame()?.id === gameId) setLastGame(null); onExit(); return; }
         if (dead) return;
         setGame(g); setLastGame({ id: g.id, name: g.name }); setLayout(g.settings.layout); setRes({ width: g.settings.width, height: g.settings.height }); setDevice(g.settings.device ?? ''); setHeapMb(g.settings.heapMb); setTweaks(g.settings.emulation ?? {}); setAdvanced(g.settings.profileMode === 'advanced'); if (g.settings.skinId && isSkinId(g.settings.skinId)) setPrefs({skinId:g.settings.skinId}); else if ((g.platform ?? 'j2me') === 'j2me') { const d = getServerSettings()?.settings.phone.skinId; if (isSkinId(d)) setPrefs({ skinId: d }); } setLoaded(true);
+        // only a JAR has an analysis (a Symbian / N-Gage package answers 404: no error in the console for nothing)
+        if ((g.platform ?? 'j2me') === 'j2me') api.analysis(gameId).then((a) => { if (!dead) setAnalysis(a); }, () => undefined);
         const running = (await api.sessions()).find((s) => s.gameId === gameId && (s.state === 'running' || s.state === 'starting'));
         if (running && !dead) attach(running);
       } catch (e) { toast('error', (e as Error).message); }
     })();
     api.devices().then((d) => { if (!dead) setDevices(d.presets); }, () => undefined);
-    api.analysis(gameId).then((a) => { if (!dead) setAnalysis(a); }, () => undefined);
     return () => { dead = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameId]);
